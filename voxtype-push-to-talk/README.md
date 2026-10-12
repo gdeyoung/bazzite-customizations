@@ -37,6 +37,7 @@ voxtype 1.1.0, WhisperX (`large-v3` class, float16 CUDA) on the LAN:
 | CLI `voxtype transcribe`, 5.1 s synthetic sample | 0.51 s, exact text |
 | Typing delivery under concurrent key events | 150/150 keystrokes delivered (kernel-level capture) |
 | `type_delay_ms = 0` (default) | intermittent truncation — typed output cut at ~16–20 chars |
+| `type_delay_ms = 2` | 5/5 consecutive dictations complete — daily-driver setting |
 | `type_delay_ms = 5` | 5/5 consecutive dictations complete |
 | `type_delay_ms = 10` | 5/5 consecutive dictations complete |
 
@@ -50,7 +51,9 @@ voxtype 1.1.0, WhisperX (`large-v3` class, float16 CUDA) on the LAN:
    otherwise accept a zero-delay event burst while silently dropping the tail of
    a long dictation") — but the built-in 1 ms safety pacing is **eitype-only**,
    and on KDE the driver chain (`wtype` unavailable → `eitype` not installed →
-   `ydotool`) fell through to an unpaced driver. Fix: `[output] type_delay_ms = 5`.
+   `ydotool`) fell through to an unpaced driver. Fix: `[output] type_delay_ms = 2`
+   (verified 5/5 back-to-back; 5 and 10 also 5/5 — if truncation ever reappears,
+   raise through 5 → 10).
    Diagnosis tip: run the daemon as `voxtype -v daemon` — the debug log prints
    the exact `ydotool type --key-delay N …` invocation.
 2. **The Menu key opens context menus.** If your PTT key reports as
@@ -97,7 +100,7 @@ export ASR_ENDPOINT="http://<your-whisperx-host>:10230"
 
 # Optional overrides (defaults in the script header):
 #   HOTKEY_EVDEV_CODE=127        # PTT key (127 = KEY_COMPOSE / Menu position)
-#   TYPE_DELAY_MS=5              # KWin tail-drop pacing
+#   TYPE_DELAY_MS=2              # KWin tail-drop pacing (0 breaks; 2/5/10 all verified 5/5)
 #   MIC_NODE_PATTERN="usb-Shure" # PipeWire node regex for your mic
 
 bash install-voxtype-remote.sh

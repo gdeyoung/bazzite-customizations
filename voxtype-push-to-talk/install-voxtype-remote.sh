@@ -19,7 +19,7 @@ VOXTYPE_VERSION="${VOXTYPE_VERSION:-1.1.0}"
 # learnedmachine/whisperx-asr-service container does, alongside /asr).
 ASR_ENDPOINT="${ASR_ENDPOINT:-}"
 HOTKEY_EVDEV_CODE="${HOTKEY_EVDEV_CODE:-127}"   # 127 = KEY_COMPOSE (Menu-position key)
-TYPE_DELAY_MS="${TYPE_DELAY_MS:-5}"             # KWin drops zero-delay tails; 5 verified 5/5
+TYPE_DELAY_MS="${TYPE_DELAY_MS:-2}"             # KWin drops zero-delay tails; 2/5/10 verified 5/5
 MIC_NODE_PATTERN="${MIC_NODE_PATTERN:-usb-Shure}"  # PipeWire node.name regex for the PTT mic
 
 # Known-good SHA256 for v1.1.0 x86_64-avx2 (verified against release SHA256SUMS.txt)
@@ -202,7 +202,7 @@ cat <<'EOF'
 DONE. Hold the push-to-talk key, speak, release.
  - Journal:      journalctl --user -u voxtype -f
  - Reconfigure:  voxtype configure
- - If typed text truncates intermittently: raise output.type_delay_ms to 10.
+ - If typed text truncates intermittently: raise output.type_delay_ms through 5, then 10.
  - Known limits: ydotool types raw US keycodes (non-US layouts garble);
                  OSD crash exit 127 = layer-shell wrapper LD_LIBRARY_PATH.
 
