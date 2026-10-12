@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Live RAM, CPU, network rate and disk stats in the panel \u2014 click for performance charts, per-core grid, GPU, processes and a fastfetch-grade Hardware tab. Plasma 6 port of gdeyoung.sysmon (Omarchy).",
+        "Icon": "utilities-system-monitor",
+        "Id": "com.gdeyoung.plasma.sysmon",
+        "License": "MIT",
+        "Name": "SysMon",
+        "Version": "0.6.0",
+        "Website": "https://github.com/gdeyoung/omarchy-sysmon"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

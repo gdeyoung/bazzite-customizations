@@ -13,9 +13,8 @@ hardware with measured numbers, and honest about the failures that shaped it.
 
 | Entry | What it does |
 |---|---|
+| [plasma-sysmon](plasma-sysmon/) | Live **M/C/N/D** system monitor for the KDE Plasma 6 panel — compact bar strip that expands into a tabbed task-manager popup (performance charts, GPU VRAM/GTT, disk gauges, killable process table, hardware inventory). Pure QML + shell probes, user-level install. |
 | [voxtype-push-to-talk](voxtype-push-to-talk/) | Hold-to-talk dictation into any app on KDE Plasma Wayland, transcribed by a **remote WhisperX server** — no local model on the desktop. Full write-up + parameterized install script. |
-
-*(Plugins to come — this repo is also the home for KDE Plasma widgets built for Bazzite.)*
 
 ## House rules
 

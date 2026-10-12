@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="refreshSeconds" type="Int">
+            <label>Refresh interval (seconds)</label>
+            <default>2</default>
+        </entry>
+        <entry name="barMode" type="String">
+            <label>Bar layout: compact (letters + level bars) or values (full readouts)</label>
+            <default>compact</default>
+        </entry>
+    </group>
+</kcfg>
