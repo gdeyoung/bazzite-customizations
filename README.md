@@ -16,6 +16,13 @@ hardware with measured numbers, and honest about the failures that shaped it.
 | [plasma-sysmon](plasma-sysmon/) | Live **M/C/N/D** system monitor for the KDE Plasma 6 panel — compact bar strip that expands into a tabbed task-manager popup (performance charts, GPU VRAM/GTT, disk gauges, killable process table, hardware inventory). Pure QML + shell probes, user-level install. |
 | [voxtype-push-to-talk](voxtype-push-to-talk/) | Hold-to-talk dictation into any app on KDE Plasma Wayland, transcribed by a **remote WhisperX server** — no local model on the desktop. Full write-up + parameterized install script. |
 
+## Related
+
+- **[galaxybook5-pro-platform](https://github.com/gdeyoung/galaxybook5-pro-platform)** —
+  internal-speaker fix for the Samsung Galaxy Book5 Pro on Linux (MAX98390 amps), written
+  for this Bazzite machine; now also carries the Omarchy/Arch field report and the
+  speaker-loudness findings. The hardware half of this repo's story.
+
 ## House rules
 
 - **Immutable-friendly**: no system mutations; systemd user units, `~/.local`, XDG config only.
