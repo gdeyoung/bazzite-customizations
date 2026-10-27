@@ -1,0 +1,339 @@
+#!/bin/bash
+#
+# Ready Room instant replay: a gpu-screen-recorder ring buffer you arm once
+# and save from afterwards.
+#
+# The one non-obvious thing here is the rename. omarchy-capture-screenrecording
+# gates its entire entry point on `pgrep -f "^gpu-screen-recorder"` and stops
+# recording with `pkill -SIGINT -f "^gpu-screen-recorder"`. A replay buffer
+# running under the default name is therefore indistinguishable from a
+# recording, so pressing the user's screenrecord keybind would kill the buffer
+# instead of starting a recording. Launching through `exec -a` gives the
+# process a different argv[0] and the two stay out of each other's way.
+#
+# tests/run.sh pins that behaviour: if Omarchy ever un-anchors its pattern, the
+# test fails loudly rather than the mitigation dying in silence.
+#
+set -uo pipefail
+
+ALT_NAME="gdeyoung-readyroom-replay"
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/gdeyoung-readyroom-$(id -u)}/gdeyoung-readyroom"
+PID_FILE="$STATE_DIR/replay.pid"
+CONF_FILE="$STATE_DIR/replay.json"
+LOG_FILE="$STATE_DIR/replay.log"
+LAST_CLIP="$STATE_DIR/last-clip"
+SOCK="$STATE_DIR/gsr.sock"
+
+PLUGIN_DIR="$(dirname "$(dirname "$(realpath "$0")")")"
+
+mkdir -p "$STATE_DIR"
+
+# A unix socket path is capped at 108 bytes. $XDG_RUNTIME_DIR is /run/user/1000
+# here so we are nowhere near it, but a login with an unusual runtime dir must
+# fail loudly rather than have gsr truncate the path underneath us.
+if (( ${#SOCK} > 100 )); then
+  echo '{"ok":false,"error":"socket path too long"}' >&2
+  exit 1
+fi
+
+default_dir() {
+  local d="${OMARCHY_SCREENRECORD_DIR:-}"
+  [[ -z $d ]] && d="$(xdg-user-dir VIDEOS 2>/dev/null)"
+  [[ -z $d || $d == "$HOME" ]] && d="$HOME/Videos"
+  printf '%s/Clips\n' "$d"
+}
+
+proc_start_time() { awk '{print $22}' "/proc/$1/stat" 2>/dev/null; }
+
+# Identity is the pid *and* its start time. Pids get recycled, and `comm` is
+# truncated to 15 characters by the kernel so the renamed process cannot be
+# matched by name reliably either.
+running_pid() {
+  [[ -f $PID_FILE ]] || return 1
+  local pid start
+  read -r pid start <"$PID_FILE" 2>/dev/null
+  [[ -n ${pid:-} && -d /proc/$pid ]] || return 1
+  [[ "$(proc_start_time "$pid")" == "$start" ]] || return 1
+  printf '%s\n' "$pid"
+}
+
+# Is a *stock* Omarchy recording running? Ours is invisible to this by design,
+# so a hit here means the user pressed their screenrecord key.
+stock_recording() { pgrep -f '^gpu-screen-recorder' >/dev/null; }
+
+focused_monitor() {
+  hyprctl activeworkspace -j 2>/dev/null |
+    python3 -c 'import sys,json;print(json.load(sys.stdin).get("monitor",""))' 2>/dev/null
+}
+
+monitor_geometry() { # name → "WIDTHxHEIGHT@REFRESH"
+  hyprctl monitors -j 2>/dev/null | python3 -c "
+import sys, json
+name = sys.argv[1]
+for m in json.load(sys.stdin):
+    if m['name'] == name:
+        print('%dx%d@%d' % (m['width'], m['height'], round(m.get('refreshRate', 60))))
+        break
+" "$1" 2>/dev/null
+}
+
+# Quality tiers are kbps at 1080p60, scaled by the pixels and frame rate we are
+# actually capturing — a 3440x1440 ultrawide needs roughly 2.4x the bitrate of
+# 1080p for the same picture.
+bitrate_for() { # tier width height fps
+  local tier="$1" w="$2" h="$3" fps="$4" base
+  case "$tier" in
+    low) base=8000 ;;
+    balanced) base=15000 ;;
+    high) base=25000 ;;
+    ultra) base=40000 ;;
+    *) base=15000 ;;
+  esac
+  python3 -c "
+import sys
+base, w, h, fps = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
+scale = (w * h * fps) / (1920 * 1080 * 60)
+print(max(4000, min(120000, round(base * scale))))
+" "$base" "$w" "$h" "$fps"
+}
+
+mem_available_kb() { awk '/^MemAvailable:/ {print $2}' /proc/meminfo; }
+disk_available_kb() { df --output=avail -k "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+
+json_error() { jq -n --arg e "$1" '{ok:false,error:$e}'; }
+
+# ---------------------------------------------------------------- arm
+
+cmd_arm() {
+  local seconds=300 storage="disk" tier="balanced" monitor="" dir="" fps="" audio="desktop"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --seconds) seconds="${2:-300}"; shift ;;
+      --storage) storage="${2:-disk}"; shift ;;
+      --quality) tier="${2:-balanced}"; shift ;;
+      --monitor) monitor="${2:-}"; shift ;;
+      --dir) dir="${2:-}"; shift ;;
+      --fps) fps="${2:-}"; shift ;;
+      --audio) audio="${2:-desktop}"; shift ;;
+      *) json_error "unknown option $1"; return 2 ;;
+    esac
+    shift
+  done
+
+  if running_pid >/dev/null; then
+    json_error "already armed"
+    return 1
+  fi
+
+  command -v gpu-screen-recorder >/dev/null || { json_error "gpu-screen-recorder is not installed"; return 1; }
+
+  [[ -z $monitor ]] && monitor="$(focused_monitor)"
+  [[ -z $monitor ]] && { json_error "could not determine which monitor to capture"; return 1; }
+
+  local geom w h refresh
+  geom="$(monitor_geometry "$monitor")"
+  [[ -z $geom ]] && { json_error "unknown monitor $monitor"; return 1; }
+  w="${geom%%x*}"; h="${geom#*x}"; h="${h%%@*}"; refresh="${geom##*@}"
+  # Default to 60 even on a 120Hz panel. A replay buffer is watched back, not
+  # played, and the cost of matching the monitor is paid twice: in bitrate (so
+  # in RAM, every second, for the whole session) and in encoder load while you
+  # are trying to game. Anyone who wants 120 can ask for it.
+  [[ -z $fps ]] && fps=$(( refresh < 60 ? refresh : 60 ))
+  (( fps > 240 )) && fps=240
+  # Windows-Game-Bar-style buffers run minutes, not seconds; cap at 15 minutes
+  # so a typo cannot ask gsr for an afternoon.
+  (( seconds > 900 )) && seconds=900
+
+  [[ -z $dir ]] && dir="$(default_dir)"
+  mkdir -p "$dir" || { json_error "cannot create $dir"; return 1; }
+
+  local kbps est_kb ram_kb avail
+  kbps="$(bitrate_for "$tier" "$w" "$h" "$fps")"
+  est_kb=$(( kbps * seconds / 8 ))
+  # Measured: a 30s 53Mbps buffer held 379MB RSS against a 200MB payload, so
+  # the encoder's own working set is worth about the same again. Estimating the
+  # payload alone would let us arm a buffer that then eats the machine.
+  # Measured RSS against payload on this machine:
+  #
+  #   26.7Mbps x 30s = 100MB payload → 285MB   (2560x1440)
+  #   53.3Mbps x 30s = 200MB payload → 379MB   (2560x1440)
+  #   35.8Mbps x 30s = 134MB payload → 433MB   (3440x1440)
+  #
+  # The encoder's own working set is a large fixed cost that scales with the
+  # captured resolution, not with buffer length — so a multiplier under-counts
+  # short buffers badly. Payload plus a flat 400MB is the honest floor.
+  ram_kb=$(( est_kb + 409600 ))
+
+  # Refuse rather than let the machine swap or fill a disk mid-game.
+  if [[ $storage == "ram" ]]; then
+    avail="$(mem_available_kb)"
+    if (( avail < ram_kb + 524288 )); then
+      json_error "not enough free memory for a ${seconds}s buffer (needs ~$((ram_kb/1024))MB, $((avail/1024))MB free)"
+      return 1
+    fi
+  else
+    avail="$(disk_available_kb "$dir")"
+    if (( avail < est_kb + 2097152 )); then
+      json_error "not enough free disk for a ${seconds}s buffer (needs ~$((est_kb/1024))MB plus 2GB headroom)"
+      return 1
+    fi
+  fi
+
+  local -a audio_args=()
+  case "$audio" in
+    desktop) audio_args=(-a default_output) ;;
+    both) audio_args=(-a default_output -a default_input) ;;
+    none) audio_args=() ;;
+  esac
+
+  rm -f "$SOCK"
+  : >"$LOG_FILE"
+
+  # CBR is what gsr's own manual recommends for a replay buffer, and it makes
+  # the memory estimate above honest.
+  setsid bash -c "exec -a $ALT_NAME gpu-screen-recorder \
+    -w '$monitor' -f '$fps' -k auto -fm cfr -bm cbr -q '$kbps' \
+    -fallback-cpu-encoding yes \
+    -r '$seconds' -replay-storage '$storage' -restart-replay-on-save no \
+    -c mp4 -o '$dir' -ipc '$SOCK' -sc '$PLUGIN_DIR/bin/gc-clip-saved' \
+    ${audio_args[*]}" >>"$LOG_FILE" 2>&1 &
+
+  # gsr creates the socket once it is actually capturing, so this doubles as a
+  # readiness check rather than a fixed sleep.
+  local pid="" i
+  for ((i = 0; i < 40; i++)); do
+    [[ -S $SOCK ]] && break
+    sleep 0.25
+  done
+  pid="$(pgrep -f "^$ALT_NAME " | head -1)"
+
+  if [[ -z $pid || ! -S $SOCK ]]; then
+    json_error "$(tail -3 "$LOG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/"/\x27/g')"
+    [[ -n $pid ]] && kill "$pid" 2>/dev/null
+    return 1
+  fi
+
+  printf '%s %s\n' "$pid" "$(proc_start_time "$pid")" >"$PID_FILE"
+  jq -n --arg dir "$dir" --arg mon "$monitor" --argjson sec "$seconds" \
+        --arg storage "$storage" --arg tier "$tier" --argjson kbps "$kbps" \
+        --argjson fps "$fps" --arg audio "$audio" \
+    '{dir:$dir,monitor:$mon,seconds:$sec,storage:$storage,quality:$tier,kbps:$kbps,fps:$fps,audio:$audio}' \
+    >"$CONF_FILE"
+
+  cmd_status
+}
+
+# ---------------------------------------------------------------- disarm
+
+cmd_disarm() {
+  local pid
+  pid="$(running_pid)" || { rm -f "$PID_FILE"; cmd_status; return 0; }
+
+  # SIGINT, not SIGTERM: it is what gsr finalizes on, and what the stock
+  # Omarchy script uses. SIGTERM was observed not to stop it within 2s.
+  kill -INT "$pid" 2>/dev/null
+  local i
+  for ((i = 0; i < 40; i++)); do
+    [[ -d /proc/$pid ]] || break
+    sleep 0.25
+  done
+  [[ -d /proc/$pid ]] && kill -9 "$pid" 2>/dev/null
+
+  rm -f "$PID_FILE" "$SOCK"
+  cmd_status
+}
+
+# ---------------------------------------------------------------- save
+
+# QML normally talks to the socket itself so it gets the saved path back in the
+# reply. This path exists for keybindings and for the fallbacks.
+cmd_save() {
+  local seconds="${1:-}"
+  running_pid >/dev/null || { json_error "not armed"; return 1; }
+
+  local out
+  if [[ -n $seconds ]]; then
+    out="$(gsr-cli -ipc "$SOCK" save-replay "$seconds" 2>&1)"
+  else
+    out="$(gsr-cli -ipc "$SOCK" save-replay 2>&1)"
+  fi
+  local rc=$?
+
+  if (( rc != 0 )); then
+    # Last resort: the signal saves the whole buffer and tells us nothing about
+    # where it went, so the -sc hook is what surfaces the path.
+    local pid; pid="$(running_pid)"
+    kill -USR1 "$pid" 2>/dev/null && { jq -n '{ok:true,via:"signal"}'; return 0; }
+    json_error "$out"
+    return 1
+  fi
+
+  jq -n --arg out "$out" '{ok:true,via:"gsr-cli",detail:$out}'
+}
+
+# ---------------------------------------------------------------- status
+
+cmd_status() {
+  local pid armed=false
+  if pid="$(running_pid)"; then armed=true; else pid=""; fi
+
+  jq -n \
+    --argjson armed "$armed" \
+    --arg pid "$pid" \
+    --argjson conf "$(cat "$CONF_FILE" 2>/dev/null || echo null)" \
+    --arg lastClip "$(cat "$LAST_CLIP" 2>/dev/null)" \
+    --argjson stock "$(stock_recording && echo true || echo false)" \
+    --arg sock "$SOCK" \
+    --arg log "$(tail -3 "$LOG_FILE" 2>/dev/null | tr '\n' ' ')" \
+    '{armed:$armed, pid:$pid, config:$conf, lastClip:$lastClip,
+      stockRecording:$stock, socket:$sock, log:$log}'
+}
+
+# ---------------------------------------------------------------- clips
+
+# One find, newest first. maxdepth 2 because gsr's -df option puts clips in
+# date folders. Never a FileView on the video directory itself.
+cmd_clips() {
+  local dir
+  dir="$(jq -r '.dir // empty' "$CONF_FILE" 2>/dev/null)"
+  [[ -z $dir ]] && dir="$(default_dir)"
+  [[ -d $dir ]] || { echo '[]'; return 0; }
+
+  find "$dir" -maxdepth 2 -type f \( -name '*.mp4' -o -name '*.mkv' \) \
+       -printf '%T@\t%s\t%p\n' 2>/dev/null |
+    sort -rn | head -50 |
+    jq -R -s 'split("\n") | map(select(length > 0) | split("\t") |
+      {mtime: (.[0] | tonumber | floor), size: (.[1] | tonumber), path: .[2],
+       name: (.[2] | split("/") | last)})'
+}
+
+cmd_delete() {
+  local target="${1:-}" dir real
+  [[ -n $target ]] || { json_error "no path"; return 2; }
+  dir="$(jq -r '.dir // empty' "$CONF_FILE" 2>/dev/null)"
+  [[ -z $dir ]] && dir="$(default_dir)"
+
+  # Path guard: resolve first, then require the result to sit inside the clip
+  # directory, so a crafted or stale path cannot delete something else.
+  real="$(realpath -m "$target")"
+  case "$real" in
+    "$(realpath -m "$dir")"/*) ;;
+    *) json_error "refusing to delete outside the clip folder"; return 1 ;;
+  esac
+  [[ -f $real ]] || { json_error "no such clip"; return 1; }
+  rm -f -- "$real" && jq -n --arg p "$real" '{ok:true,deleted:$p}'
+}
+
+case "${1:-status}" in
+  arm) shift; cmd_arm "$@" ;;
+  disarm) cmd_disarm ;;
+  save) shift; cmd_save "${1:-}" ;;
+  status) cmd_status ;;
+  clips) cmd_clips ;;
+  delete) shift; cmd_delete "${1:-}" ;;
+  *)
+    echo "Usage: gc-replay [arm|disarm|save|status|clips|delete]" >&2
+    exit 2
+    ;;
+esac

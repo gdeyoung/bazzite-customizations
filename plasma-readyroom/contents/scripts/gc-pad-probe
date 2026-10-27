@@ -1,0 +1,611 @@
+#!/usr/bin/env python3
+"""One-shot controller inventory. Python standard library only.
+
+This is the half of the controller support that must work on a bare install:
+which pads are connected, what they are, how much battery they have, and — the
+part that actually shapes the UI — what each one can *do*. Live input needs
+SDL3 and is a separate helper; everything here works without it.
+
+Capabilities are computed here rather than in QML on purpose. The panel should
+never show a control that silently does nothing, and whether a control works
+depends on the driver, on the connection, and sometimes on whether a udev rule
+has been installed. That is a question about this machine, so it gets answered
+where the machine is, once, and the answer is data.
+
+Prints one JSON object on stdout.
+"""
+
+import fcntl
+import glob
+import json
+import os
+import re
+import sys
+
+PROC_DEVICES = "/proc/bus/input/devices"
+LEDS = "/sys/class/leds"
+USB_DEVICES = "/sys/bus/usb/devices"
+HID_DEVICES = "/sys/bus/hid/devices"
+
+# What each driver can actually do on Linux. Anything not listed gets the
+# conservative "we can read it, we cannot poke it" treatment.
+#
+# The Xbox numbers are the ones that surprise people: xone reports battery only
+# as a five-level bucket and never reports charging, because the driver
+# registers CAPACITY_LEVEL and not CAPACITY. Inventing a percentage from that
+# would be a lie, so the UI draws five segments.
+DRIVER_CAPS = {
+    "xone_gip_gamepad": {
+        "rumble": True,
+        "triggerRumble": False,     # hardware has the motors; xone maps only strong/weak
+        "batteryKind": "level",     # Unknown/Low/Normal/High/Full
+        "charging": False,          # xone never reports Charging
+        "led": True,                # via /sys/class/leds, needs a udev rule
+        "deadzone": False,
+    },
+    "hid_xpadneo": {
+        "rumble": True,
+        "triggerRumble": True,
+        "batteryKind": "level",     # upgraded to "percent" below if the node has one
+        "charging": True,
+        "led": False,
+        "deadzone": False,
+    },
+    "xpad": {
+        "rumble": True,
+        "triggerRumble": False,
+        "batteryKind": "none",
+        "charging": False,
+        "led": False,
+        "deadzone": False,
+    },
+    # Steam Controller (2015) on the in-kernel hid-steam driver.
+    #
+    # Read from drivers/hid/hid-steam.c rather than assumed, and every "False"
+    # here is a real limitation rather than caution:
+    #
+    #   rumble  — force feedback is gated on STEAM_QUIRK_DECK|IBEX, so the 2015
+    #             pad gets no EV_FF at all and EVIOCSFF will fail. Its haptics
+    #             are trackpad LRAs driven over hidraw, which the driver does
+    #             not expose to userspace. A rumble button here would be a lie.
+    #   battery — registered only for the wireless dongle, and it is a real
+    #             CAPACITY percentage, not a bucket. Wired pads register no
+    #             power_supply at all (the probe then forces "none").
+    #   charging— the driver lists STATUS only for the 2026 Ibex. The 2015 pad
+    #             runs on two AAs and never reports charging.
+    #   led     — no led_classdev anywhere in the driver.
+    #
+    # Verified against a wired 28de:1102 on kernel 7.2: the evdev node carries
+    # no FF bits at all, and no power_supply node is registered. See
+    # docs/STEAM-CONTROLLER.md.
+    "hid_steam": {
+        "rumble": False,
+        "triggerRumble": False,
+        "batteryKind": "percent",
+        "charging": False,
+        "led": False,
+        "deadzone": False,
+    },
+    "hid_playstation": {
+        "rumble": True,
+        "triggerRumble": True,
+        "batteryKind": "percent",
+        "charging": True,
+        "led": True,
+        "deadzone": False,
+    },
+}
+
+DEFAULT_CAPS = {
+    "rumble": False,
+    "triggerRumble": False,
+    "batteryKind": "none",
+    "charging": False,
+    "led": False,
+    "deadzone": False,
+}
+
+
+def read(path, default=""):
+    try:
+        with open(path, "r", errors="replace") as fh:
+            return fh.read().strip()
+    except OSError:
+        return default
+
+
+def parse_proc_devices():
+    """Yield one dict per input device from /proc/bus/input/devices."""
+    blocks, current = [], {}
+    try:
+        with open(PROC_DEVICES, "r", errors="replace") as fh:
+            for line in fh:
+                line = line.rstrip("\n")
+                if not line:
+                    if current:
+                        blocks.append(current)
+                        current = {}
+                    continue
+                tag, _, rest = line.partition(": ")
+                if tag == "I":
+                    for part in rest.split():
+                        k, _, v = part.partition("=")
+                        current[k.lower()] = v
+                elif tag == "N":
+                    m = re.match(r'Name="(.*)"', rest)
+                    current["name"] = m.group(1) if m else rest
+                elif tag == "S":
+                    current["sysfs"] = rest.replace("Sysfs=", "")
+                elif tag == "U":
+                    current["uniq"] = rest.replace("Uniq=", "")
+                elif tag == "H":
+                    current["handlers"] = rest.replace("Handlers=", "").split()
+                elif tag == "B":
+                    key, _, value = rest.partition("=")
+                    current.setdefault("bits", {})[key.strip().lower()] = value.strip()
+    except OSError:
+        return []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def driver_for(sysfs_rel):
+    """Walk up the sysfs tree looking for the module that claimed the device.
+
+    sysfs spells the driver with hyphens ("xone-gip-gamepad") while /proc/modules
+    spells the same thing with underscores ("xone_gip_gamepad"). Normalising is
+    not cosmetic: a mismatch here silently drops every pad to the default
+    capability set, which reads as "this controller has no rumble".
+    """
+    path = "/sys" + sysfs_rel
+    for _ in range(6):
+        path = os.path.dirname(path)
+        if path in ("/sys", "/", ""):
+            break
+        link = os.path.join(path, "driver")
+        if os.path.islink(link):
+            return os.path.basename(os.path.realpath(link)).replace("-", "_")
+    return ""
+
+
+def battery_for(sysfs_rel):
+    """Find a power_supply node belonging to this device or one of its parents."""
+    path = "/sys" + sysfs_rel
+    for _ in range(6):
+        path = os.path.dirname(path)
+        if path in ("/sys", "/", ""):
+            break
+        for supply in glob.glob(os.path.join(path, "power_supply", "*")):
+            capacity = read(os.path.join(supply, "capacity"))
+            level = read(os.path.join(supply, "capacity_level"))
+            status = read(os.path.join(supply, "status"))
+            return {
+                "node": os.path.basename(supply),
+                "percent": int(capacity) if capacity.isdigit() else None,
+                "level": level or None,
+                "status": status or None,
+            }
+    return None
+
+
+def led_for(name_hint):
+    """An Xbox pad's guide-button LED shows up as its own LED class device.
+
+    It is root owned with no uaccess tag, so being able to *see* it is not the
+    same as being able to *set* it — the panel needs both facts to decide
+    between a slider and an offer to install the udev rule.
+    """
+    for led in sorted(glob.glob(os.path.join(LEDS, "*:white:status"))):
+        base = os.path.basename(led)
+        if name_hint and not base.startswith(name_hint.split(".")[0]):
+            continue
+        brightness = os.path.join(led, "brightness")
+        return {
+            "path": led,
+            "name": base,
+            "max": read(os.path.join(led, "max_brightness")) or None,
+            "brightness": read(brightness) or None,
+            "writable": os.access(brightness, os.W_OK),
+            "hasMode": os.path.exists(os.path.join(led, "mode")),
+        }
+    return None
+
+
+def dongles():
+    """Xbox Wireless Adapters, and whether we can put one into pairing mode.
+
+    Pairing is a sysfs attribute the driver exposes; writing it needs root
+    unless a udev rule has granted the seat access, so the panel offers the
+    rule rather than a button that fails.
+    """
+    found = []
+    for iface in glob.glob(os.path.join(USB_DEVICES, "*:1.0")):
+        driver_link = os.path.join(iface, "driver")
+        if not os.path.islink(driver_link):
+            continue
+        if os.path.basename(os.path.realpath(driver_link)) != "xone-dongle":
+            continue
+        pairing = os.path.join(iface, "pairing")
+        clients = read(os.path.join(iface, "active_clients"))
+        m = re.search(r"Active clients:\s*(\d+)", clients)
+        found.append({
+            "path": iface,
+            "pairing": read(pairing) == "1",
+            "writable": os.access(pairing, os.W_OK),
+            "activeClients": int(m.group(1)) if m else None,
+        })
+    return found
+
+
+# Drivers that hand the controller over to a userspace program on request.
+#
+# hid-steam does this by design: when anything opens the controller's hidraw
+# node, the driver unregisters the gamepad's evdev node entirely so that
+# program can drive the pad itself. Steam does it, and so does Wine/Proton's
+# HID backend for a Windows game. The pad then vanishes from this inventory
+# while remaining plugged in, and "no controllers connected" is a misleading
+# thing to say about a controller sitting right there.
+CLAIMABLE_DRIVERS = {"hid_steam"}
+
+# Valve's product ids, used for a display name. The USB product string reads
+# "Wired Controller", which is not what anyone calls it.
+VALVE_PRODUCTS = {
+    "1102": "Steam Controller",
+    "1142": "Wireless Steam Controller",
+}
+
+
+def usb_parent(path):
+    """The USB device directory owning a sysfs path — the node with idVendor."""
+    path = os.path.realpath(path)
+    for _ in range(8):
+        path = os.path.dirname(path)
+        if path in ("/sys", "/", ""):
+            break
+        if os.path.exists(os.path.join(path, "idVendor")):
+            return path
+    return ""
+
+
+# How a holder's process name reads in a sentence. `comm` is the raw kernel
+# name; only the ones that are really a product name get prettied up, and
+# anything else ("winedevice.exe") is shown as it is, because that is true.
+HOLDER_NAMES = {
+    "steam": "Steam",
+    "steamwebhelper": "Steam",
+}
+
+
+def hidraw_holder(nodes):
+    """Which process holds one of these hidraw nodes open, if we can tell.
+
+    Scanning /proc costs about 70ms for ~14k file descriptors, which is
+    affordable once per probe and is the only way to name the program rather
+    than guess at it. Guessing is the thing to avoid here: the obvious message
+    is "Steam is using this controller", and on a machine running a Proton game
+    with Steam closed that is simply false — the holder is winedevice.exe.
+
+    Also reports whether the same process holds /dev/uinput. A uinput device
+    lives exactly as long as the fd that created it, so a holder with uinput
+    open is one that can be publishing an emulated pad; one without it cannot.
+
+    Only processes owned by this user can be inspected. If the holder belongs
+    to someone else we return None and the caller says less, rather than
+    inventing a name.
+    """
+    wanted = {"/dev/" + n for n in nodes}
+    if not wanted:
+        return None
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        fd_dir = os.path.join("/proc", pid, "fd")
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue        # not ours, or exited between listdir and open
+        targets = set()
+        for fd in fds:
+            try:
+                targets.add(os.readlink(os.path.join(fd_dir, fd)))
+            except OSError:
+                continue
+        if targets & wanted:
+            comm = read(os.path.join("/proc", pid, "comm"))
+            return {
+                "pid": int(pid),
+                "name": HOLDER_NAMES.get(comm, comm) or None,
+                "comm": comm or None,
+                "uinput": "/dev/uinput" in targets,
+            }
+    return None
+
+
+def claimed_devices(pads):
+    """Controllers that are plugged in but have no gamepad node of their own.
+
+    The signature is specific on purpose, because the honest failure here is to
+    say nothing:
+
+      * a HID interface bound to a claimable driver that has no input node.
+        Necessary, but far less selective than it looks — hid-steam leaves one
+        such interface behind even while the pad is working, so on its own this
+        means very little;
+      * no pad in the live inventory belonging to the same USB device, which is
+        what actually stops a working controller being called claimed;
+      * a process actually holding one of that device's hidraw nodes.
+
+    The third rules out a device nobody has open, but it is weaker than it
+    looks for a wireless adapter: the Steam client keeps the adapter open the
+    whole time it runs, whether or not a controller is switched on, and
+    hid-steam registers no input node until one is. So an adapter entry means
+    "the adapter is held", never "a controller is on" — the panel words it
+    that way. When no holder can be identified — including when it belongs to
+    another user and /proc is closed to us — we return nothing and the panel
+    says less.
+    """
+    have = []
+    for pad in pads:
+        if pad.get("sysfs"):
+            have.append(os.path.realpath("/sys" + pad["sysfs"]))
+
+    groups = {}
+    for entry in sorted(glob.glob(os.path.join(HID_DEVICES, "*"))):
+        link = os.path.join(entry, "driver")
+        if not os.path.islink(link):
+            continue
+        driver = os.path.basename(os.path.realpath(link)).replace("-", "_")
+        if driver not in CLAIMABLE_DRIVERS:
+            continue
+        usb = usb_parent(entry)
+        if not usb:
+            continue
+        group = groups.setdefault(usb, {"driver": driver, "hidraw": [], "orphan": False})
+        group["hidraw"].extend(sorted(os.listdir(os.path.join(entry, "hidraw"))
+                                      if os.path.isdir(os.path.join(entry, "hidraw")) else []))
+        if not os.path.isdir(os.path.join(entry, "input")):
+            group["orphan"] = True
+
+    out = []
+    for usb, group in sorted(groups.items()):
+        if not group["orphan"]:
+            continue
+        if any(path.startswith(usb + "/") for path in have):
+            continue        # this device still has a working gamepad node
+        holder = hidraw_holder(group["hidraw"])
+        if not holder:
+            continue        # present but unexplained: say nothing
+        product = read(os.path.join(usb, "idProduct"))
+        vendor = read(os.path.join(usb, "idVendor"))
+        name = VALVE_PRODUCTS.get(product)
+        if not name:
+            name = (read(os.path.join(usb, "manufacturer")) + " "
+                    + read(os.path.join(usb, "product"))).strip() or "Controller"
+        out.append({
+            "name": name,
+            "driver": group["driver"],
+            "vendor": vendor,
+            "product": product,
+            # The USB device directory, relative to /sys like a pad's own
+            # sysfs, so the two lists can be checked against each other by
+            # identity rather than by product id — two identical pads, one
+            # working and one claimed, are a real possibility.
+            "sysfs": usb[len("/sys"):] if usb.startswith("/sys") else usb,
+            "connection": "dongle" if product == "1142" else "usb",
+            "holder": holder,
+        })
+    return out
+
+
+# Vendors whose devices are plausibly gamepads, used only for the fallback
+# below. Matching on the word "controller" alone is not enough: an MSI
+# motherboard exposes "MS MSI Gaming Controller" (vendor 1462) for its RGB
+# lighting, which is emphatically not something to offer a rumble test for.
+PAD_VENDORS = {
+    "28de",  # Valve (Steam Controller, Steam Deck)
+    "045e",  # Microsoft
+    "054c",  # Sony
+    "057e",  # Nintendo
+    "2dc8",  # 8BitDo
+    "0e6f",  # PDP
+    "24c6",  # PowerA
+    "046d",  # Logitech
+}
+
+
+def has_axes(dev):
+    """Does this node report absolute axes at all?
+
+    A Steam Controller presents three interfaces — emulated mouse, emulated
+    keyboard, and the real pad — and hid-steam binds all three, so the driver
+    name alone does not identify the gamepad. The mouse and keyboard nodes have
+    no EV_ABS, which is the cheap way to tell them apart. Without this check a
+    plugin offers a rumble test for someone's emulated keyboard.
+    """
+    bits = dev.get("bits", {}).get("abs", "")
+    return any(c not in "0 " for c in bits)
+
+
+def is_gamepad(dev):
+    # joydev gives every real gamepad a js* handler, and nothing else gets one.
+    if any(h.startswith("js") for h in dev.get("handlers", [])):
+        return True
+    # Fallback for a system without joydev loaded: it has to report axes, look
+    # like a pad by name, and come from a vendor that makes them.
+    if not has_axes(dev):
+        return False
+    name = dev.get("name", "").lower()
+    looks_like_pad = any(w in name for w in ("gamepad", "controller", "xbox", "x-box", "joystick"))
+    return looks_like_pad and dev.get("vendor", "") in PAD_VENDORS
+
+
+VIRTUAL_PREFIX = "/devices/virtual/"
+
+EV_FF = 0x15
+FF_RUMBLE = 0x50
+
+
+def is_virtual(sysfs_rel):
+    """A uinput device, created by a program rather than by hardware.
+
+    Steam Input does this: it takes the real controller over hidraw and
+    publishes an emulated Xbox 360 pad in its place, which is why a Steam
+    Controller can show up here calling itself "Microsoft X-Box 360 pad".
+    """
+    return sysfs_rel.startswith(VIRTUAL_PREFIX)
+
+
+def evdev_can_rumble(node):
+    """Ask the node itself whether it has FF_RUMBLE.
+
+    Used only for a driver with no row in DRIVER_CAPS: most often a virtual
+    pad, which has no driver at all, but also real hardware on a driver the
+    table does not know yet. Where there is a row it stays the source of
+    truth, because it encodes things a capability bit cannot tell you — but
+    with no row, defaulting to "no rumble" hides a control that may well work,
+    and the node's own FF bits are the best evidence available.
+    """
+    if not node:
+        return False
+    try:
+        fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return False
+    try:
+        buf = bytearray(16)
+        fcntl.ioctl(fd, (2 << 30) | (len(buf) << 16) | (ord("E") << 8) | (0x20 + EV_FF), buf)
+        return bool(buf[FF_RUMBLE // 8] >> (FF_RUMBLE % 8) & 1)
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+
+
+def emulation_for(pad, claimed, pads):
+    """If this virtual pad stands in for a controller something has taken.
+
+    Steam's emulated pad carries Valve's own vendor id (28de:11ff) while the
+    real Steam Controller it replaced sits in `claimed` under the same vendor.
+    But Steam Input uses that vendor id for every pad it emulates — an Xbox pad
+    routed through it becomes 28de:11ff too — so a matching vendor alone would
+    happily label the Xbox pad's stand-in as the Steam Controller. The link is
+    only drawn when it is unambiguous:
+
+      * the claimed device's holder has /dev/uinput open, so it is actually
+        able to be publishing a pad (winedevice.exe holding the controller
+        publishes nothing);
+      * exactly one virtual pad and exactly one such claimed device share the
+        vendor, so there is only one way to pair them.
+
+    Anything less and this returns None: the pad still reads "emulated",
+    which is true, without naming a controller it may not be.
+    """
+    if not pad.get("virtual") or not pad.get("vendor"):
+        return None
+    vendor = pad["vendor"]
+    sources = [d for d in claimed
+               if d.get("vendor") == vendor and (d.get("holder") or {}).get("uinput")]
+    stand_ins = [p for p in pads if p.get("virtual") and p.get("vendor") == vendor]
+    if len(sources) != 1 or len(stand_ins) != 1:
+        return None
+    return {
+        "name": sources[0]["name"],
+        "holder": sources[0]["holder"].get("name"),
+    }
+
+
+def connection_for(dev, driver, sysfs=""):
+    # A uinput device is not plugged into anything. Reporting the bus it
+    # inherited would read as "wired", which is a claim about a cable that
+    # does not exist.
+    if sysfs and is_virtual(sysfs):
+        return "virtual"
+    if driver == "hid_steam":
+        # One dongle serves up to four controllers, all sharing product 0x1142;
+        # the wired pad is 0x1102. Telling them apart by product id is the only
+        # way, since both arrive on the same driver.
+        return "dongle" if dev.get("product", "") == "1142" else "usb"
+    if driver == "xone_wired":
+        return "usb"
+    if driver == "hid_xpadneo":
+        return "bluetooth"
+    if driver == "xone_gip_gamepad":
+        return "dongle"
+    bus = dev.get("bus", "")
+    return {"0003": "usb", "0005": "bluetooth"}.get(bus, "unknown")
+
+
+def main():
+    pads = []
+    for dev in parse_proc_devices():
+        if not is_gamepad(dev):
+            continue
+        sysfs = dev.get("sysfs", "")
+        driver = driver_for(sysfs)
+        caps = dict(DEFAULT_CAPS)
+        caps.update(DRIVER_CAPS.get(driver, {}))
+
+        battery = battery_for(sysfs)
+        # A wired pad has no battery at all, whatever the driver could report.
+        if battery is None:
+            caps["batteryKind"] = "none"
+        elif battery.get("percent") is not None:
+            caps["batteryKind"] = "percent"
+
+        led = led_for(battery["node"] if battery else "") if caps["led"] else None
+        if caps["led"] and not led:
+            caps["led"] = False
+
+        event = next((h for h in dev.get("handlers", []) if h.startswith("event")), "")
+        node = "/dev/input/" + event if event else ""
+
+        # No driver means no row in DRIVER_CAPS, so everything defaulted to
+        # False — including rumble on an emulated pad that really does have
+        # FF_RUMBLE. Ask the node rather than shrug.
+        if driver not in DRIVER_CAPS:
+            caps["rumble"] = evdev_can_rumble(node)
+
+        pads.append({
+            "name": dev.get("name", "Controller"),
+            "driver": driver or "unknown",
+            "connection": connection_for(dev, driver, sysfs),
+            "vendor": dev.get("vendor", ""),
+            "product": dev.get("product", ""),
+            "uniq": dev.get("uniq", ""),
+            "node": node,
+            # evdev nodes are uaccess-tagged for the seat, so rumble needs no
+            # root — but say so explicitly rather than assuming.
+            "nodeWritable": bool(node) and os.access(node, os.W_OK),
+            "sysfs": sysfs,
+            "virtual": is_virtual(sysfs),
+            "battery": battery,
+            "led": led,
+            "caps": caps,
+        })
+
+    # Claimed devices are worked out before the pads are finished, because a
+    # virtual pad's whole explanation is which real controller went missing.
+    claimed = claimed_devices(pads)
+    for pad in pads:
+        pad["emulates"] = emulation_for(pad, claimed, pads)
+
+    out = {
+        "pads": pads,
+        # Plugged in, but handed to a program that asked for it. Empty unless
+        # all three signals in claimed_devices() agree.
+        "claimed": claimed,
+        "dongles": dongles(),
+        "drivers": sorted({
+            m for m in (read("/proc/modules").split("\n") and [
+                line.split()[0] for line in read("/proc/modules").split("\n") if line
+            ]) if m in ("xone_gip_gamepad", "xone_wired", "xone_dongle",
+                        "hid_xpadneo", "xpad", "hid_playstation", "hid_steam")
+        }),
+    }
+    json.dump(out, sys.stdout)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    main()

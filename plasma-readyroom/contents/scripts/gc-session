@@ -1,0 +1,416 @@
+#!/bin/bash
+#
+# Ready Room session toggles.
+#
+# A "session" is the set of things you flip before playing: stay awake, do not
+# disturb, night light off, performance power profile. The hard part is not
+# setting them, it is putting them back — correctly, when the user has been
+# changing the same switches by hand, and after the shell has been killed.
+#
+# Three rules the whole script exists to enforce:
+#
+#   1. We only ever restore what we changed. Every item records `owned` before
+#      anything is mutated; anything already in the desired state at engage
+#      time is left alone at release.
+#   2. The snapshot is written before the token. A crash between them leaves a
+#      snapshot with no claim, which recovery ignores; the reverse would leave
+#      a claim with nothing to restore.
+#   3. Release is double gated: `owned` must be true AND the value must still
+#      be what we set it to. If the user turned DND back off mid-session, that
+#      is their decision, and we do not undo it.
+#
+# It is also a standalone escape hatch. If the shell dies mid-session:
+#
+#   gc-session release
+#
+# puts everything back without Quickshell being involved at all.
+#
+# Stay-awake deserves special mention. Omarchy stores it as a marker file whose
+# *body* is an owner token (see omarchy-update-stay-awake), and
+# omarchy-toggle-idle uses touch, so it never truncates someone else's claim.
+# That gives three states, and only the first is ours to take:
+#
+#   absent              → free
+#   present, empty      → the user toggled it by hand; never touch it
+#   present, non-empty  → another tool owns it; never touch it
+#
+set -uo pipefail
+
+# omarchy-shell gives up after 2s by default, and the shell is regularly busy
+# enough (three monitors, twenty plugins, a theme switch) to blow through that.
+# A timeout here costs us ownership of a switch, so buy more headroom.
+export OMARCHY_SHELL_IPC_TIMEOUT="${OMARCHY_SHELL_IPC_TIMEOUT:-5s}"
+
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/gdeyoung-readyroom-$(id -u)}/gdeyoung-readyroom"
+TOKEN_FILE="$STATE_DIR/session"
+SNAPSHOT_FILE="$STATE_DIR/snapshot.json"
+INHIBIT_FILE="$STATE_DIR/inhibit-pid"
+
+AWAKE_MARKER="$HOME/.local/state/omarchy/indicators/stay-awake"
+
+# Markers belonging to the other community plugins that drive the same switch.
+# We never fight them; we report and step aside.
+RIVALS=(
+  "$HOME/.local/state/omarchy/game-awake-auto"
+  "$HOME/.local/state/omarchy/gamemode/active"
+)
+
+mkdir -p "$STATE_DIR"
+
+# ---------------------------------------------------------------- helpers
+
+boot_id() { cat /proc/sys/kernel/random/boot_id 2>/dev/null; }
+
+# A process is "the one we started" only if the pid *and* its start time match;
+# pids are recycled, and a stale pid file must never let us kill a stranger.
+proc_start_time() { awk '{print $22}' "/proc/$1/stat" 2>/dev/null; }
+
+alive_and_ours() { # pid starttime
+  [[ -n ${1:-} && -n ${2:-} ]] || return 1
+  [[ -d /proc/$1 ]] || return 1
+  [[ "$(proc_start_time "$1")" == "$2" ]]
+}
+
+json_bool() { [[ "$1" == "true" ]] && echo true || echo false; }
+
+# ---------------------------------------------------------------- probes
+
+awake_state() { # → free | manual | foreign | ours
+  [[ -f $AWAKE_MARKER ]] || { echo free; return; }
+  local body token
+  body="$(tr -d '[:space:]' <"$AWAKE_MARKER" 2>/dev/null)"
+  [[ -z $body ]] && { echo manual; return; }
+  token="$(cat "$TOKEN_FILE" 2>/dev/null | tr -d '[:space:]')"
+  [[ -n $token && $body == "$token" ]] && echo ours || echo foreign
+}
+
+# → on | off | unknown.
+#
+# "unknown" matters. omarchy-shell gives up after 2s and a shell that is busy
+# reloading plugins across three monitors blows through that regularly. If a
+# failed query were read as "off" we would claim ownership of DND we never
+# turned on, and switch the user's DND off at release. Unknown is never owned.
+dnd_state() {
+  local out attempts="${1:-2}" i
+  for ((i = 0; i < attempts; i++)); do
+    out="$(omarchy-shell notifications dndState 2>/dev/null | tr -d '[:space:]')"
+    [[ $out == "on" || $out == "off" ]] && { echo "$out"; return; }
+    # A shell that is still starting refuses the connection immediately rather
+    # than timing out, so retrying without a pause just fails faster.
+    ((i + 1 < attempts)) && sleep 1
+  done
+  echo unknown
+}
+
+dnd_on() { [[ "$(dnd_state)" == "on" ]]; }
+
+# Not every machine has every profile. This desktop offers only balanced and
+# power-saver, so a "performance" session would silently do nothing — the UI
+# needs to know that rather than showing a switch that lies.
+power_profiles() { powerprofilesctl list 2>/dev/null | sed -n 's/^[ *]*\([a-z-]\+\):.*/\1/p'; }
+
+power_has() { power_profiles | grep -qx "$1"; }
+
+nightlight_json() { omarchy-toggle-nightlight --status 2>/dev/null || echo '{"enabled":false,"temperature":null}'; }
+
+power_current() { powerprofilesctl get 2>/dev/null | tr -d '[:space:]'; }
+
+rival_holder() {
+  local m
+  for m in "${RIVALS[@]}"; do [[ -e $m ]] && { basename "$(dirname "$m")"/"$(basename "$m")"; return; }; done
+  echo ""
+}
+
+cmd_probe() {
+  local nl
+  nl="$(nightlight_json)"
+  jq -n \
+    --arg awake "$(awake_state)" \
+    --arg dnd "$(dnd_state)" \
+    --argjson nightlight "$nl" \
+    --arg power "$(power_current)" \
+    --argjson profiles "$(power_profiles | jq -R . | jq -s .)" \
+    --arg rival "$(rival_holder)" \
+    --argjson engaged "$([[ -f $TOKEN_FILE ]] && echo true || echo false)" \
+    '{
+       stayAwake: { state: $awake, on: ($awake != "free") },
+       dnd:       { state: $dnd, on: ($dnd == "on") },
+       nightlight: $nightlight,
+       power:     { current: $power, available: $profiles },
+       rival:     $rival,
+       engaged:   $engaged
+     }'
+}
+
+# ---------------------------------------------------------------- engage
+
+# Usage: gc-session engage [--no-idle] [--no-dnd] [--no-nightlight]
+#                          [--profile NAME] [--inhibit-sleep]
+cmd_engage() {
+  local want_idle=1 want_dnd=1 want_nightlight=1 profile="performance" inhibit_what="idle"
+  # Whose life the session is tied to. The shell passes Quickshell.processId;
+  # this script exits immediately after engaging, so its own $$ would make
+  # every session look orphaned the moment it started. Run from a terminal
+  # with no owner given, the invoking shell plays the part.
+  local owner_pid="${PPID:-0}"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --owner-pid) owner_pid="${2:-0}"; shift ;;
+      --no-idle) want_idle=0 ;;
+      --no-dnd) want_dnd=0 ;;
+      --no-nightlight) want_nightlight=0 ;;
+      --no-power) profile="" ;;
+      --profile) profile="${2:-performance}"; shift ;;
+      # Blocking sleep also blocks lid-close suspend, which is user hostile on a
+      # laptop, so it is opt in and idle-only by default.
+      --inhibit-sleep) inhibit_what="sleep:idle" ;;
+      *) echo "gc-session: unknown option $1" >&2; return 2 ;;
+    esac
+    shift
+  done
+
+  if [[ -f $TOKEN_FILE ]]; then
+    echo "gc-session: already engaged" >&2
+    return 1
+  fi
+
+  local token awake prev_dnd nl prev_nl_on prev_nl_temp prev_power
+  token="$owner_pid:$(boot_id):$RANDOM$RANDOM"
+
+  # --- probe everything first; own only what we are about to change ---
+  awake="$(awake_state)"
+  local own_idle=false
+  [[ $want_idle -eq 1 && $awake == "free" ]] && own_idle=true
+
+  # Only "off" is ownable. "on" is already what we want and "unknown" means we
+  # could not read it, and an unreadable switch is never ours to flip.
+  prev_dnd="$(dnd_state)"
+  local own_dnd=false
+  [[ $want_dnd -eq 1 && $prev_dnd == "off" ]] && own_dnd=true
+
+  nl="$(nightlight_json)"
+  prev_nl_on="$(jq -r '.enabled' <<<"$nl")"
+  prev_nl_temp="$(jq -r '.temperature // empty' <<<"$nl")"
+  local own_nightlight=false
+  [[ $want_nightlight -eq 1 && $prev_nl_on == true ]] && own_nightlight=true
+
+  prev_power="$(power_current)"
+  local own_power=false power_unavailable=false
+  if [[ -n $profile ]] && ! power_has "$profile"; then
+    # Desktops with the placeholder platform driver often expose only
+    # balanced and power-saver. Say so instead of pretending.
+    power_unavailable=true
+  elif [[ -n $profile && -n $prev_power && $prev_power != "$profile" ]]; then
+    own_power=true
+  fi
+
+  # --- snapshot BEFORE the token, and before touching anything ---
+  jq -n \
+    --arg token "$token" \
+    --arg bootId "$(boot_id)" \
+    --argjson at "$(date +%s)" \
+    --argjson ownIdle "$(json_bool $own_idle)" \
+    --arg awakeState "$awake" \
+    --argjson ownDnd "$(json_bool $own_dnd)" \
+    --argjson ownNightlight "$(json_bool $own_nightlight)" \
+    --argjson prevNlTemp "${prev_nl_temp:-null}" \
+    --argjson ownPower "$(json_bool $own_power)" \
+    --argjson powerUnavailable "$(json_bool $power_unavailable)" \
+    --arg prevDnd "$prev_dnd" \
+    --arg prevPower "$prev_power" \
+    --arg setPower "$profile" \
+    '{ token: $token, bootId: $bootId, engagedAt: $at,
+       items: {
+         idle:       { owned: $ownIdle, priorState: $awakeState },
+         dnd:        { owned: $ownDnd, prior: $prevDnd },
+         nightlight: { owned: $ownNightlight, priorTemperature: $prevNlTemp },
+         power:      { owned: $ownPower, unavailable: $powerUnavailable,
+                       prior: $prevPower, set: $setPower }
+       } }' >"$SNAPSHOT_FILE"
+
+  printf '%s\n' "$token" >"$TOKEN_FILE"
+
+  # --- apply, least disruptive first ---
+  [[ $own_power == true ]] && powerprofilesctl set "$profile" >/dev/null 2>&1
+
+  # Night light has no absolute setter, only a toggle, so "off" means toggling
+  # exactly when it is currently on.
+  [[ $own_nightlight == true ]] && omarchy-toggle-nightlight >/dev/null 2>&1
+
+  [[ $own_dnd == true ]] && omarchy-shell notifications setDnd true >/dev/null 2>&1
+
+  # Two steps, exactly as omarchy-update-stay-awake does it: create the marker
+  # through the official CLI (so the stock indicator agrees), then write our
+  # token into its body to claim it.
+  if [[ $own_idle == true ]]; then
+    omarchy-toggle-idle stay-awake >/dev/null 2>&1
+    printf '%s\n' "$token" >"$AWAKE_MARKER"
+  fi
+
+  # systemd-inhibit needs no root for an active session: logind's polkit policy
+  # allows inhibit-block-sleep with allow_active=yes.
+  if command -v systemd-inhibit >/dev/null 2>&1; then
+    setsid systemd-inhibit --what="$inhibit_what" --who="Ready Room" \
+      --why="Game session" --mode=block sleep infinity >/dev/null 2>&1 &
+    local ipid=$!
+    printf '%s %s\n' "$ipid" "$(proc_start_time "$ipid")" >"$INHIBIT_FILE"
+  fi
+
+  omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1
+  cmd_status
+}
+
+# ---------------------------------------------------------------- release
+
+cmd_release() {
+  if [[ ! -f $SNAPSHOT_FILE ]]; then
+    rm -f "$TOKEN_FILE"
+    echo '{"released":false,"reason":"no snapshot"}'
+    return 0
+  fi
+
+  local snap token restored=()
+  snap="$(cat "$SNAPSHOT_FILE")"
+  token="$(jq -r '.token' <<<"$snap")"
+
+  # Stay awake: only if our token is still the one in the marker.
+  if [[ "$(jq -r '.items.idle.owned' <<<"$snap")" == "true" ]]; then
+    local body
+    body="$(tr -d '[:space:]' <"$AWAKE_MARKER" 2>/dev/null)"
+    if [[ -f $AWAKE_MARKER && $body == "$(tr -d '[:space:]' <<<"$token")" ]]; then
+      omarchy-toggle-idle allow-idle >/dev/null 2>&1
+      restored+=("stay-awake")
+    fi
+  fi
+
+  # DND: only if it is still on, i.e. still what we set it to.
+  #
+  # "unknown" is the dangerous case and gets its own branch. Recovery runs
+  # moments after the shell starts, when the notifications service may not be
+  # answering yet — and an unreadable switch previously counted as "not still
+  # on", so the claim was dropped and the user's DND stayed on forever. If we
+  # cannot read it, we restore nothing and keep the snapshot so a later attempt
+  # can finish the job.
+  local deferred=false
+  if [[ "$(jq -r '.items.dnd.owned' <<<"$snap")" == "true" ]]; then
+    local state
+    state="$(dnd_state 8)"
+    case "$state" in
+      on)  omarchy-shell notifications setDnd false >/dev/null 2>&1; restored+=("dnd") ;;
+      off) : ;;  # the user turned it off themselves; their change wins
+      *)   deferred=true ;;
+    esac
+  fi
+
+  # Night light: only if it is still off.
+  if [[ "$(jq -r '.items.nightlight.owned' <<<"$snap")" == "true" ]]; then
+    local now_on temp
+    now_on="$(jq -r '.enabled' <<<"$(nightlight_json)")"
+    if [[ $now_on == false ]]; then
+      omarchy-toggle-nightlight >/dev/null 2>&1
+      temp="$(jq -r '.items.nightlight.priorTemperature // empty' <<<"$snap")"
+      # Restore the exact temperature rather than whatever default hyprsunset
+      # picks when it comes back up.
+      [[ -n $temp ]] && hyprctl hyprsunset temperature "$temp" >/dev/null 2>&1
+      restored+=("nightlight")
+    fi
+  fi
+
+  # Power profile: only if it is still the profile we set.
+  if [[ "$(jq -r '.items.power.owned' <<<"$snap")" == "true" ]]; then
+    local set_to prior
+    set_to="$(jq -r '.items.power.set' <<<"$snap")"
+    prior="$(jq -r '.items.power.prior' <<<"$snap")"
+    if [[ "$(power_current)" == "$set_to" && -n $prior ]]; then
+      powerprofilesctl set "$prior" >/dev/null 2>&1
+      restored+=("power")
+    fi
+  fi
+
+  # The inhibitor, verified by pid *and* start time.
+  if [[ -f $INHIBIT_FILE ]]; then
+    local ipid istart
+    read -r ipid istart <"$INHIBIT_FILE"
+    if alive_and_ours "$ipid" "$istart"; then
+      kill "$ipid" 2>/dev/null
+      restored+=("inhibitor")
+    fi
+    rm -f "$INHIBIT_FILE"
+  fi
+
+  local restored_json
+  restored_json="$(printf '%s\n' "${restored[@]:-}" | jq -R . | jq -s 'map(select(. != ""))')"
+
+  if [[ $deferred == true ]]; then
+    # Keep both files. The claim outlives this attempt so the caller — or the
+    # next shell start — can try again; abandoning it would strand the switch.
+    omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1
+    jq -n --argjson r "$restored_json" \
+      '{released: false, deferred: true, reason: "could not read do-not-disturb", restored: $r}'
+    return 0
+  fi
+
+  # Token first, then snapshot: if we die between the two, the leftover
+  # snapshot has no claim and recovery ignores it.
+  rm -f "$TOKEN_FILE"
+  rm -f "$SNAPSHOT_FILE"
+  omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1
+
+  jq -n --argjson r "$restored_json" '{released: true, deferred: false, restored: $r}'
+}
+
+# ---------------------------------------------------------------- recover
+
+# Called at shell start. A token from a previous boot is meaningless: the
+# reboot already reset every one of these switches, so we drop the files and
+# restore nothing. A token from *this* boot whose shell is gone is a real
+# orphan, and gets the full release path.
+cmd_recover() {
+  if [[ ! -f $TOKEN_FILE ]]; then
+    echo '{"recovered":false,"reason":"no token"}'
+    return 0
+  fi
+
+  local token snap_boot
+  token="$(cat "$TOKEN_FILE")"
+  snap_boot="$(jq -r '.bootId // empty' "$SNAPSHOT_FILE" 2>/dev/null)"
+
+  if [[ -n $snap_boot && $snap_boot != "$(boot_id)" ]]; then
+    rm -f "$TOKEN_FILE" "$SNAPSHOT_FILE" "$INHIBIT_FILE"
+    echo '{"recovered":true,"reason":"stale across reboot","restored":[]}'
+    return 0
+  fi
+
+  local pid="${token%%:*}"
+  if [[ -n $pid && $pid != 0 && -d /proc/$pid ]]; then
+    echo '{"recovered":false,"reason":"session still live"}'
+    return 0
+  fi
+
+  cmd_release
+}
+
+# ---------------------------------------------------------------- status
+
+cmd_status() {
+  local engaged=false
+  [[ -f $TOKEN_FILE ]] && engaged=true
+  jq -n \
+    --argjson engaged "$(json_bool $engaged)" \
+    --argjson probe "$(cmd_probe)" \
+    --argjson snapshot "$(cat "$SNAPSHOT_FILE" 2>/dev/null || echo null)" \
+    '{ engaged: $engaged, probe: $probe, snapshot: $snapshot }'
+}
+
+case "${1:-status}" in
+  probe) cmd_probe ;;
+  engage) shift; cmd_engage "$@" ;;
+  release) cmd_release ;;
+  recover) cmd_recover ;;
+  status) cmd_status ;;
+  *)
+    echo "Usage: gc-session [probe|engage|release|recover|status]" >&2
+    exit 2
+    ;;
+esac

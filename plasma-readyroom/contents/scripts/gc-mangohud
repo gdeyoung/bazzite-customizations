@@ -1,0 +1,111 @@
+#!/bin/bash
+#
+# Point MangoHud at the same metrics and corner the Ready Room overlay uses,
+# so the in-game HUD is not a second thing to configure by hand.
+#
+#   gc-mangohud --position top-right --metrics cpu,gpu,ram,vram,temps
+#
+# MangoHud exists here for one reason the Quickshell overlay cannot cover:
+# frames per second. Counting frames needs code inside the game's own process,
+# which is exactly what MangoHud's Vulkan and OpenGL layers are.
+#
+# The config file is rewritten, not appended to, but anything outside our
+# managed block is preserved — someone who has tuned their own MangoHud should
+# not lose it because they toggled a switch in a bar widget.
+#
+set -uo pipefail
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/MangoHud"
+CONF="$CONF_DIR/MangoHud.conf"
+BEGIN="### begin ready-room — managed, edit outside this block"
+END="### end ready-room"
+
+position="top-right"
+metrics="cpu,gpu,ram,vram,temps"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --position) position="${2:-top-right}"; shift ;;
+    --metrics) metrics="${2:-}"; shift ;;
+    *) ;;
+  esac
+  shift
+done
+
+has() { [[ ",$metrics," == *",$1,"* ]]; }
+
+case "$position" in
+  top-left) mh_position="top-left" ;;
+  top-right) mh_position="top-right" ;;
+  bottom-left) mh_position="bottom-left" ;;
+  bottom-right) mh_position="bottom-right" ;;
+  *) mh_position="top-right" ;;
+esac
+
+mkdir -p "$CONF_DIR"
+
+block="$BEGIN
+position=$mh_position
+fps
+frametime=1
+# Horizontal one-line bar, matching the tuned user config this fork ships with
+# rather than MangoHud's stacked default — a managed block that fights the
+# user's own geometry is worse than none.
+horizontal
+horizontal_stretch=0
+font_size=16
+hud_no_margin
+"
+has cpu && block+="cpu_stats
+"
+has temps && block+="cpu_temp
+"
+has gpu && block+="gpu_stats
+"
+has temps && block+="gpu_temp
+"
+has power && block+="gpu_power
+"
+has vram && block+="vram
+"
+has ram && block+="ram
+"
+block+="$END"
+
+if [[ -f $CONF ]] && grep -qF "$BEGIN" "$CONF"; then
+  # Replace our block in place, leaving the user's own settings untouched.
+  python3 - "$CONF" "$BEGIN" "$END" "$block" <<'PY'
+import sys
+path, begin, end, block = sys.argv[1:5]
+text = open(path).read()
+start = text.index(begin)
+stop = text.index(end) + len(end)
+open(path, "w").write(text[:start] + block + text[stop:])
+PY
+else
+  # Append our block after whatever is already there, keeping the user's own
+  # settings above it and not leaving a leading blank line on a fresh file.
+  {
+    if [[ -s $CONF ]]; then
+      cat "$CONF"
+      printf '\n'
+    fi
+    printf '%s\n' "$block"
+  } >"$CONF.tmp"
+  mv "$CONF.tmp" "$CONF"
+fi
+
+echo
+echo "MangoHud configured: $mh_position, metrics: $metrics (plus FPS)"
+echo
+echo "To use it, launch a game through mangohud. In Steam, set the game's"
+echo "launch options to:"
+echo
+echo "    mangohud %command%"
+echo
+echo "Config written to $CONF"
+echo
+# The prompt is for a human in a terminal; reaching EOF (a script, a test)
+# is not a failure.
+read -r -p "Press enter to close. " _ || true
+exit 0

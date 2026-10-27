@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""Stream one controller's live input as NDJSON. Python standard library only.
+
+    gc-pads /dev/input/eventN [--hz 60]
+
+Emits one line per message:
+
+    {"v":1,"t":"hello","backend":"evdev","node":"...","axes":{...}}
+    {"v":1,"t":"state","seq":N,"b":{"a":true,...},"a":{"lx":0.0,...}}
+    {"v":1,"t":"error","code":"gone","detail":"..."}
+
+Every line carries `v` so the panel can refuse a protocol it does not know.
+
+Why not SDL: SDL's gamepad database exists to normalise the button layout of
+pads nobody has heard of, which is real value — but it means a Python binding
+that is not installed by default, and a controller tab whose first act is to
+ask you to install a package. Reading evdev directly costs about sixty lines,
+needs nothing, and is exact for anything following the kernel's gamepad
+convention, which every Xbox, PlayStation and Switch Pro pad does. An SDL
+backend can be added later behind the same protocol; `backend` in the hello
+line is how the panel would tell.
+
+Streaming is the whole lifetime of this process: the panel starts it when the
+pads tab opens and kills it when the tab closes, so there is no idle cost and
+no stdin protocol to get wrong.
+"""
+
+import array
+import errno
+import fcntl
+import json
+import os
+import select
+import struct
+import sys
+import time
+
+EV_KEY = 0x01
+EV_ABS = 0x03
+
+# Taken from the driver, which is the only source that settles it:
+#
+#   A 0x130   B 0x131   X 0x133   Y 0x134
+#
+# The trap is that input-event-codes.h aliases the letters to *positions* using
+# a Nintendo-style face layout — BTN_X is BTN_NORTH, BTN_Y is BTN_WEST — while
+# an Xbox pad has X in the west position and Y in the north one. Read the
+# positional names and reason about where the buttons are on the pad, and X and
+# Y come out swapped.
+#
+# xone settles it by emitting the letter macros directly
+# (driver/gamepad.c: input_report_key(dev, BTN_X, ...)), so the letter is what
+# the driver means and the position is a red herring. hid_xpadneo does the
+# same. If a pad ever looks transposed, read its driver rather than reasoning
+# from the header names — and rather than trusting this comment.
+BUTTONS = {
+    0x130: "a", 0x131: "b", 0x133: "x", 0x134: "y",
+    0x136: "lb", 0x137: "rb",
+    0x13a: "view", 0x13b: "menu", 0x13c: "guide",
+    0x13d: "ls", 0x13e: "rs",
+
+    # Beyond the Xbox set. A pad only emits the ones it has, so listing them
+    # together is harmless and means a new family usually needs no change here.
+    #
+    # BTN_TL2/BTN_TR2: the digital click at the end of a Steam Controller's
+    # analog trigger pull. Independent of the axis, not derived from it.
+    0x138: "lt2", 0x139: "rt2",
+
+    # Trackpad touch, so a finger dot can be drawn only while a finger is
+    # actually down — a pad reports its centre when untouched.
+    0x121: "lpadtouch", 0x122: "rpadtouch",
+
+    # Rear grip paddles. The codes changed: BTN_GEAR_DOWN/UP up to kernel
+    # 6.16, BTN_GRIPL/R from 6.17. Both map to the same names so art does not
+    # have to care which kernel it is running on.
+    0x150: "lgrip", 0x151: "rgrip",
+    0x224: "lgrip", 0x225: "rgrip",
+
+    # A left trackpad clicked by quadrant (Steam Controller). There is no code
+    # for "left pad clicked" on its own — the quadrant is all the driver gives.
+    0x220: "padup", 0x221: "paddown", 0x222: "padleft", 0x223: "padright",
+}
+
+AXES = {
+    0x00: "lx", 0x01: "ly",
+    0x03: "rx", 0x04: "ry",        # right stick on an Xbox pad, right trackpad on a Steam Controller
+    0x02: "lt", 0x05: "rt",        # ABS_Z / ABS_RZ
+    0x10: "hx", 0x11: "hy",        # d-pad hat on most pads, left trackpad on a Steam Controller
+
+    # ABS_HAT2Y / ABS_HAT2X: the Steam Controller's analog triggers, 0..255.
+    # Note the pairing is Y = left, X = right, which is the opposite way round
+    # from what the names suggest.
+    0x15: "lt", 0x14: "rt",
+}
+
+# struct input_event on 64-bit: __kernel_ulong_t sec, usec; __u16 type, code;
+# __s32 value
+EVENT_FORMAT = "qqHHi"
+EVENT_SIZE = struct.calcsize(EVENT_FORMAT)
+
+
+def _ior(type_char, nr, size):
+    return (2 << 30) | (size << 16) | (ord(type_char) << 8) | nr
+
+
+def abs_info(fd, axis):
+    """EVIOCGABS: value, minimum, maximum, fuzz, flat, resolution."""
+    buf = array.array("i", [0] * 6)
+    try:
+        fcntl.ioctl(fd, _ior("E", 0x40 + axis, 24), buf)
+    except OSError:
+        return None
+    return {"value": buf[0], "min": buf[1], "max": buf[2],
+            "fuzz": buf[3], "flat": buf[4]}
+
+
+def emit(obj):
+    obj["v"] = 1
+    sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
+def normalise(name, raw, info):
+    """Sticks and pads to -1..1, triggers to 0..1.
+
+    The axis's own reported range decides how to read it, not its name. ABS_HAT0
+    is a three-position d-pad hat (-1..1) on most pads, but on a Steam
+    Controller it is the left trackpad with a range of +/-32767 — treating that
+    as a hat clamps every touch to full deflection and draws a permanently
+    jammed d-pad. Asking the device for its range (EVIOCGABS) gets both right
+    with no per-family special case.
+
+    Triggers likewise: 0..1023 on xone, 0..255 on hid-steam, and the ranges are
+    read rather than assumed.
+    """
+    if not info or info["max"] == info["min"]:
+        return 0.0
+    lo, hi = info["min"], info["max"]
+    if name in ("lt", "rt"):
+        return round(max(0.0, min(1.0, (raw - lo) / (hi - lo))), 4)
+    mid = (hi + lo) / 2.0
+    span = (hi - lo) / 2.0
+    value = (raw - mid) / span if span else 0.0
+    # Screen coordinates: down is positive on the wire for Y, and a stick
+    # pushed forward should read as up.
+    if name in ("ly", "ry"):
+        value = -value
+    return round(max(-1.0, min(1.0, value)), 4)
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    hz = 60
+    for i, a in enumerate(sys.argv):
+        if a == "--hz" and i + 1 < len(sys.argv):
+            try:
+                hz = max(10, min(120, int(sys.argv[i + 1])))
+            except ValueError:
+                pass
+
+    if not args:
+        emit({"t": "error", "code": "usage", "detail": "no device given"})
+        return 2
+
+    node = args[0]
+    try:
+        fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
+    except PermissionError:
+        emit({"t": "error", "code": "permission", "detail": "cannot read %s" % node})
+        return 0        # a clean exit: this is a state, not a crash
+    except OSError as exc:
+        emit({"t": "error", "code": "gone", "detail": str(exc)})
+        return 0
+
+    # EVIOCGABS succeeds with an all-zero range for an axis the pad does not
+    # have, so a zero range means "absent" rather than "pinned at zero". This
+    # matters because two codes can share a name: an Xbox pad's triggers are
+    # ABS_Z/ABS_RZ and a Steam Controller's are ABS_HAT2Y/X, both called
+    # lt/rt. Without this check the absent one overwrites the real one and the
+    # triggers read 0.0 forever.
+    info = {}
+    for code, name in AXES.items():
+        got = abs_info(fd, code)
+        if got and got["max"] != got["min"]:
+            info[name] = got
+
+    emit({"t": "hello", "backend": "evdev", "node": node,
+          "axes": sorted(info.keys()), "hz": hz})
+
+    buttons = {name: False for name in BUTTONS.values()}
+    axes = {name: 0.0 for name in info}
+    for name, got in info.items():
+        axes[name] = normalise(name, got["value"], got)
+
+    seq = 0
+    dirty = True
+    interval = 1.0 / hz
+    next_send = time.monotonic()
+
+    while True:
+        # Coalesce to `hz`: a stick at rest still produces a stream of events,
+        # and one JSON line per event would be thousands a second for a
+        # picture that redraws sixty times.
+        timeout = max(0.0, next_send - time.monotonic())
+        ready, _, _ = select.select([fd], [], [], timeout)
+
+        if ready:
+            try:
+                data = os.read(fd, EVENT_SIZE * 64)
+            except BlockingIOError:
+                data = b""
+            except OSError as exc:
+                if exc.errno in (errno.ENODEV, errno.EIO):
+                    emit({"t": "error", "code": "gone", "detail": "controller disconnected"})
+                    return 0
+                raise
+
+            for off in range(0, len(data) - EVENT_SIZE + 1, EVENT_SIZE):
+                _, _, etype, code, value = struct.unpack_from(EVENT_FORMAT, data, off)
+                if etype == EV_KEY:
+                    name = BUTTONS.get(code)
+                    if name:
+                        buttons[name] = bool(value)
+                        dirty = True
+                elif etype == EV_ABS:
+                    name = AXES.get(code)
+                    if name:
+                        axes[name] = normalise(name, value, info.get(name))
+                        dirty = True
+
+        now = time.monotonic()
+        if now >= next_send:
+            next_send = now + interval
+            if dirty:
+                seq += 1
+                emit({"t": "state", "seq": seq, "b": buttons, "a": axes})
+                dirty = False
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        # The panel closed and took our stdout with it.
+        sys.exit(0)

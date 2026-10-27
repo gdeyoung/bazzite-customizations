@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# Plasma-port-only wrapper: one-shot GPU/CPU/RAM sample for the Gear tab.
+# gc-stats streams forever (CPU load is a delta), which suits the Omarchy
+# overlay's long-lived Process but not the Plasma dataengine's connect/
+# disconnect cycle — so this runs it under timeout and passes through the
+# hello line plus the first stats line.
+#
+# Read-only: /proc, /sys, nvidia-smi. Prints NDJSON (2 lines).
+#
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+
+timeout 4 "$SCRIPT_DIR/gc-stats" --interval 1.0 2>/dev/null | head -n 2
+exit 0

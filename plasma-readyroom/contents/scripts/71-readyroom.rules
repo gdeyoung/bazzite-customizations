@@ -1,0 +1,19 @@
+# Ready Room — optional access to two Xbox controls that are root-owned.
+#
+# Installing this is a deliberate choice and nothing in the plugin requires it:
+# without it, the controller tab simply does not offer these two controls.
+#
+#   1. The guide-button light on an Xbox pad (xone registers it as an LED class
+#      device, root-owned, with no uaccess tag).
+#   2. Putting an Xbox Wireless Adapter into pairing mode from the panel. The
+#      adapter's own button does the same job without any of this.
+#
+# Both grant access to the "input" group rather than to everyone.
+
+# Guide-button LED: /sys/class/leds/gip<N>.<M>:white:status/{brightness,mode}
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="gip*:white:status", \
+  RUN+="/bin/sh -c 'chgrp input /sys%p/brightness /sys%p/mode 2>/dev/null; chmod g+w /sys%p/brightness /sys%p/mode 2>/dev/null'"
+
+# Xbox Wireless Adapter pairing attribute, exposed by the xone-dongle driver.
+ACTION=="add", SUBSYSTEM=="usb", DRIVER=="xone-dongle", \
+  RUN+="/bin/sh -c 'chgrp input /sys%p/pairing 2>/dev/null; chmod g+w /sys%p/pairing 2>/dev/null'"
