@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="pollIntervalSec" type="Int">
+            <label>Refresh interval (seconds) while the popup is closed</label>
+            <default>10</default>
+        </entry>
+        <entry name="showNetwork" type="Bool">
+            <label>Show network shares and cloud drives (polls cloud status too)</label>
+            <default>true</default>
+        </entry>
+        <entry name="showUnmounted" type="Bool">
+            <label>Show plugged-in but unmounted drives (with a Mount button)</label>
+            <default>true</default>
+        </entry>
+        <entry name="thumbMaxGb" type="Int">
+            <label>USB disks this size or smaller count as thumb drives</label>
+            <default>256</default>
+        </entry>
+        <entry name="minUnmountedMb" type="Int">
+            <label>Hide unmounted partitions under this many MB (EFI/boot helpers)</label>
+            <default>64</default>
+        </entry>
+        <entry name="fullWarnPct" type="Int">
+            <label>Usage bars and the panel glyph turn urgent at this fill percentage</label>
+            <default>90</default>
+        </entry>
+        <entry name="glyphFontFamily" type="String">
+            <label>Font family for drive glyphs (e.g. a Nerd Font); empty = widget default</label>
+            <default></default>
+        </entry>
+        <entry name="cloudRemotes" type="String">
+            <label>Space/comma-separated rclone remotes to show; empty = all remotes</label>
+            <default></default>
+        </entry>
+        <entry name="unlockCommand" type="String">
+            <label>Terminal command template for LUKS unlock; {dev} is the device path</label>
+            <default>konsole -e udisksctl unlock -b {dev}</default>
+        </entry>
+        <entry name="sharesJson" type="String">
+            <label>Host-specific share inventory as a JSON array (see README)</label>
+            <default>[]</default>
+        </entry>
+    </group>
+</kcfg>

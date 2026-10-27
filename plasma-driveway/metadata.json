@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "System Utilities",
+        "Description": "Every drive you own, one click from the panel \u2014 USB/local disks with usage bars, SMB/NFS/sshfs shares and rclone cloud mounts, mounted and unmounted from one popup. Plasma 6 port of gdeyoung.driveway (Omarchy).",
+        "Icon": "drive-removable-media",
+        "Id": "com.gdeyoung.plasma.driveway",
+        "License": "MIT",
+        "Name": "Driveway",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-driveway"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
