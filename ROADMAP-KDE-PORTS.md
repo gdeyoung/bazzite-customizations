@@ -16,6 +16,7 @@ steps live at the bottom as a punch list.
 | omarchy-driveway | `plasma-driveway/` | **BUILT** (d002ff5) | engine byte-identical (sha256), py_compile OK; poll-only v0.1, wizards→config |
 | omarchy-timemachine | `plasma-timemachine/` | **BUILT** (76dbee3) | engine sha256-ledgered, 24/24 tests; 5-tab popup |
 | omarchy-ready-room | `plasma-readyroom/` | **BUILT** (83f441c) | gc-* sha-identical; read-only probes live-run OK; needs gpu-screen-recorder (absent) for replay |
+| **plasma-stocktick** (new — no Omarchy source) | `plasma-stocktick/` | **BUILT** (2fdbac3) | First KDE-native plugin: Yahoo keyless quotes chip + watchlist + portfolio; checker 0/0, 5/5 tests, live-API verified. (No stock plugin existed on any Omarchy — checked.) |
 | — (new, no Omarchy source) | `keyboard-shortcuts/` | **BUILT** (e783bb7) | hermes-keys.sh: Meta+Space/Return/H/Shift+H via kglobalaccel; no remapper needed |
 | omarchy-game-center | — | skip | subsumed by plasma-sysmon (GPU VRAM/GTT already there) |
 | omarchy-appdock | — | skip | reverse port; it *is* the KDE task manager on Hyprland |
@@ -57,3 +58,18 @@ systemctl --user restart plasma-krunner.service
 ```
 Rollback per widget: `kpackagetool6 -t Plasma/Applet -r com.gdeyoung.plasma.<id>`;
 runner: `./uninstall.sh`.
+
+## CENTER-BAR LAYOUT (install day) — Greg's Omarchy arrangement
+Target: **StockTick | timepiece clock (center anchor) | weatherx** — the
+Omarchy center group (vivobook used tmn73.calendar centered; timepiece is our
+richer clock). Two methods, both verified paths:
+1. Interactive: panel Edit Mode → drag timepiece to the middle until it pins
+   to the centered group; drop StockTick just left, weatherx just right.
+2. Scripted: `AppletOrder=` edit per
+   plasma-plasmoid-development/references/panel-widget-placement.md — stop
+   plasmashell, rewrite order (StockTick;timepiece;weatherx within the
+   center group) + physical groups, start, re-verify via evaluateScript
+   geometry.x ascending.
+Current panel reference (pre-change snapshot 2026-10-26): containment 2,
+includes com.gdeyoung.plasma.sysmon + stock weather widget (id 7/21) — the
+stock weather widget is removed/replaced by weatherx on install day.
