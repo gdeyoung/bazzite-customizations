@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="latitude" type="Double">
+            <label>Home latitude (decimal degrees; 0 = not set)</label>
+            <default>0</default>
+        </entry>
+        <entry name="longitude" type="Double">
+            <label>Home longitude (decimal degrees; 0 = not set)</label>
+            <default>0</default>
+        </entry>
+        <entry name="locationName" type="String">
+            <label>Label for the Here tab</label>
+            <default></default>
+        </entry>
+        <entry name="barExtra" type="String">
+            <label>Bar label next to the icon: temp, tempcondition, or icon</label>
+            <default>temp</default>
+        </entry>
+        <entry name="refreshMin" type="Int">
+            <label>Forecast refresh interval (minutes)</label>
+            <default>15</default>
+        </entry>
+        <entry name="units" type="String">
+            <label>Units: imperial or metric</label>
+            <default>imperial</default>
+        </entry>
+        <entry name="pinnedLocations" type="String">
+            <label>Pinned tabs (JSON array of {name, lat, lon}; managed by the + button in the panel)</label>
+            <default>[]</default>
+        </entry>
+    </group>
+</kcfg>
