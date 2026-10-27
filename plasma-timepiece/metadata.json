@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "Date and Time",
+        "Description": "Date-time chip with a calendar popup: color-coded world clocks, a countdown timer and a self-running pomodoro that survive a shell restart. Plasma 6 port of gdeyoung.timepiece (Omarchy).",
+        "Icon": "preferences-system-time",
+        "Id": "com.gdeyoung.plasma.timepiece",
+        "License": "MIT",
+        "Name": "Time Piece",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-timepiece"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

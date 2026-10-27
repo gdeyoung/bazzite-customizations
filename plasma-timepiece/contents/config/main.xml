@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="clockFormat" type="String">
+            <label>Panel chip time format (Qt date-time tokens; the 'ww' token is substituted with the ISO week by the widget)</label>
+            <default>dddd MMM d h:mm AP</default>
+        </entry>
+        <entry name="showDate" type="Bool">
+            <label>Date in the panel chip (masks date tokens out of whatever format is set)</label>
+            <default>true</default>
+        </entry>
+        <entry name="worldClocks" type="String">
+            <label>World clocks shown in the popup, as LABEL:Zone pairs comma separated (max 5), e.g. ET:America/New_York,PT:America/Los_Angeles</label>
+            <default></default>
+        </entry>
+        <entry name="timerMinutes" type="Int">
+            <label>Idle countdown timer preset in minutes (1-600)</label>
+            <default>10</default>
+        </entry>
+        <entry name="pomodoroFocusMin" type="Int">
+            <label>Pomodoro focus block length in minutes (1-120)</label>
+            <default>25</default>
+        </entry>
+        <entry name="pomodoroBreakMin" type="Int">
+            <label>Pomodoro break length in minutes (1-60)</label>
+            <default>5</default>
+        </entry>
+        <entry name="weekStartDay" type="String">
+            <label>Day the calendar week starts on (sunday..saturday); empty falls back to the locale</label>
+            <default></default>
+        </entry>
+        <entry name="timerRunning" type="Bool">
+            <label>Transient: manual countdown running</label>
+            <default>false</default>
+        </entry>
+        <entry name="timerEndsAt" type="Double">
+            <label>Transient: epoch-ms the manual countdown ends at</label>
+            <default>0</default>
+        </entry>
+        <entry name="timerRemainingMs" type="Double">
+            <label>Transient: remaining ms when the manual countdown is paused</label>
+            <default>0</default>
+        </entry>
+        <entry name="timerDoneAt" type="Double">
+            <label>Transient: epoch-ms the manual countdown fired at (the done ping ages out after 2 minutes)</label>
+            <default>0</default>
+        </entry>
+        <entry name="pomodoroMode" type="String">
+            <label>Transient: live pomodoro phase (off/focus/break/longbreak)</label>
+            <default>off</default>
+        </entry>
+        <entry name="pomodoroEndsAt" type="Double">
+            <label>Transient: epoch-ms the current pomodoro phase ends at</label>
+            <default>0</default>
+        </entry>
+        <entry name="pomodoroCyclesDone" type="Int">
+            <label>Transient: focus blocks completed in the current pomodoro set</label>
+            <default>0</default>
+        </entry>
+    </group>
+</kcfg>
