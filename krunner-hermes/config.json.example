@@ -1,0 +1,14 @@
+{
+  "answer_prefix": "ai",
+  "task_prefix": "hr",
+  "litellm": {
+    "base_url": "http://localhost:4000/v1",
+    "model": "local-fast",
+    "timeout_s": 45,
+    "api_key_env": "LITELLM_API_KEY",
+    "api_key_file": ""
+  },
+  "max_answer_chars": 700,
+  "copy_answers": true,
+  "notify_icon": "help-browser"
+}

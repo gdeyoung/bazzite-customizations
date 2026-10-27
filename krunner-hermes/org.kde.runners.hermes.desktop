@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Service
+X-KDE-ServiceTypes=Plasma/Runner
+X-KDE-PluginInfo-Name=hermes
+X-KDE-PluginInfo-Version=0.1.0
+X-KDE-PluginInfo-Author=Greg DeYoung
+X-KDE-PluginInfo-Email=greg@deyoungnet.com
+X-KDE-PluginInfo-License=MIT
+X-KDE-PluginInfo-EnabledByDefault=true
+Icon=help-browser
+Name=Hermes
+Comment=Ask Hermes (ai question) or fire a task (hr task)
+X-Plasma-API=DBus
+X-Plasma-DBusRunner-Service=org.kde.runners.hermes
+X-Plasma-DBusRunner-Path=/hermes
+X-Plasma-Request-Actions-Once=true
+X-Plasma-Runner-Syntaxes=ai :q:,hr :q:,hermes
+X-Plasma-Runner-Syntax-Descriptions=Ask Hermes one question — answer arrives as a notification and is cached inline,Run an unattended Hermes agent turn,Show the two Hermes runner syntaxes

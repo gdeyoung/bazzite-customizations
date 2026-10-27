@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermes KRunner DBus runner (ai <question> / hr <task>)
+Documentation=https://github.com/gdeyoung/bazzite-customizations
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.kde.runners.hermes
+ExecStart=/usr/bin/python3 %h/.local/share/hermes-runner/hermes_runner.py
+Restart=on-failure
+RestartSec=3
+# hermes CLI resolution needs ~/.local/bin and the fleet venv on PATH
+Environment=PATH=%h/.local/bin:%h/.hermes/hermes-agent/venv/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=graphical-session.target

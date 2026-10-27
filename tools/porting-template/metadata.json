@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "SHORT DESCRIPTION — what the widget shows in the panel and what the popup does. Plasma 6 port of gdeyoung.<name> (Omarchy).",
+        "Icon": "preferences-system",
+        "Id": "com.gdeyoung.plasma.<name>",
+        "License": "MIT",
+        "Name": "<Name>",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/bazzite-customizations"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
