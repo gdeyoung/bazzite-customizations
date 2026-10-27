@@ -41,8 +41,21 @@ PlasmoidItem {
     readonly property string displayText: formatted(now)
 
     function formatted(d) {
-        return Qt.formatDateTime(d, activeFormat.replace(/ww/g,
+        // Custom tokens Qt can't express: [UM] = UPPERCASE short month
+        // ("OCT"), [OD] = ordinal day ("27th"). Swapped for non-letter
+        // placeholders ('@@'/'##' are literal to Qt) and re-inserted after
+        // formatting — letter placeholders would be parsed as Qt tokens.
+        const fmt = activeFormat
+        const hasUM = fmt.indexOf("[UM]") >= 0
+        const hasOD = fmt.indexOf("[OD]") >= 0
+        let base = fmt.split("[UM]").join("@@").split("[OD]").join("##")
+        let out = Qt.formatDateTime(d, base.replace(/ww/g,
             Model.isoWeekLiteral(d.getFullYear(), d.getMonth(), d.getDate())))
+        if (hasUM)
+            out = out.split("@@").join(Qt.formatDate(d, "MMM").toUpperCase())
+        if (hasOD)
+            out = out.split("##").join(Model.ordinalDay(d.getDate()))
+        return out
     }
 
     // ======================================================================

@@ -78,6 +78,13 @@ function pad2(value) {
   return (n < 10 ? "0" : "") + n
 }
 
+// Ordinal day: 1st, 2nd, 3rd, 4th… 11th–13th… 21st, 22nd, 23rd, 24th…
+function ordinalDay(n) {
+  var suffixes = ["th", "st", "nd", "rd"]
+  var v = n % 100
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0])
+}
+
 // Stable "yyyy-MM-dd" identity for a day, so a grid cell can be compared
 // against today without dragging Date objects through bindings.
 function dateKey(year, month, day) {
@@ -499,6 +506,7 @@ if (typeof module !== "undefined") {
     clockFormatRing: clockFormatRing,
     nextClockFormat: nextClockFormat,
     isoWeekLiteral: isoWeekLiteral,
+    ordinalDay: ordinalDay,
     stripDateWords: stripDateWords,
     applyShowDate: applyShowDate,
     plausibleTimeZone: plausibleTimeZone,

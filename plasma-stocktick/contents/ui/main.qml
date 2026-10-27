@@ -15,7 +15,7 @@ PlasmoidItem {
     id: root
 
     property var doc: null              // last parsed probe document
-    property string sym: (Plasmoid.configuration.primary || "SPY").toUpperCase()
+    property string sym: (Plasmoid.configuration.primary || "MSFT").toUpperCase()
     property var quotes: doc && doc.ok ? doc.quotes : ({})
     property var primaryQuote: quotes[sym] ?? null
     property bool up: primaryQuote ? (primaryQuote.deltaPct >= 0) : false
@@ -24,11 +24,12 @@ PlasmoidItem {
 
     // fetch loop: fire-once DataSource per tick (interval from config)
     function refetch() {
-        const syms = (Plasmoid.configuration.symbols || "SPY,QQQ,AAPL").trim();
+        const syms = (Plasmoid.configuration.symbols
+                      || "MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD").trim();
         const pos = (Plasmoid.configuration.positions || "").trim();
         fetch.connectedSources = [Qt.resolvedUrl("../scripts/fetch-quotes.sh")
             .toString().replace("file://", "") + " " + syms + " "
-            + (Plasmoid.configuration.primary || "SPY") + " "
+            + (Plasmoid.configuration.primary || "MSFT") + " "
             + (pos ? "'" + pos.split("'").join("") + "'" : "-")];
         fetch.connectedSources = [];
     }

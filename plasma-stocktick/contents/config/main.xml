@@ -5,11 +5,11 @@
                           http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
   <group name="General">
     <entry name="symbols" type="String">
-      <default>SPY,QQQ,AAPL</default>
-      <label>Comma-separated Yahoo symbols (indices use ^GSPC form)</label>
+      <default>MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD</default>
+      <label>Comma-separated Yahoo symbols (indices use ^GSPC form, crypto BTC-USD form)</label>
     </entry>
     <entry name="primary" type="String">
-      <default>SPY</default>
+      <default>MSFT</default>
       <label>Symbol shown in the panel chip and hero</label>
     </entry>
     <entry name="positions" type="String">

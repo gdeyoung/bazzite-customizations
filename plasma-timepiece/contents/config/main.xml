@@ -2,8 +2,8 @@
 <kcfg>
     <group name="General">
         <entry name="clockFormat" type="String">
-            <label>Panel chip time format (Qt date-time tokens; the 'ww' token is substituted with the ISO week by the widget)</label>
-            <default>dddd MMM d h:mm AP</default>
+            <label>Panel chip time format (Qt tokens; ww=ISO week; [UM]=UPPERCASE month, [OD]=ordinal day)</label>
+            <default>dddd, [UM] [OD] h:mm AP</default>
         </entry>
         <entry name="showDate" type="Bool">
             <label>Date in the panel chip (masks date tokens out of whatever format is set)</label>

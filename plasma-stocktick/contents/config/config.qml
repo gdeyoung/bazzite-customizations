@@ -12,17 +12,17 @@ KCM.SimpleKCM {
     property int cfg_refreshMin
 
     Kirigami.FormLayout {
-        QQC2TextField {
-            Kirigami.formData.label: "Symbols (comma-separated, Stooq format):"
+        QQC2.TextField {
+            Kirigami.formData.label: "Symbols (comma-separated, Yahoo format):"
             text: cfg_symbols
             onTextEdited: cfg_symbols = text
-            placeholderText: "SPY.US,QQQ.US,AAPL.US"
+            placeholderText: "MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD"
         }
-        QQC2TextField {
+        QQC2.TextField {
             Kirigami.formData.label: "Primary (chip + hero):"
             text: cfg_primary
             onTextEdited: cfg_primary = text
-            placeholderText: "SPY.US"
+            placeholderText: "MSFT"
         }
         QQC2SpinBox {
             Kirigami.formData.label: "Refresh (minutes):"

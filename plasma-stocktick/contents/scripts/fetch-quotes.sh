@@ -37,9 +37,12 @@ def chart(sym):
               if c is not None]
     return {"sym": meta.get("symbol", sym).upper(),
             "close": meta.get("regularMarketPrice"),
+            # prevClose MUST be yesterday's close. chartPreviousClose is the
+            # close BEFORE the range start (3 months ago for range=3mo) —
+            # using it made deltas read as 3-month moves. Series first.
             "prevClose": (meta.get("previousClose")
-                          or meta.get("chartPreviousClose")
-                          or (closes[-2] if len(closes) >= 2 else None)),
+                          or (closes[-2] if len(closes) >= 2 else None)
+                          or meta.get("chartPreviousClose")),
             "spark": [round(c, 4) for c in closes[-31:]]}
 
 syms, primary, positions, state = (sys.argv[i] for i in range(1, 5))

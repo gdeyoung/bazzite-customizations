@@ -207,8 +207,18 @@ test("plasma5support is imported unaliased and versioned", () => {
 })
 
 test("chip defaults to the date-inclusive format and masks via Model", () => {
-  assert.match(kcfg, /<default>dddd MMM d h:mm AP<\/default>/)
+  assert.match(kcfg, /<default>dddd, \[UM\] \[OD\] h:mm AP<\/default>/)
   assert.match(main, /Model\.applyShowDate\(configuredFormat, showDate\)/)
+})
+
+test("custom tokens: [UM] uppercase month + [OD] ordinal day resolve around Qt", () => {
+  assert.match(main, /split\("\[UM\]"\)\.join\("@@"\)/)
+  assert.match(main, /split\("\[OD\]"\)\.join\("##"\)/)
+  assert.match(main, /Model\.ordinalDay\(d\.getDate\(\)\)/)
+  assert.equal(M.ordinalDay(1), "1st")
+  assert.equal(M.ordinalDay(11), "11th")
+  assert.equal(M.ordinalDay(21), "21st")
+  assert.equal(M.ordinalDay(27), "27th")
 })
 
 test("applet reads showDate tolerating the string form", () => {
