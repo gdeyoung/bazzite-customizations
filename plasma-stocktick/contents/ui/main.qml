@@ -1,12 +1,13 @@
 /*
- * StockTick — panel chip: SYM price ±Δ%; popup: primary hero + sparkline,
- * watchlist, optional portfolio. Pure QML + shell probe, user-level install.
- * Color semantics: Kirigami.Theme.positiveText / negativeText only.
+ * StockTick v2 — panel chip (primary symbol + price + colored Δ%) and popup
+ * (watchlist rows; click a row → hero with price, Δ, 3-month sparkline).
+ * Plumbing mirrors weatherx exactly: one fire-once connectSource per fetch,
+ * curl-driven shell probe, single-line JSON contract.
+ * Colors: fixed hex (Kirigami positiveText/negativeText are undefined in
+ * plasmoid compactRepresentation on Plasma 6.7 — journal-verified).
  */
 import QtQuick
-import QtQuick.Layouts
 import org.kde.plasma.plasmoid
-import org.kde.plasma.components as PC3
 import org.kde.plasma.plasma5support 2.0
 import org.kde.kirigami as Kirigami
 import "Model.js" as Model
@@ -14,181 +15,185 @@ import "Model.js" as Model
 PlasmoidItem {
     id: root
 
-    property var doc: null              // last parsed probe document
-    property string sym: (Plasmoid.configuration.primary || "MSFT").toUpperCase()
-    property var quotes: doc && doc.ok ? doc.quotes : ({})
-    property var primaryQuote: quotes[sym] ?? null
-    // Fixed green/red, same approach as sysmon (Kirigami positiveText/
-    // negativeText resolve to undefined in this plasmoid context on Plasma 6.7).
-    property bool up: primaryQuote ? (primaryQuote.deltaPct >= 0) : false
+    // fixed green/red — Kirigami semantic colors are undefined here
     readonly property color cPos: "#3fd18b"
     readonly property color cNeg: "#f4405c"
 
-    // fetch loop: fire-once executable source, weatherx's proven pattern —
-    // connectSource once; onNewData disconnects. (Setting connectedSources
-    // then clearing it races the engine and kills the fetch mid-run.)
-    function refetch() {
-        const syms = (Plasmoid.configuration.symbols
-                      || "MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD").trim();
-        const pos = (Plasmoid.configuration.positions || "").trim();
-        fetch.connectSource(Qt.resolvedUrl("../scripts/fetch-quotes.sh")
-            .toString().replace("file://", "") + " " + syms + " "
-            + (Plasmoid.configuration.primary || "MSFT") + " "
-            + (pos ? "'" + pos.split("'").join("") + "'" : "-"));
+    property var doc: null
+    property string sym: (Plasmoid.configuration.primary || "MSFT").toUpperCase()
+    property string selected: sym            // hero symbol in the popup
+    readonly property var quotes: (doc && doc.ok) ? doc.quotes : ({})
+    readonly property var q: quotes[selected] || null
+    readonly property var q0: quotes[sym] || null
+    onSymChanged: selected = sym
+
+    readonly property var syms: {
+        const raw = (Plasmoid.configuration.symbols
+                     || "MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD")
+        return raw.split(",").map(s => s.trim().toUpperCase()).filter(s => s.length > 0)
     }
 
-    // Fetch once at load, then on the refresh timer.
+    // ---- fetch (weatherx pattern: connectSource once, disconnect on data) --
+    function probeCmd() {
+        return Qt.resolvedUrl("../scripts/fetch-quotes.sh")
+            .toString().replace("file://", "") + " " + syms.join(",")
+    }
+    function refetch() { exec.connectSource(probeCmd()) }
     Component.onCompleted: refetch()
 
     DataSource {
-        id: fetch
+        id: exec
         engine: "executable"
         interval: 0
         onNewData: (sourceName, data) => {
-            const out = data["stdout"] || "";
+            const out = data["stdout"] || ""
             try {
-                root.doc = JSON.parse(out.trim().split("\n").pop());  // single-line contract
-            } catch (e) { /* keep last good doc */ }
-            fetch.disconnectSource(sourceName);
+                root.doc = JSON.parse(out.trim().split("\n").pop())
+            } catch (e) { /* keep last good */ }
+            exec.disconnectSource(sourceName)
         }
     }
 
     Timer {
         interval: Math.max(1, Plasmoid.configuration.refreshMin || 5) * 60000
         running: true; repeat: true
-        triggeredOnStart: true
         onTriggered: root.refetch()
     }
 
+    // ---- chip ----------------------------------------------------------------
     compactRepresentation: MouseArea {
         id: chip
         hoverEnabled: true
-        // Same sizing pattern as weatherx/sysmon (proven on this panel):
-        // bind implicitWidth to the row or the chip collapses to icon width.
-        // Extra width = breathing room next to the clock (no spacer widgets).
+        readonly property real fpx: Math.round(Math.max(8, height * 0.36))
         implicitWidth: chipRow.implicitWidth + Kirigami.Units.gridUnit * 3
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         Row {
             id: chipRow
             anchors.centerIn: parent
-            spacing: Kirigami.Units.smallSpacing
+            spacing: Kirigami.Units.smallSpacing * 1.5
 
             Text {
                 text: root.sym.replace(".US", "")
                 color: Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.58
-                font.bold: true
+                font.pixelSize: chip.fpx; font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: root.primaryQuote ? Model.fmtPrice(root.primaryQuote.close) : "…"
+                text: root.q0 ? Model.fmtPrice(root.q0.close) : "—"
                 color: Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.58
+                font.pixelSize: chip.fpx
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: root.primaryQuote ? Model.fmtPct(root.primaryQuote.deltaPct) : ""
-                color: root.up ? Kirigami.Theme.positiveText : Kirigami.Theme.negativeText
-                font.pixelSize: Kirigami.Units.gridUnit * 0.55
-                font.bold: true
+                text: root.q0 ? Model.fmtPct(root.q0.deltaPct) : ""
+                color: root.q0 && root.q0.deltaPct >= 0 ? root.cPos : root.cNeg
+                font.pixelSize: Math.round(chip.fpx * 0.92); font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
         onClicked: root.expanded = !root.expanded
     }
 
-    fullRepresentation: ColumnLayout {
+    // ---- popup ---------------------------------------------------------------
+    fullRepresentation: Column {
         id: popup
-        Layout.preferredWidth: 340
-        Layout.minimumHeight: 160
-        spacing: Kirigami.Units.smallSpacing
-        Layout.preferredHeight: headerRow.implicitHeight + watchLabel.implicitHeight
-            + watchList.implicitHeight + (pfBox.visible ? pfBox.implicitHeight : 0)
-            + asofLabel.implicitHeight + 7 * Kirigami.Units.smallSpacing
+        width: Kirigami.Units.gridUnit * 34
+        spacing: Kirigami.Units.largeSpacing
+        leftPadding: Kirigami.Units.gridUnit
+        rightPadding: Kirigami.Units.gridUnit
+        topPadding: Kirigami.Units.gridUnit * 0.6
+        bottomPadding: Kirigami.Units.gridUnit * 0.6
 
-        RowLayout {                                        // hero: primary symbol
-            id: headerRow
-            Layout.fillWidth: true
-            PC3.Label {
-                text: root.sym.replace(".US", "")
-                font.pixelSize: 20; font.bold: true
-            }
-            Item { Layout.fillWidth: true }
-            ColumnLayout {
-                spacing: 0
-                PC3.Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: root.primaryQuote ? Model.fmtPrice(root.primaryQuote.close) : "—"
-                    font.pixelSize: 20; font.bold: true
-                }
-                PC3.Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: root.primaryQuote
-                          ? Model.fmtPct(root.primaryQuote.deltaPct) : ""
+        // hero: selected symbol
+        Column {
+            width: parent.width - parent.leftPadding - parent.rightPadding
+            spacing: Kirigami.Units.smallSpacing
+
+            Row {
+                spacing: Kirigami.Units.largeSpacing
+                Text {
+                    text: root.selected.replace(".US", "")
+                    color: Kirigami.Theme.textColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 1.1
                     font.bold: true
-                    color: root.up ? root.cPos : root.cNeg
+                }
+                Text {
+                    text: root.q ? Model.fmtPrice(root.q.close) : "—"
+                    color: Kirigami.Theme.textColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 1.1
+                    font.bold: true
+                }
+                Text {
+                    text: root.q ? Model.fmtPct(root.q.deltaPct) : ""
+                    color: root.q && root.q.deltaPct >= 0 ? root.cPos : root.cNeg
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.9
+                    font.bold: true
+                }
+                Text {
+                    text: root.doc && root.doc.ok ? "Yahoo · 3mo" : "loading…"
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.5
                 }
             }
-            Sparkline {                                    // 30-day series
-                Layout.leftMargin: Kirigami.Units.smallSpacing
-                implicitWidth: 90; implicitHeight: 40
-                series: Model.normalizeSeries(root.doc ? root.doc.spark : [])
-                lineColor: root.up ? root.cPos : root.cNeg
+
+            // sparkline for the selected symbol
+            Canvas {
+                id: heroSpark
+                width: parent.width
+                height: Kirigami.Units.gridUnit * 4
+                visible: root.q && root.q.spark && root.q.spark.length > 1
+
+                onPaint: {
+                    var pts = root.q ? root.q.spark : []
+                    if (pts.length < 2) return
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    var min = Math.min.apply(null, pts), max = Math.max.apply(null, pts)
+                    if (max === min) max = min + 1
+                    var up = pts[pts.length - 1] >= pts[0]
+                    ctx.strokeStyle = up ? root.cPos : root.cNeg
+                    ctx.lineWidth = 2
+                    ctx.beginPath()
+                    for (var i = 0; i < pts.length; i++) {
+                        var x = i / (pts.length - 1) * width
+                        var y = height - 4 - (pts[i] - min) / (max - min) * (height - 8)
+                        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+                    }
+                    ctx.stroke()
+                }
+                Connections {
+                    target: root
+                    function onQChanged() { heroSpark.requestPaint() }
+                    function onSelectedChanged() { heroSpark.requestPaint() }
+                }
+                Component.onCompleted: requestPaint()
             }
         }
 
-        PC3.Label {                                        // watchlist
-            id: watchLabel
-            text: "Watchlist"
-            font.bold: true; opacity: 0.7
+        Rectangle {
+            width: parent.width - parent.leftPadding - parent.rightPadding
+            height: 1
+            color: Qt.rgba(Kirigami.Theme.disabledTextColor.r,
+                           Kirigami.Theme.disabledTextColor.g,
+                           Kirigami.Theme.disabledTextColor.b, 0.4)
         }
-        Repeater {                                         // one row per symbol
-            id: watchList
-            model: {
-                const out = [];
-                const syms = (Plasmoid.configuration.symbols || "").toUpperCase()
-                    .split(",").map(s => s.trim()).filter(s => s && s !== root.sym);
-                syms.forEach(s => out.push(root.quotes[s] ? s : null));
-                return out.filter(Boolean);
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                PC3.Label { text: modelData.replace(".US", ""); font.pixelSize: 12 }
-                Item { Layout.fillWidth: true }
-                PC3.Label {
-                    text: root.quotes[modelData]
-                          ? Model.fmtPrice(root.quotes[modelData].close) : "—"
-                    font.pixelSize: 12
-                }
-                PC3.Label {
-                    text: root.quotes[modelData]
-                          ? Model.fmtPct(root.quotes[modelData].deltaPct) : ""
-                    font.pixelSize: 11; font.bold: true
-                    color: (root.quotes[modelData].deltaPct >= 0)
-                           ? root.cPos : root.cNeg
-                }
+
+        // watchlist rows (delegate in StockRow.qml — one-handler rule)
+        Repeater {
+            model: root.syms
+            StockRow {
+                panel: root
+                modelData: modelData
             }
         }
 
-        PortfolioBox {                                     // optional positions
-            id: pfBox
-            visible: modelOk
-            quotes: root.quotes
-            positions: Plasmoid.configuration.positions || ""
-            cPos: root.cPos; cNeg: root.cNeg
-        }
-
-        PC3.Label {                                        // as-of + refresh hint
-            id: asofLabel
-            Layout.fillWidth: true
-            font.pixelSize: 10; opacity: 0.6
-            text: root.doc && root.doc.ok
-                  ? ("Stooq · " + new Date(root.doc.asof * 1000).toLocaleTimeString()
-                     + " · refreshes every "
-                     + (Plasmoid.configuration.refreshMin || 5) + " min")
-                  : (root.doc && !root.doc.ok ? "fetch failed — retrying next tick"
-                                               : "waiting for first fetch…")
+        Text {
+            text: "click a row to inspect · data: Yahoo Finance (keyless) · every "
+                  + (Plasmoid.configuration.refreshMin || 5) + " min"
+            color: Kirigami.Theme.disabledTextColor
+            font.pixelSize: Kirigami.Units.gridUnit * 0.45
+            width: parent.width - parent.leftPadding - parent.rightPadding
         }
     }
 }

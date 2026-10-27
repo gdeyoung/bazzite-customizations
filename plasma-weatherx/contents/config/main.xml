@@ -29,5 +29,13 @@
             <label>Pinned tabs (JSON array of {name, lat, lon}; managed by the + button in the panel)</label>
             <default>[]</default>
         </entry>
+        <entry name="chipScale" type="Double">
+            <label>Bar text size multiplier (1.0 = 42%% of panel height)</label>
+            <default>1.0</default>
+        </entry>
+        <entry name="popupScale" type="Double">
+            <label>Popup text size multiplier (1.0 = default)</label>
+            <default>1.0</default>
+        </entry>
     </group>
 </kcfg>

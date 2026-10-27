@@ -32,14 +32,14 @@ Item {
                 text: chip.tab ? chip.tab.name : ""
                 color: chip.isActive ? Kirigami.Theme.backgroundColor
                                      : Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.55
+                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
                 font.bold: chip.isActive
             }
             Text {
                 visible: chip.tab && chip.tab.pinned && chip.isActive
                 text: "✕"
                 color: Kirigami.Theme.backgroundColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.55
+                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
             }
         }
     }

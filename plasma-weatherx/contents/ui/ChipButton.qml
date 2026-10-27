@@ -30,7 +30,7 @@ Item {
             anchors.centerIn: parent
             text: chip.label
             color: chip.emphasize ? Kirigami.Theme.backgroundColor : Kirigami.Theme.textColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
         }
     }
 

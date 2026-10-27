@@ -192,6 +192,12 @@ PlasmoidItem {
         id: compactRoot
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        // Bar text scales with panel thickness: 42% of bar height, times the
+        // user's chipScale multiplier (Settings → Bar text size).
+        readonly property real fpx: Math.round(
+            Math.max(6, height * 0.42
+                     * Math.max(0.5, Number(Plasmoid.configuration.chipScale) || 1.0)))
+        readonly property real ipx: Math.round(fpx * 1.65)   // icon glyph
         implicitWidth: compactRow.implicitWidth + Kirigami.Units.gridUnit * 3
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
@@ -203,14 +209,14 @@ PlasmoidItem {
             Text {
                 text: root.iconGlyph
                 color: Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.95
+                font.pixelSize: compactRoot.ipx
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 text: root.barLabel
                 visible: root.barLabel !== ""
                 color: Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.58
+                font.pixelSize: compactRoot.fpx
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -227,6 +233,7 @@ PlasmoidItem {
     // search, hero, details grid, next-hours strip, 7-day, radar, sun.
     // ==========================================================================
     fullRepresentation: WeatherPanel {
+        settings_scale: Math.max(0.5, Number(Plasmoid.configuration.popupScale) || 1.0)
         wx: root
     }
 }

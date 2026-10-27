@@ -8,7 +8,6 @@ KCM.SimpleKCM {
     id: configPage
     property string cfg_symbols
     property string cfg_primary
-    property string cfg_positions
     property int cfg_refreshMin
 
     Kirigami.FormLayout {
@@ -30,17 +29,10 @@ KCM.SimpleKCM {
             value: cfg_refreshMin
             onValueModified: cfg_refreshMin = value
         }
-        QQC2TextArea {
-            Kirigami.formData.label: "Positions (optional, one per line SYM:QTY:COST):"
-            Layout.preferredWidth: 320
-            Layout.preferredHeight: 96
-            text: cfg_positions
-            onTextChanged: cfg_positions = text
-            placeholderText: "AAPL.US:100:182.40"
-        }
         QQC2.Label {
             text: "Data: Yahoo Finance chart API — keyless, near-real-time.\n"
-                  + "Indices use the caret form (^GSPC, ^NDX)."
+                  + "Indices use the caret form (^GSPC, ^NDX). Click a row in the\n"
+                  + "popup to inspect it; the hero shows a 3-month sparkline."
             font.pixelSize: 10
             opacity: 0.7
         }

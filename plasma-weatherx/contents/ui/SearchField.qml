@@ -29,7 +29,7 @@ Rectangle {
         verticalAlignment: TextInput.AlignVCenter
         clip: true
         color: Kirigami.Theme.textColor
-        font.pixelSize: Kirigami.Units.gridUnit * 0.6
+        font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
         onAccepted: field.submitted()
 
         Text {
@@ -38,7 +38,7 @@ Rectangle {
             visible: !input.text && !input.activeFocus
             text: "Search city, press Enter…"
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
         }
     }
 }

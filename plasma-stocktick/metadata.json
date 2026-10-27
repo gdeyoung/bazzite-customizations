@@ -8,12 +8,12 @@
             }
         ],
         "Category": "Online Services",
-        "Description": "Stock tick in the panel — primary symbol chip with colored change, popup with watchlist, sparkline and optional portfolio P/L. Keyless (Stooq CSV), no API keys. First KDE-native plugin in the suite (no Omarchy source).",
+        "Description": "Stock watchlist chip + popup (Yahoo Finance, keyless). WeatherX plumbing: per-symbol curl, JS parsing.",
         "Icon": "office-chart-line",
         "Id": "com.gdeyoung.plasma.stocktick",
         "License": "MIT",
         "Name": "StockTick",
-        "Version": "0.1.0",
+        "Version": "2.0.0",
         "Website": "https://github.com/gdeyoung/bazzite-customizations"
     },
     "X-Plasma-API-Minimum-Version": "6.0"

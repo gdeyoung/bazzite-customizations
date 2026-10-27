@@ -26,7 +26,7 @@ Rectangle {
               + [row.place.admin1, row.place.country_code].filter(Boolean).join(" · ")
             : ""
         color: Kirigami.Theme.textColor
-        font.pixelSize: Kirigami.Units.gridUnit * 0.58
+        font.pixelSize: Kirigami.Units.gridUnit * 0.58 * panel.scaleF
         elide: Text.ElideRight
         width: parent.width - Kirigami.Units.largeSpacing * 2
     }

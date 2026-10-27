@@ -12,6 +12,13 @@ function fmtPct(v) {
     return (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
 }
 
+function fmtChange(close, prev, pct) {
+    if (close === null || close === undefined || isNaN(close)) return "—";
+    var d = close - (prev || close);
+    var sign = d >= 0 ? "+" : "−";
+    return sign + Math.abs(d).toFixed(2) + " (" + fmtPct(pct) + ")";
+}
+
 function fmtMoney(v) {
     if (v === null || v === undefined || isNaN(v)) return "—";
     const sign = v < 0 ? "-" : "";

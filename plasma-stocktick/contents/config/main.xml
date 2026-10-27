@@ -12,10 +12,6 @@
       <default>MSFT</default>
       <label>Symbol shown in the panel chip and hero</label>
     </entry>
-    <entry name="positions" type="String">
-      <default></default>
-      <label>Optional positions, one per line: SYM:QTY:COST (e.g. AAPL:100:182.40)</label>
-    </entry>
     <entry name="refreshMin" type="Int">
       <default>5</default>
       <min>1</min>

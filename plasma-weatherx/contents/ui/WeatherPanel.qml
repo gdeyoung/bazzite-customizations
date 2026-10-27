@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.plasma.plasma5support 2.0
 import org.kde.kirigami as Kirigami
 import "Model.js" as Model
@@ -17,6 +18,11 @@ import "Model.js" as Model
 // radar frame every 5 min on the same tick stream.
 Item {
     id: panel
+
+    // Popup text scale (Settings → Popup text size). Base 1.25× for
+    // readability at 4K/120% — the user-adjustable multiplier rides on top.
+    readonly property real scaleF: 1.25 * Math.max(0.5, Number(panel.settings_scale) || 1.0)
+    property real settings_scale: 1.0   // set by main.qml from configuration
 
     required property var wx   // the PlasmoidItem root (main.qml)
 
@@ -220,13 +226,28 @@ Item {
     Component.onCompleted: readTab()
 
     // ---- geometry: popup self-sizes to the visible column -------------------
-    Layout.preferredWidth: Kirigami.Units.gridUnit * 38
+    // Fonts multiply by scaleF, so implicitHeights grow with it — but panel
+    // applet popups are hard-capped by Plasma (roughly availableScreenHeight
+    // minus panel + margins). Cap our request at 86% of the screen so the
+    // popup never gets clipped when text is scaled up: the content column
+    // inside is a Flickable, so anything taller scrolls instead of clipping.
+    readonly property real maxPopupH: {
+        // Screen attached property: desktopAvailableHeight already excludes
+        // the panel. Take 94% of it so the popup fills the screen height and
+        // nothing needs to scroll at normal scales.
+        var avail = Screen.desktopAvailableHeight
+        if (!(avail > 0))
+            avail = Kirigami.Units.gridUnit * 30
+        return Math.min(avail * 0.94, Kirigami.Units.gridUnit * 34)
+    }
+    Layout.preferredWidth: Kirigami.Units.gridUnit * 46 * Math.min(1.6, panel.scaleF)
     Layout.minimumWidth: Kirigami.Units.gridUnit * 30
     Layout.preferredHeight: Math.max(Kirigami.Units.gridUnit * 10,
+        Math.min(maxPopupH,
         (needsSetup ? setupCol.implicitHeight
          : searching ? searchCol.implicitHeight
          : contentCol.implicitHeight)
-        + Kirigami.Units.largeSpacing * 3)
+        + Kirigami.Units.largeSpacing * 3))
     Layout.minimumHeight: Kirigami.Units.gridUnit * 8
 
     // =========================================================================
@@ -245,7 +266,7 @@ Item {
             width: parent.width
             text: "🌡️ Set your location to start"
             color: Kirigami.Theme.textColor
-            font.pixelSize: Kirigami.Units.gridUnit * 1.0
+            font.pixelSize: Kirigami.Units.gridUnit * 1.0 * panel.scaleF
             font.bold: true
         }
         Text {
@@ -256,7 +277,7 @@ Item {
                   "(example: 40.7128, -74.0060) plus a place name — or just close " +
                   "this popup and pin cities with the ＋ button."
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
         }
         ChipButton {
             label: "⚙ Configure…"
@@ -312,15 +333,24 @@ Item {
     // =========================================================================
     // Main panel content
     // =========================================================================
-    Column {
-        id: contentCol
+    Flickable {
+        id: contentFlick
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: Kirigami.Units.largeSpacing * 2
         anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.margins: Kirigami.Units.largeSpacing * 2
         anchors.topMargin: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.largeSpacing
+        clip: true
+        contentWidth: width
+        contentHeight: contentCol.implicitHeight + Kirigami.Units.largeSpacing * 2
+        boundsBehavior: Flickable.StopAtBounds
         visible: !panel.searching && !panel.needsSetup
+
+        Column {
+            id: contentCol
+            width: contentFlick.width
+            spacing: Kirigami.Units.largeSpacing
 
         // ---- tab row -------------------------------------------------------
         Flow {
@@ -361,7 +391,7 @@ Item {
                 Text {
                     text: panel.activeTab ? panel.activeTab.name : ""
                     color: Kirigami.Theme.textColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.7
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.7 * panel.scaleF
                     font.bold: true
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -369,7 +399,7 @@ Item {
                     text: "Weather unavailable — check network"
                     color: Kirigami.Theme.disabledTextColor
                     visible: panel.cur === null
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -383,7 +413,7 @@ Item {
                     text: panel.tabData && panel.tabData.fetchedAt
                         ? "updated " + Model.relativeAge(panel.tabData.fetchedAt) : ""
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.55
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 ChipButton {
@@ -422,7 +452,7 @@ Item {
 
             Text {
                 text: panel.heroIcon
-                font.pixelSize: Kirigami.Units.gridUnit * 2.3
+                font.pixelSize: Kirigami.Units.gridUnit * 2.3 * panel.scaleF
                 anchors.verticalCenter: parent.verticalCenter
             }
             Column {
@@ -432,13 +462,13 @@ Item {
                 Text {
                     text: panel.cur ? Model.temp(panel.cur.temperature_2m) : "--°"
                     color: Kirigami.Theme.textColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 2.1
+                    font.pixelSize: Kirigami.Units.gridUnit * 2.1 * panel.scaleF
                     font.bold: true
                 }
                 Text {
                     text: panel.cur ? Model.condText(panel.cur.weather_code) : ""
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.7
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.7 * panel.scaleF
                 }
             }
             Column {
@@ -448,7 +478,7 @@ Item {
                 Text {
                     text: panel.cur ? "Feels " + Model.temp(panel.cur.apparent_temperature) : ""
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.62
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.62 * panel.scaleF
                 }
                 Text {
                     text: panel.daily && panel.daily.temperature_2m_max
@@ -456,7 +486,7 @@ Item {
                           + "  L " + Model.temp(panel.daily.temperature_2m_min[0])
                         : ""
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.62
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.62 * panel.scaleF
                 }
             }
         }
@@ -469,11 +499,140 @@ Item {
                            Kirigami.Theme.disabledTextColor.b, 0.4)
         }
 
-        // ---- details grid with level bars ------------------------------------
+        // ---- body: radar left (half width), data wrapping around it ---------
+        Row {
+            id: bodyRow
+            width: parent.width
+            spacing: Kirigami.Units.largeSpacing * 2
+
+            Column {
+                id: radarCol
+                width: Math.round(parent.width * 0.5)
+                spacing: Kirigami.Units.smallSpacing
+
+                Text {
+                    text: "Radar"
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+                    font.bold: true
+                    font.capitalization: Font.AllUppercase
+                }
+
+                Item {
+                    id: radarMap
+                    width: radarCol.width
+                    height: width
+                    visible: panel.radarWin !== null
+                    clip: true
+
+                    readonly property real mx: panel.radarWin
+                        ? (width / panel.radarWin.cols) * panel.radarWin.px : 0
+                    readonly property real my: panel.radarWin
+                        ? (height / panel.radarWin.rows) * panel.radarWin.py : 0
+
+                    Repeater {
+                        model: panel.radarWin ? panel.radarWin.cols * panel.radarWin.rows : 0
+
+                        Item {
+                            id: cellItem
+                            required property int index
+                            readonly property int col: cellItem.index % 2
+                            readonly property int rowIdx: Math.floor(cellItem.index / 2)
+                            x: col * radarMap.width / 2
+                            y: rowIdx * radarMap.height / 2
+                            width: radarMap.width / 2 + (col === 0 ? 1 : 0)
+                            height: radarMap.height / 2 + (rowIdx === 0 ? 1 : 0)
+
+                            Image {
+                                anchors.fill: parent
+                                source: panel.radarWin
+                                    ? Model.radarBaseTileUrl(panel.radarWin.z,
+                                        panel.radarWin.x0 + col, panel.radarWin.y0 + rowIdx)
+                                    : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                            }
+                            Image {
+                                anchors.fill: parent
+                                visible: panel.radarFrame !== ""
+                                source: panel.radarFrame !== "" && panel.radarWin
+                                    ? Model.radarFrameTileUrl(panel.radarHost, panel.radarFrame,
+                                        panel.radarWin.z, panel.radarWin.x0 + col,
+                                        panel.radarWin.y0 + rowIdx) + "?t=" + panel.cacheBust
+                                    : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: false
+                            }
+                            Image {
+                                anchors.fill: parent
+                                source: panel.radarWin
+                                    ? Model.radarLabelTileUrl(panel.radarWin.z,
+                                        panel.radarWin.x0 + col, panel.radarWin.y0 + rowIdx)
+                                    : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        x: radarMap.mx - 6
+                        y: radarMap.my - 6
+                        width: 12
+                        height: 12
+                        radius: 6
+                        color: "transparent"
+                        border.width: 2
+                        border.color: Kirigami.Theme.textColor
+                    }
+                    Rectangle {
+                        x: radarMap.mx - 2
+                        y: radarMap.my - 2
+                        width: 4
+                        height: 4
+                        radius: 2
+                        color: Kirigami.Theme.textColor
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: panel.openRadarWeb()
+                    }
+                }
+
+                Text {
+                    visible: panel.radarWin === null
+                    text: "no location for radar"
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+                }
+
+                Text {
+                    text: panel.radarFrame
+                        ? (panel.radarFrameTime
+                            ? Model.relativeAge(
+                                new Date(panel.radarFrameTime * 1000).toISOString()) + " · "
+                            : "")
+                          + "© Esri · RainViewer"
+                        : "radar loading…"
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.46 * panel.scaleF
+                }
+            }
+
+            Column {
+                id: dataSide
+                width: parent.width - Math.round(parent.width * 0.5) - parent.spacing
+                spacing: Kirigami.Units.largeSpacing
+
+
         Text {
             text: "Details"
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.55
+            font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
             font.bold: true
             font.capitalization: Font.AllUppercase
         }
@@ -481,7 +640,7 @@ Item {
         Grid {
             id: detailGrid
             width: parent.width
-            columns: 4
+            columns: 3
             columnSpacing: Kirigami.Units.largeSpacing
             rowSpacing: Kirigami.Units.smallSpacing * 2
 
@@ -492,14 +651,14 @@ Item {
                     id: detailCell
                     required property var modelData
                     spacing: 1
-                    width: (detailGrid.width - detailGrid.columnSpacing * 3) / 4
+                    width: (detailGrid.width - detailGrid.columnSpacing * 2) / 3
 
                     Text {
                         width: parent.width
                         text: detailCell.modelData && detailCell.modelData.label
                               ? detailCell.modelData.label : ""
                         color: Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.52
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.52 * panel.scaleF
                         elide: Text.ElideRight
                     }
                     Text {
@@ -507,7 +666,7 @@ Item {
                         text: detailCell.modelData && detailCell.modelData.value
                               ? detailCell.modelData.value : ""
                         color: Kirigami.Theme.textColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.65
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.65 * panel.scaleF
                         font.bold: true
                         elide: Text.ElideRight
                     }
@@ -547,7 +706,7 @@ Item {
         Text {
             text: "Next hours"
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.55
+            font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
             font.bold: true
             font.capitalization: Font.AllUppercase
         }
@@ -576,26 +735,26 @@ Item {
                               : Model.hourLabel(hourCell.modelData ? hourCell.modelData.time : "")
                         color: hourCell.modelData && hourCell.modelData.isNow
                                ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.5
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.5 * panel.scaleF
                         font.bold: hourCell.modelData && hourCell.modelData.isNow
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: hourCell.modelData ? Model.glyph(hourCell.modelData.code, false) : ""
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.75
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.75 * panel.scaleF
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: hourCell.modelData ? Model.temp(hourCell.modelData.temp) : ""
                         color: Kirigami.Theme.textColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.57
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.57 * panel.scaleF
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: hourCell.modelData && Number(hourCell.modelData.pop) >= 20
                               ? "💧" + hourCell.modelData.pop + "%" : ""
                         color: Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.47
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.47 * panel.scaleF
                     }
                 }
             }
@@ -609,21 +768,16 @@ Item {
                            Kirigami.Theme.disabledTextColor.b, 0.4)
         }
 
-        // ---- 7-day + radar side by side ---------------------------------------
-        Row {
-            id: forecastRow
-            width: parent.width
-            spacing: Kirigami.Units.largeSpacing * 2
-
+        // ---- 7-day (right data column) ---------------------------------------
             Column {
                 id: dailyCol
-                width: parent.width - radarCol.width - forecastRow.spacing
+                width: parent.width
                 spacing: Kirigami.Units.smallSpacing
 
                 Text {
                     text: "7-Day Forecast"
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.55
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
                     font.bold: true
                     font.capitalization: Font.AllUppercase
                 }
@@ -643,7 +797,7 @@ Item {
                             text: dayRow.modelData === panel.todayStr
                                   ? "Today" : Model.shortDay(dayRow.modelData)
                             color: Kirigami.Theme.textColor
-                            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
                             font.bold: dayRow.modelData === panel.todayStr
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -652,7 +806,7 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                             text: panel.daily && panel.daily.weather_code
                                   ? Model.glyph(panel.daily.weather_code[dayRow.index], false) : ""
-                            font.pixelSize: Kirigami.Units.gridUnit * 0.72
+                            font.pixelSize: Kirigami.Units.gridUnit * 0.72 * panel.scaleF
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
@@ -661,7 +815,7 @@ Item {
                             text: panel.daily && panel.daily.temperature_2m_max
                                   ? Model.temp(panel.daily.temperature_2m_max[dayRow.index]) : ""
                             color: Kirigami.Theme.textColor
-                            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
                             font.bold: true
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -671,7 +825,7 @@ Item {
                             text: panel.daily && panel.daily.temperature_2m_min
                                   ? Model.temp(panel.daily.temperature_2m_min[dayRow.index]) : ""
                             color: Kirigami.Theme.disabledTextColor
-                            font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                            font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
@@ -679,7 +833,7 @@ Item {
                             text: panel.daily && panel.daily.weather_code
                                   ? Model.condText(panel.daily.weather_code[dayRow.index]) : ""
                             color: Kirigami.Theme.disabledTextColor
-                            font.pixelSize: Kirigami.Units.gridUnit * 0.54
+                            font.pixelSize: Kirigami.Units.gridUnit * 0.54 * panel.scaleF
                             elide: Text.ElideRight
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -687,131 +841,8 @@ Item {
                 }
             }
 
-            Column {
-                id: radarCol
-                width: Math.round(Math.min(forecastRow.width * 0.42,
-                        Kirigami.Units.gridUnit * 11) / 2) * 2
-                spacing: Kirigami.Units.smallSpacing
-
-                Text {
-                    text: "Radar"
-                    color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.55
-                    font.bold: true
-                    font.capitalization: Font.AllUppercase
-                }
-
-                Item {
-                    id: radarMap
-                    width: radarCol.width
-                    height: width
-                    visible: panel.radarWin !== null
-                    clip: true
-
-                    // exact point position as pixel fractions of the window
-                    readonly property real mx: panel.radarWin
-                        ? (width / panel.radarWin.cols) * panel.radarWin.px : 0
-                    readonly property real my: panel.radarWin
-                        ? (height / panel.radarWin.rows) * panel.radarWin.py : 0
-
-                    Repeater {
-                        model: panel.radarWin ? panel.radarWin.cols * panel.radarWin.rows : 0
-
-                        Item {
-                            id: cellItem
-                            required property int index
-                            readonly property int col: cellItem.index % 2
-                            readonly property int rowIdx: Math.floor(cellItem.index / 2)
-                            x: col * radarMap.width / 2
-                            y: rowIdx * radarMap.height / 2
-                            // +1 overlap on the top/left cell hides seams
-                            width: radarMap.width / 2 + (col === 0 ? 1 : 0)
-                            height: radarMap.height / 2 + (rowIdx === 0 ? 1 : 0)
-
-                            Image {
-                                anchors.fill: parent
-                                source: panel.radarWin
-                                    ? Model.radarBaseTileUrl(panel.radarWin.z,
-                                        panel.radarWin.x0 + col, panel.radarWin.y0 + rowIdx)
-                                    : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                            }
-                            Image {
-                                anchors.fill: parent
-                                visible: panel.radarFrame !== ""
-                                // timestamp param busts the tile cache when the
-                                // 5-min poll picks up a newer RainViewer frame
-                                source: panel.radarFrame !== "" && panel.radarWin
-                                    ? Model.radarFrameTileUrl(panel.radarHost, panel.radarFrame,
-                                        panel.radarWin.z, panel.radarWin.x0 + col,
-                                        panel.radarWin.y0 + rowIdx) + "?t=" + panel.cacheBust
-                                    : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: false
-                            }
-                            // labels sit above radar echoes so cities stay readable
-                            Image {
-                                anchors.fill: parent
-                                source: panel.radarWin
-                                    ? Model.radarLabelTileUrl(panel.radarWin.z,
-                                        panel.radarWin.x0 + col, panel.radarWin.y0 + rowIdx)
-                                    : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                            }
-                        }
-                    }
-
-                    // location marker: ring + dot on the exact point
-                    Rectangle {
-                        x: radarMap.mx - 5
-                        y: radarMap.my - 5
-                        width: 10
-                        height: 10
-                        radius: 5
-                        color: "transparent"
-                        border.width: 1.5
-                        border.color: Kirigami.Theme.textColor
-                    }
-                    Rectangle {
-                        x: radarMap.mx - 1.5
-                        y: radarMap.my - 1.5
-                        width: 3
-                        height: 3
-                        radius: 1.5
-                        color: Kirigami.Theme.textColor
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: panel.openRadarWeb()
-                    }
-                }
-
-                Text {
-                    visible: panel.radarWin === null
-                    text: "no location for radar"
-                    color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.55
-                }
-
-                Text {
-                    text: panel.radarFrame
-                        ? (panel.radarFrameTime
-                            ? Model.relativeAge(
-                                new Date(panel.radarFrameTime * 1000).toISOString()) + " · "
-                            : "")
-                          + "© Esri · RainViewer"
-                        : "radar loading…"
-                    color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: Kirigami.Units.gridUnit * 0.46
-                }
-            }
-        }
+            }  // dataSide
+        }  // bodyRow
 
         Rectangle {
             width: parent.width
@@ -830,26 +861,27 @@ Item {
                 text: panel.daily && panel.daily.sunrise
                     ? "🌅 Sunrise " + String(panel.daily.sunrise[0]).slice(11, 16) : "🌅 --"
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
             }
             Text {
                 text: panel.daily && panel.daily.sunset
                     ? "🌇 Sunset " + String(panel.daily.sunset[0]).slice(11, 16) : "🌇 --"
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
             }
             Text {
                 text: panel.daily && panel.daily.sunrise
                     ? "☀ " + Model.daylightLength(panel.daily.sunrise[0], panel.daily.sunset[0]) : ""
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.6
+                font.pixelSize: Kirigami.Units.gridUnit * 0.6 * panel.scaleF
             }
         }
 
-        Text {
-            text: "Open-Meteo · bar follows this device · click a pinned tab twice to remove it"
-            color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.48
+            Text {
+                text: "Open-Meteo · bar follows this device · click a pinned tab twice to remove it"
+                color: Kirigami.Theme.disabledTextColor
+                font.pixelSize: Kirigami.Units.gridUnit * 0.48 * panel.scaleF
+            }
         }
     }
 

@@ -62,6 +62,23 @@ KCM.SimpleKCM {
             value: cfg_refreshMin
             onValueModified: cfg_refreshMin = value
         }
+        QQC2.SpinBox {
+            // 50–200 % in steps of 10
+            Kirigami.FormData.label: i18n("Bar text size (%):")
+            from: 50
+            to: 200
+            stepSize: 10
+            value: Math.round((cfg_chipScale || 1.0) * 100)
+            onValueModified: cfg_chipScale = value / 100
+        }
+        QQC2.SpinBox {
+            Kirigami.FormData.label: i18n("Popup text size (%):")
+            from: 50
+            to: 200
+            stepSize: 10
+            value: Math.round((cfg_popupScale || 1.0) * 100)
+            onValueModified: cfg_popupScale = value / 100
+        }
         QQC2.Label {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
