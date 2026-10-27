@@ -4,18 +4,19 @@ Decision 2026-10-26: build ALL ports as code-complete artifacts on branch
 `kde-ports-batch`; **install nothing until Greg is back at the tower**. Install
 steps live at the bottom as a punch list.
 
-## Status
+## Status — ALL BUILT 2026-10-26, branch `kde-ports-batch`, nothing installed
 
 | Omarchy source | KDE target here | State | Notes |
 |---|---|---|---|
 | omarchy-sysmon | `plasma-sysmon/` | **SHIPPED** (master) | v0.6.0, installed + verified |
-| omarchy-foyer (AI lanes) | `krunner-hermes/` | build | DBus runner: `ai <q>` → LiteLLM one-row answer; `hr <task>` → hermes -z task + notification. Apps/calc/timers stay native KRunner. |
-| omarchy-weather | `plasma-weatherx/` | build | keyless Open-Meteo + Esri/RainViewer radar, pinned places |
-| omarchy-timepiece | `plasma-timepiece/` | build | date-in-chip clock, world-clock row, countdown + pomodoro |
-| omarchy-tailfin | `plasma-tailfin/` | build | tailscale status chip + device panel (Trayscale already covers app use) |
-| omarchy-driveway | `plasma-driveway/` | build | USB/SMB/NFS/sshfs/rclone one-click mounts; python lib ports verbatim |
-| omarchy-timemachine | `plasma-timemachine/` | build | rsync backup chip + 5-tab popup; engine scripts port verbatim |
-| omarchy-ready-room | `plasma-readyroom/` | build | gaming panel: session toggles, pad battery/test, replay, MangoHud profiles |
+| omarchy-foyer (AI lanes) | `krunner-hermes/` | **BUILT + live-bus-verified** (ade218d) | DBus runner: `ai <q>` → LiteLLM one-row answer; `hr <task>` → hermes -z turn + notification. Verified on the live session bus without installing. |
+| omarchy-weather | `plasma-weatherx/` | **BUILT** (2538283) | keyless Open-Meteo + Esri/RainViewer radar, pinned places; checker 0/0; live API e2e passed (placeholder coords only in repo) |
+| omarchy-timepiece | `plasma-timepiece/` | **BUILT** (7c8d515) | Model/zones sha-identical; 37/37 JS tests; timer persists via KConfig |
+| omarchy-tailfin | `plasma-tailfin/` | **BUILT** (2009575) | Model verbatim; 22/22 tests; read-only status view |
+| omarchy-driveway | `plasma-driveway/` | **BUILT** (d002ff5) | engine byte-identical (sha256), py_compile OK; poll-only v0.1, wizards→config |
+| omarchy-timemachine | `plasma-timemachine/` | **BUILT** (76dbee3) | engine sha256-ledgered, 24/24 tests; 5-tab popup |
+| omarchy-ready-room | `plasma-readyroom/` | **BUILT** (83f441c) | gc-* sha-identical; read-only probes live-run OK; needs gpu-screen-recorder (absent) for replay |
+| — (new, no Omarchy source) | `keyboard-shortcuts/` | **BUILT** (e783bb7) | hermes-keys.sh: Meta+Space/Return/H/Shift+H via kglobalaccel; no remapper needed |
 | omarchy-game-center | — | skip | subsumed by plasma-sysmon (GPU VRAM/GTT already there) |
 | omarchy-appdock | — | skip | reverse port; it *is* the KDE task manager on Hyprland |
 | omarchy-ultrawide-bar | — | skip | KDE panel does partial-width/auto-hide/floating natively |
@@ -32,7 +33,9 @@ skills) have no KDE artifact — their KDE equivalents are this repo + the
 ## Verification ladder (every port)
 1. `tools/check_qml.py <dir>` → 0 errors (static).
 2. Probe executes once → strict JSON (read-only probes only).
-3. Install-day: heartbeat advances, journal clean, screenshots, panel placement
+3. Node suites: run with EXPLICIT file args (`node --test tests/model.test.js`) —
+   directory args silently run 1 phantom failing test on this node.
+4. Install-day: heartbeat advances, journal clean, screenshots, panel placement
    (`references/panel-widget-placement.md` recipe in the skill).
 
 ## INSTALL PUNCH LIST (run only when at the tower)
