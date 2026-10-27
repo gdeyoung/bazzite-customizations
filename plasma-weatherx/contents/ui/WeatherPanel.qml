@@ -238,8 +238,11 @@ Item {
         var avail = Screen.desktopAvailableHeight
         if (!(avail > 0))
             avail = Kirigami.Units.gridUnit * 30
-        return Math.min(avail * 0.94, Kirigami.Units.gridUnit * 34)
+        return Math.min(avail * 0.94, Kirigami.Units.gridUnit * 40)
     }
+    // Explicit width — Plasma 6.7's Dialog sizing ignores Layout hints here and
+    // falls back to widest intrinsic child (~tab chips = cramped 410px). Pin it.
+    width: Kirigami.Units.gridUnit * 46 * Math.min(1.6, panel.scaleF)
     Layout.preferredWidth: Kirigami.Units.gridUnit * 46 * Math.min(1.6, panel.scaleF)
     Layout.minimumWidth: Kirigami.Units.gridUnit * 30
     Layout.preferredHeight: Math.max(Kirigami.Units.gridUnit * 10,
@@ -499,7 +502,7 @@ Item {
                            Kirigami.Theme.disabledTextColor.b, 0.4)
         }
 
-        // ---- body: radar left (half width), data wrapping around it ---------
+        // ---- body: radar (40%, widescreen crop) | details + 7-day side-by-side
         Row {
             id: bodyRow
             width: parent.width
@@ -507,7 +510,7 @@ Item {
 
             Column {
                 id: radarCol
-                width: Math.round(parent.width * 0.5)
+                width: Math.round(parent.width * 0.40)
                 spacing: Kirigami.Units.smallSpacing
 
                 Text {
@@ -521,7 +524,7 @@ Item {
                 Item {
                     id: radarMap
                     width: radarCol.width
-                    height: width
+                    height: Math.round(width * 0.60)   // widescreen crop — square radar ate the height budget
                     visible: panel.radarWin !== null
                     clip: true
 
@@ -623,155 +626,87 @@ Item {
                 }
             }
 
-            Column {
-                id: dataSide
-                width: parent.width - Math.round(parent.width * 0.5) - parent.spacing
-                spacing: Kirigami.Units.largeSpacing
 
-
-        Text {
-            text: "Details"
-            color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
-            font.bold: true
-            font.capitalization: Font.AllUppercase
-        }
-
-        Grid {
-            id: detailGrid
-            width: parent.width
-            columns: 3
-            columnSpacing: Kirigami.Units.largeSpacing
-            rowSpacing: Kirigami.Units.smallSpacing * 2
-
-            Repeater {
-                model: panel.detailCells
+            Row {
+                id: dataCols
+                width: parent.width - radarCol.width - parent.spacing
+                spacing: Kirigami.Units.largeSpacing * 2
 
                 Column {
-                    id: detailCell
-                    required property var modelData
-                    spacing: 1
-                    width: (detailGrid.width - detailGrid.columnSpacing * 2) / 3
+                    id: detCol
+                    width: Math.round((parent.width - dataCols.spacing) * 0.44)
+                    spacing: Kirigami.Units.smallSpacing
 
-                    Text {
-                        width: parent.width
-                        text: detailCell.modelData && detailCell.modelData.label
-                              ? detailCell.modelData.label : ""
-                        color: Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.52 * panel.scaleF
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        width: parent.width
-                        text: detailCell.modelData && detailCell.modelData.value
-                              ? detailCell.modelData.value : ""
-                        color: Kirigami.Theme.textColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.65 * panel.scaleF
-                        font.bold: true
-                        elide: Text.ElideRight
-                    }
-                    Rectangle {
-                        visible: detailCell.modelData
-                                 && detailCell.modelData.level !== undefined
-                                 && detailCell.modelData.level >= 0
-                        width: parent.width
-                        height: 3
-                        radius: 1.5
-                        color: Qt.rgba(Kirigami.Theme.disabledTextColor.r,
-                                      Kirigami.Theme.disabledTextColor.g,
-                                      Kirigami.Theme.disabledTextColor.b, 0.25)
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: parent.width * Math.max(0, Math.min(1,
-                                detailCell.modelData ? Number(detailCell.modelData.level) : 0))
-                            radius: 1.5
-                            color: Kirigami.Theme.textColor
-                        }
-                    }
+Text {
+    text: "Details"
+    color: Kirigami.Theme.disabledTextColor
+    font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+    font.bold: true
+    font.capitalization: Font.AllUppercase
+}
+
+
+Grid {
+    id: detailGrid
+    width: parent.width
+    columns: 3
+    columnSpacing: Kirigami.Units.largeSpacing
+    rowSpacing: Kirigami.Units.smallSpacing * 2
+
+    Repeater {
+        model: panel.detailCells
+
+        Column {
+            id: detailCell
+            required property var modelData
+            spacing: 1
+            width: (detailGrid.width - detailGrid.columnSpacing * 2) / 3
+
+            Text {
+                width: parent.width
+                text: detailCell.modelData && detailCell.modelData.label
+                      ? detailCell.modelData.label : ""
+                color: Kirigami.Theme.disabledTextColor
+                font.pixelSize: Kirigami.Units.gridUnit * 0.52 * panel.scaleF
+                elide: Text.ElideRight
+            }
+            Text {
+                width: parent.width
+                text: detailCell.modelData && detailCell.modelData.value
+                      ? detailCell.modelData.value : ""
+                color: Kirigami.Theme.textColor
+                font.pixelSize: Kirigami.Units.gridUnit * 0.65 * panel.scaleF
+                font.bold: true
+                elide: Text.ElideRight
+            }
+            Rectangle {
+                visible: detailCell.modelData
+                         && detailCell.modelData.level !== undefined
+                         && detailCell.modelData.level >= 0
+                width: parent.width
+                height: 3
+                radius: 1.5
+                color: Qt.rgba(Kirigami.Theme.disabledTextColor.r,
+                              Kirigami.Theme.disabledTextColor.g,
+                              Kirigami.Theme.disabledTextColor.b, 0.25)
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: parent.width * Math.max(0, Math.min(1,
+                        detailCell.modelData ? Number(detailCell.modelData.level) : 0))
+                    radius: 1.5
+                    color: Kirigami.Theme.textColor
                 }
             }
         }
+    }
+}
 
-        Rectangle {
-            width: parent.width
-            height: 1
-            color: Qt.rgba(Kirigami.Theme.disabledTextColor.r,
-                           Kirigami.Theme.disabledTextColor.g,
-                           Kirigami.Theme.disabledTextColor.b, 0.4)
-        }
-
-        // ---- remaining hours strip --------------------------------------------
-        Text {
-            text: "Next hours"
-            color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
-            font.bold: true
-            font.capitalization: Font.AllUppercase
-        }
-
-        Row {
-            id: hoursRow
-            width: parent.width
-            spacing: Kirigami.Units.smallSpacing
-
-            Repeater {
-                model: panel.hours
-
-                Column {
-                    id: hourCell
-                    required property var modelData
-                    spacing: 1
-                    // flex: divide the row width evenly across the hour cells
-                    width: (hoursRow.width
-                            - (Math.max(1, panel.hours.length) - 1) * hoursRow.spacing)
-                           / Math.max(1, panel.hours.length)
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: hourCell.modelData && hourCell.modelData.isNow
-                              ? "NOW"
-                              : Model.hourLabel(hourCell.modelData ? hourCell.modelData.time : "")
-                        color: hourCell.modelData && hourCell.modelData.isNow
-                               ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.5 * panel.scaleF
-                        font.bold: hourCell.modelData && hourCell.modelData.isNow
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: hourCell.modelData ? Model.glyph(hourCell.modelData.code, false) : ""
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.75 * panel.scaleF
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: hourCell.modelData ? Model.temp(hourCell.modelData.temp) : ""
-                        color: Kirigami.Theme.textColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.57 * panel.scaleF
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: hourCell.modelData && Number(hourCell.modelData.pop) >= 20
-                              ? "💧" + hourCell.modelData.pop + "%" : ""
-                        color: Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.47 * panel.scaleF
-                    }
                 }
-            }
-        }
-
-        Rectangle {
-            width: parent.width
-            height: 1
-            color: Qt.rgba(Kirigami.Theme.disabledTextColor.r,
-                           Kirigami.Theme.disabledTextColor.g,
-                           Kirigami.Theme.disabledTextColor.b, 0.4)
-        }
-
-        // ---- 7-day (right data column) ---------------------------------------
             Column {
                 id: dailyCol
-                width: parent.width
+                width: parent.width - detCol.width - dataCols.spacing
                 spacing: Kirigami.Units.smallSpacing
 
                 Text {
@@ -841,7 +776,8 @@ Item {
                 }
             }
 
-            }  // dataSide
+
+            }
         }  // bodyRow
 
         Rectangle {
@@ -851,6 +787,65 @@ Item {
                            Kirigami.Theme.disabledTextColor.g,
                            Kirigami.Theme.disabledTextColor.b, 0.4)
         }
+
+        // ---- remaining hours strip --------------------------------------------
+        Text {
+            text: "Next hours"
+            color: Kirigami.Theme.disabledTextColor
+            font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+            font.bold: true
+            font.capitalization: Font.AllUppercase
+        }
+
+        Row {
+            id: hoursRow
+            width: parent.width
+            spacing: Kirigami.Units.smallSpacing
+
+            Repeater {
+                model: panel.hours
+
+                Column {
+                    id: hourCell
+                    required property var modelData
+                    spacing: 1
+                    // flex: divide the row width evenly across the hour cells
+                    width: (hoursRow.width
+                            - (Math.max(1, panel.hours.length) - 1) * hoursRow.spacing)
+                           / Math.max(1, panel.hours.length)
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: hourCell.modelData && hourCell.modelData.isNow
+                              ? "NOW"
+                              : Model.hourLabel(hourCell.modelData ? hourCell.modelData.time : "")
+                        color: hourCell.modelData && hourCell.modelData.isNow
+                               ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.5 * panel.scaleF
+                        font.bold: hourCell.modelData && hourCell.modelData.isNow
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: hourCell.modelData ? Model.glyph(hourCell.modelData.code, false) : ""
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.75 * panel.scaleF
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: hourCell.modelData ? Model.temp(hourCell.modelData.temp) : ""
+                        color: Kirigami.Theme.textColor
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.57 * panel.scaleF
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: hourCell.modelData && Number(hourCell.modelData.pop) >= 20
+                              ? "💧" + hourCell.modelData.pop + "%" : ""
+                        color: Kirigami.Theme.disabledTextColor
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.47 * panel.scaleF
+                    }
+                }
+            }
+        }
+
 
         // ---- sun + credit -------------------------------------------------------
         Row {

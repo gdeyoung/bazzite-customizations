@@ -33,7 +33,7 @@ MouseArea {
         spacing: Kirigami.Units.smallSpacing
 
         Text {
-            text: row.modelData.replace(".US", "")
+            text: (row.modelData || "").replace(".US", "")
             width: Kirigami.Units.gridUnit * 4
             color: row.modelData === panel.selected
                    ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
@@ -64,7 +64,7 @@ MouseArea {
             id: rowSpark
             width: Kirigami.Units.gridUnit * 6
             height: parent.height - Kirigami.Units.smallSpacing
-            visible: row.rq && row.rq.spark && row.rq.spark.length > 1
+            visible: !!(row.rq && row.rq.spark && row.rq.spark.length > 1)
             anchors.verticalCenter: parent.verticalCenter
             onPaint: {
                 var pts = row.rq ? row.rq.spark : []

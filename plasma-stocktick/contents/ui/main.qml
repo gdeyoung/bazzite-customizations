@@ -7,6 +7,8 @@
  * plasmoid compactRepresentation on Plasma 6.7 — journal-verified).
  */
 import QtQuick
+import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.plasma5support 2.0
 import org.kde.kirigami as Kirigami
@@ -65,7 +67,7 @@ PlasmoidItem {
         id: chip
         hoverEnabled: true
         readonly property real fpx: Math.round(Math.max(8, height * 0.36))
-        implicitWidth: chipRow.implicitWidth + Kirigami.Units.gridUnit * 3
+        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 2
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         Row {
@@ -96,14 +98,25 @@ PlasmoidItem {
     }
 
     // ---- popup ---------------------------------------------------------------
+    // Plasma sizes the popup WINDOW from Layout attached props on the
+    // fullRepresentation — never leave them unset (v2 filled the whole
+    // monitor without them). Width pinned; height = content's own height.
     fullRepresentation: Column {
         id: popup
-        width: Kirigami.Units.gridUnit * 34
         spacing: Kirigami.Units.largeSpacing
         leftPadding: Kirigami.Units.gridUnit
         rightPadding: Kirigami.Units.gridUnit
         topPadding: Kirigami.Units.gridUnit * 0.6
         bottomPadding: Kirigami.Units.gridUnit * 0.6
+
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 30
+        Layout.minimumWidth: Kirigami.Units.gridUnit * 24
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 36
+        Layout.preferredHeight: popup.implicitHeight
+        Layout.maximumHeight: Screen.desktopAvailableHeight * 0.92
+        // Explicit width — same Dialog-sizing hole as weatherx (Layout hints
+        // ignored; without this the popup window fills the whole monitor).
+        width: Kirigami.Units.gridUnit * 30
 
         // hero: selected symbol
         Column {
