@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Tailscale tailnet chip in the panel (state + online/peer count) opening a device list: per-machine connection state, subnet routes, self identity and health warnings. Plasma 6 port of gdeyoung.tailfin (Omarchy).",
+        "Icon": "network-vpn",
+        "Id": "com.gdeyoung.plasma.tailfin",
+        "License": "MIT",
+        "Name": "Tailfin",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-tailfin"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

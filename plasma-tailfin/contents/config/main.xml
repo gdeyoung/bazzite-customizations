@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="interval" type="Int">
+            <label>Poll interval for tailscale status, in seconds (5-3600)</label>
+            <default>10</default>
+        </entry>
+        <entry name="showOffline" type="Bool">
+            <label>Show offline devices in the popup list instead of collapsing them behind a count</label>
+            <default>false</default>
+        </entry>
+    </group>
+</kcfg>
