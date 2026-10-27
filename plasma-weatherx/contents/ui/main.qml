@@ -192,7 +192,7 @@ PlasmoidItem {
         id: compactRoot
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        implicitWidth: compactRow.implicitWidth + Kirigami.Units.smallSpacing * 2
+        implicitWidth: compactRow.implicitWidth + Kirigami.Units.gridUnit * 3
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         Row {

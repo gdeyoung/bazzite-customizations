@@ -18,24 +18,26 @@ PlasmoidItem {
     property string sym: (Plasmoid.configuration.primary || "MSFT").toUpperCase()
     property var quotes: doc && doc.ok ? doc.quotes : ({})
     property var primaryQuote: quotes[sym] ?? null
+    // Fixed green/red, same approach as sysmon (Kirigami positiveText/
+    // negativeText resolve to undefined in this plasmoid context on Plasma 6.7).
     property bool up: primaryQuote ? (primaryQuote.deltaPct >= 0) : false
-    readonly property color cPos: Kirigami.Theme.positiveText
-    readonly property color cNeg: Kirigami.Theme.negativeText
+    readonly property color cPos: "#3fd18b"
+    readonly property color cNeg: "#f4405c"
 
-    // fetch loop: fire-once DataSource per tick (interval from config)
+    // fetch loop: fire-once executable source, weatherx's proven pattern —
+    // connectSource once; onNewData disconnects. (Setting connectedSources
+    // then clearing it races the engine and kills the fetch mid-run.)
     function refetch() {
         const syms = (Plasmoid.configuration.symbols
                       || "MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD").trim();
         const pos = (Plasmoid.configuration.positions || "").trim();
-        fetch.connectedSources = [Qt.resolvedUrl("../scripts/fetch-quotes.sh")
+        fetch.connectSource(Qt.resolvedUrl("../scripts/fetch-quotes.sh")
             .toString().replace("file://", "") + " " + syms + " "
             + (Plasmoid.configuration.primary || "MSFT") + " "
-            + (pos ? "'" + pos.split("'").join("") + "'" : "-")];
-        fetch.connectedSources = [];
+            + (pos ? "'" + pos.split("'").join("") + "'" : "-"));
     }
 
-    // Fetch once at load, then on the refresh timer. Without this the first
-    // quote arrives only after refreshMin minutes.
+    // Fetch once at load, then on the refresh timer.
     Component.onCompleted: refetch()
 
     DataSource {
@@ -45,15 +47,11 @@ PlasmoidItem {
         onNewData: (sourceName, data) => {
             const out = data["stdout"] || "";
             try {
-                const d = JSON.parse(out.trim().split("\n").pop());
-                root.doc = d;                                     // single-line contract
-                hb.connectedSources = ["echo -n '{\"t\":" + Date.now()
-                    + "}' > /tmp/plasma-stocktick-hb.json"];
-                hb.connectedSources = [];
+                root.doc = JSON.parse(out.trim().split("\n").pop());  // single-line contract
             } catch (e) { /* keep last good doc */ }
+            fetch.disconnectSource(sourceName);
         }
     }
-    DataSource { id: hb; engine: "executable"; interval: 0 }
 
     Timer {
         interval: Math.max(1, Plasmoid.configuration.refreshMin || 5) * 60000
@@ -62,27 +60,42 @@ PlasmoidItem {
         onTriggered: root.refetch()
     }
 
-    compactRepresentation: PC3.ItemDelegate {
+    compactRepresentation: MouseArea {
         id: chip
-        onClicked: root.expanded = !root.expanded
-        contentItem: RowLayout {
-            spacing: 4
-            PC3.Label {
+        hoverEnabled: true
+        // Same sizing pattern as weatherx/sysmon (proven on this panel):
+        // bind implicitWidth to the row or the chip collapses to icon width.
+        // Extra width = breathing room next to the clock (no spacer widgets).
+        implicitWidth: chipRow.implicitWidth + Kirigami.Units.gridUnit * 3
+        implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
+
+        Row {
+            id: chipRow
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.smallSpacing
+
+            Text {
                 text: root.sym.replace(".US", "")
-                font.pixelSize: 12
-                opacity: 0.9
-            }
-            PC3.Label {
-                text: root.primaryQuote ? Model.fmtPrice(root.primaryQuote.close) : "—"
-                font.pixelSize: 12
-            }
-            PC3.Label {
-                text: root.primaryQuote ? Model.fmtPct(root.primaryQuote.deltaPct) : ""
-                font.pixelSize: 11
+                color: Kirigami.Theme.textColor
+                font.pixelSize: Kirigami.Units.gridUnit * 0.58
                 font.bold: true
-                color: root.up ? root.cPos : root.cNeg
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: root.primaryQuote ? Model.fmtPrice(root.primaryQuote.close) : "…"
+                color: Kirigami.Theme.textColor
+                font.pixelSize: Kirigami.Units.gridUnit * 0.58
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: root.primaryQuote ? Model.fmtPct(root.primaryQuote.deltaPct) : ""
+                color: root.up ? Kirigami.Theme.positiveText : Kirigami.Theme.negativeText
+                font.pixelSize: Kirigami.Units.gridUnit * 0.55
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
+        onClicked: root.expanded = !root.expanded
     }
 
     fullRepresentation: ColumnLayout {
