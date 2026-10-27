@@ -34,6 +34,10 @@ PlasmoidItem {
         fetch.connectedSources = [];
     }
 
+    // Fetch once at load, then on the refresh timer. Without this the first
+    // quote arrives only after refreshMin minutes.
+    Component.onCompleted: refetch()
+
     DataSource {
         id: fetch
         engine: "executable"

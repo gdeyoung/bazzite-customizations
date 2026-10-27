@@ -21,7 +21,8 @@ var STATE_DIR = ".cache/gdeyoung.weatherx";
 var OMARCHY_LOCATION = ".local/state/omarchy/settings/weather.json";
 
 // Default pinned tabs, used when the widget instance predates the setting.
-var DEFAULT_PINNED = '[]';
+// Hearth default location: Overland Park, KS.
+var DEFAULT_PINNED = '[{"name":"Overland Park","lat":38.9822,"lon":-94.6708}]';
 
 // ---- locations ----------------------------------------------------------
 
