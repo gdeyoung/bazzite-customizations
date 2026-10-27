@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Authors": [{ "Name": "Greg DeYoung" }],
+        "Category": "Utilities",
+        "Description": "Invisible fixed-width panel spacer with configurable width",
+        "Icon": "preferences-desktop",
+        "Id": "com.gdeyoung.plasma.panelpad",
+        "License": "MIT",
+        "Name": "PanelPad",
+        "Version": "1.0.0",
+        "Website": "https://github.com/gdeyoung"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API": "declarativeappletscript"
+}
