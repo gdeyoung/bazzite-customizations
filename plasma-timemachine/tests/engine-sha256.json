@@ -1,0 +1,12 @@
+{
+  "contents/scripts/bin/timemachine.conf.example": "7291e1d452bdb1cfa6f14bc7199ace40d2b68b5614ef16790f8d908e266dfaee",
+  "contents/scripts/bin/tm-backup.sh": "21490a39a38558d33cedbbb78142e75bde3d2646180c61d197b4c46844c15d00",
+  "contents/scripts/bin/tm-common.sh": "0ebaaa241a890834b32320c71c25ec35e7269244b7b6cde63928fd9e9b448bc3",
+  "contents/scripts/bin/tm-conf.sh": "a91c9e119a0de6fb5f74f8e7de7e007a3ba64c7c2b5ad5e9045d061dee81a816",
+  "contents/scripts/bin/tm-health.sh": "9fad3c25dbac7b535d91f843432c45a9ebb4517bdc87d9f81f7ded32396236bd",
+  "contents/scripts/bin/tm-restore.sh": "c8875983cba47162597a348f8652f57036ab6510a0b7722b3e87984706adaf00",
+  "contents/scripts/tm-backups.sh": "d61071d0892387fbb8166825d6214b8478e03c2db85d10368686b453ffce48ba",
+  "contents/scripts/tm-probe.sh": "ead33fa9ce8dba652f5b94b32e6380674b42e061fb60e67c942d1ce557fd21f1",
+  "contents/scripts/tm-snapper.sh": "dc51739d2fd78ece54fa339534fdb98e8794b754cfabc66446e408f31df53c18",
+  "contents/scripts/tm-snapshots.sh": "1f97ae9dd2f1156003f11583cd3b3c8eb3ec89fe09e42888649a64dd7563c486"
+}
