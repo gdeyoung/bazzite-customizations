@@ -245,12 +245,16 @@ Item {
     width: Kirigami.Units.gridUnit * 46 * Math.min(1.6, panel.scaleF)
     Layout.preferredWidth: Kirigami.Units.gridUnit * 46 * Math.min(1.6, panel.scaleF)
     Layout.minimumWidth: Kirigami.Units.gridUnit * 30
+    // contentCol height + Flickable's own +largeSpacing*2 contentHeight pad
+    // + the Flickable's largeSpacing*3 vertical margins (top 1 + bottom 2).
+    // Anything less and the viewport is shorter than contentHeight by that
+    // padding — a perpetual ~2-spacing nudge-scroll at every scale factor.
     Layout.preferredHeight: Math.max(Kirigami.Units.gridUnit * 10,
         Math.min(maxPopupH,
         (needsSetup ? setupCol.implicitHeight
          : searching ? searchCol.implicitHeight
          : contentCol.implicitHeight)
-        + Kirigami.Units.largeSpacing * 3))
+        + Kirigami.Units.largeSpacing * 5))
     Layout.minimumHeight: Kirigami.Units.gridUnit * 8
 
     // =========================================================================
