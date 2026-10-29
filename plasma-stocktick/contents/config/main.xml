@@ -17,5 +17,10 @@
       <min>1</min>
       <label>Refresh interval in minutes</label>
     </entry>
+    <entry name="rotateSeconds" type="Int">
+      <default>20</default>
+      <min>0</min>
+      <label>Chip rotation interval in seconds (0 = pin to primary)</label>
+    </entry>
   </group>
 </kcfg>

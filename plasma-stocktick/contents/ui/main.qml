@@ -21,7 +21,11 @@ PlasmoidItem {
     readonly property color cPos: "#3fd18b"
     readonly property color cNeg: "#f4405c"
 
-    property string selected: sym()
+    // Rotation state: chip shows syms()[rotIndex]; starts at `primary`'s
+    // position. Rotation Timer advances it; clicking a popup row jumps to
+    // that row. Rotation is free — refresh() already fetched every symbol.
+    property int rotIndex: Math.max(0, syms().indexOf(sym()))
+    property string selected: syms()[rotIndex] || sym()
 
     function sym() {
         return (Plasmoid.configuration.primary || "MSFT").toUpperCase()
@@ -120,6 +124,15 @@ PlasmoidItem {
         running: true; repeat: true
         onTriggered: root.refresh()
     }
+    Timer {
+        // Chip rotation: 0 disables (pinned). >=5s floor so a fat-fingered
+        // config can't spin the chip into a strobe.
+        interval: Math.max(5, Plasmoid.configuration.rotateSeconds || 0) * 1000
+        running: (Plasmoid.configuration.rotateSeconds || 0) > 0
+                 && root.syms().length > 1
+        repeat: true
+        onTriggered: root.rotIndex = (root.rotIndex + 1) % root.syms().length
+    }
     Component.onCompleted: refresh()
 
     // ---- chip --------------------------------------------------------------
@@ -137,7 +150,7 @@ PlasmoidItem {
             spacing: Kirigami.Units.smallSpacing
 
             Text {
-                text: root.sym()
+                text: root.selected
                 color: Kirigami.Theme.textColor
                 font.pixelSize: chip.fpx; font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
@@ -195,7 +208,7 @@ PlasmoidItem {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.selected = ticker
+                    onClicked: root.rotIndex = index  // jump chip here; rotation continues
                 }
 
                 RowLayout {
@@ -262,7 +275,11 @@ PlasmoidItem {
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottomMargin: 6
-            text: "Yahoo Finance · refresh " + (Plasmoid.configuration.refreshMin || 5) + " min · click row = chip symbol"
+            text: "Yahoo Finance · refresh " + (Plasmoid.configuration.refreshMin || 5)
+                  + " min · chip " + ((Plasmoid.configuration.rotateSeconds || 0) > 0
+                      ? "rotates every " + Plasmoid.configuration.rotateSeconds + "s"
+                      : "pinned")
+                  + " · click row = show in chip"
             color: Kirigami.Theme.disabledTextColor
             font.pixelSize: 10
         }

@@ -9,6 +9,7 @@ KCM.SimpleKCM {
     property string cfg_symbols
     property string cfg_primary
     property int cfg_refreshMin
+    property int cfg_rotateSeconds
 
     Kirigami.FormLayout {
         QQC2.TextField {
@@ -28,6 +29,12 @@ KCM.SimpleKCM {
             from: 1; to: 120
             value: cfg_refreshMin
             onValueModified: cfg_refreshMin = value
+        }
+        QQC2SpinBox {
+            Kirigami.formData.label: "Chip rotation (seconds):"
+            from: 0; to: 300
+            value: cfg_rotateSeconds
+            onValueModified: cfg_rotateSeconds = value
         }
         QQC2.Label {
             text: "Data: Yahoo Finance chart API — keyless, near-real-time.\n"
