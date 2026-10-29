@@ -16,6 +16,7 @@ Item {
 
     property var api
     property string query: ""
+    property bool searchOpen: false
 
     function beginSearch() {
         var q = searchField.text.trim()
@@ -38,26 +39,67 @@ Item {
         anchors.margins: 20
         spacing: 8
 
+        // header: the list is the hero; search hides behind [Add symbol]
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
 
-            QQC2.TextField {
-                id: searchField
-                Layout.fillWidth: true
-                placeholderText: qsTr("Search stocks & crypto…")
-                font.pixelSize: 13
-                onTextChanged: debounce.restart()
-                Keys.onEscapePressed: {
-                    clear()
-                    tab.query = ""
-                    resultsModel.clear()
+            Text {
+                text: qsTr("Watchlist")
+                color: Kirigami.Theme.textColor
+                font.pixelSize: 15
+                font.weight: Font.DemiBold
+            }
+            Rectangle {
+                radius: 7
+                width: countText.implicitWidth + 12
+                height: countText.implicitHeight + 6
+                color: Qt.rgba(1, 1, 1, 0.08)
+                Text {
+                    id: countText
+                    anchors.centerIn: parent
+                    text: api.watchModel ? api.watchModel.count : 0
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pixelSize: 11
+                    font.features: { "tnum": 1 }
                 }
-                Timer {
-                    id: debounce
-                    interval: 300
-                    onTriggered: tab.beginSearch()
+            }
+            Item { Layout.fillWidth: true }
+            QQC2.Button {
+                flat: true
+                icon.name: tab.searchOpen ? "dialog-close" : "list-add"
+                text: tab.searchOpen ? qsTr("Done") : qsTr("Add symbol")
+                onClicked: {
+                    if (tab.searchOpen) {
+                        searchField.clear()
+                        tab.query = ""
+                        resultsModel.clear()
+                        tab.searchOpen = false
+                    } else {
+                        tab.searchOpen = true
+                        searchField.forceActiveFocus()
+                    }
                 }
+            }
+        }
+
+        QQC2.TextField {
+            id: searchField
+            visible: tab.searchOpen
+            Layout.fillWidth: true
+            placeholderText: qsTr("Search stocks & crypto…")
+            font.pixelSize: 13
+            onTextChanged: debounce.restart()
+            Keys.onEscapePressed: {
+                clear()
+                tab.query = ""
+                resultsModel.clear()
+                tab.searchOpen = false
+            }
+            Timer {
+                id: debounce
+                interval: 300
+                onTriggered: tab.beginSearch()
             }
         }
 
@@ -180,7 +222,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: api.stockModel
+            model: api.watchModel
             spacing: 0
 
             delegate: Item {

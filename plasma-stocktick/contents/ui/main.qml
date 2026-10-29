@@ -65,6 +65,7 @@ PlasmoidItem {
     // exposed for component files (Plasmoid context prop is root-file-only —
     // verified the hard way; components get everything through `api`)
     readonly property alias marketModel: marketM
+    readonly property alias watchModel: stockModel
     readonly property QtObject cfg: Plasmoid.configuration
     function openConfigure() {
         var a = Plasmoid.internalAction("configure")

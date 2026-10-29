@@ -100,7 +100,7 @@ Item {
 
     Text {
         // empty / first-paint state: cards exist as skeletons via "—" data
-        visible: tab.cardModel === null || tab.cardModel.count === 0
+        visible: !tab.cardModel || tab.cardModel.count === 0
         anchors.centerIn: parent
         text: "loading markets…"
         color: Kirigami.Theme.disabledTextColor
