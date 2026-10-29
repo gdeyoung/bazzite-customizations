@@ -1,110 +1,236 @@
 /*
- * MarketsTab — 3×2 grid of macro/index cards (spec C).
- * Row 1 risk assets: ^GSPC ^IXIC ^DJI · Row 2 macro/fear: ^TNX ^VIX BTC-USD
- * Card: micro-caps label → value 22px semibold tabular → arrow+delta →
- * spark 60×28. White 5% fill, radius 8, hover 8%, click → detail.
- * ^TNX special: yield % display, delta in basis points.
+ * MarketsTab v2 — user-directed layout (2026-10-29): horizontal tile strip
+ * (selector) above ONE big chart. Click a tile → chart shows that series;
+ * horizon chips (1D…5Y, MAX) change the span. Tile values from marketM
+ * roles (price/change/pct — notify natively); chart data via
+ * api.fetchChart (same engine as DetailView, stale-guarded). No per-tile
+ * sparks: ListModel array-role storage is unreliable (community packs
+ * series as strings to dodge it — see docs/finance-plasmoid-research).
  */
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 
 Item {
     id: tab
 
     property var api                    // root of main.qml
-    property var cardModel: null        // ListModel with role fields
+    property var cardModel: null        // marketM rows: symbol,label,price,change,pct
+    property string sel: "^GSPC"
+    readonly property var spans: [
+        { key: "1D",  range: "1d",  interval: "5m"  },
+        { key: "5D",  range: "5d",  interval: "30m" },
+        { key: "1M",  range: "1mo", interval: "1h"  },
+        { key: "3M",  range: "3mo", interval: "1d"  },
+        { key: "6M",  range: "6mo", interval: "1d"  },
+        { key: "1Y",  range: "1y",  interval: "1d"  },
+        { key: "5Y",  range: "5y",  interval: "1wk" },
+        { key: "MAX", range: "max", interval: "1mo" }
+    ]
+    property string spanKey: api.cfg.chartSpan || "3M"
+    property var chartData: null        // {points, times, base, up, meta}
+    property string loadState: "loading"
 
-    GridLayout {
+    function spanFor(k) {
+        for (var i = 0; i < spans.length; i++) if (spans[i].key === k) return spans[i]
+        return spans[3]
+    }
+
+    function load() {
+        if (!sel) return
+        loadState = "loading"
+        var reqSym = sel, reqSpan = spanKey
+        var s = spanFor(reqSpan)
+        api.fetchChart(reqSym, s.range, s.interval, function(ok, data) {
+            if (reqSym !== tab.sel || reqSpan !== tab.spanKey) return
+            if (ok) { chartData = data; loadState = "ok" }
+            else loadState = "error"
+        })
+    }
+
+    onSelChanged: load()
+    onSpanKeyChanged: { api.cfg.chartSpan = spanKey; load() }
+    Component.onCompleted: load()
+
+    // selected tile's live quote; re-evaluated whenever a fetch lands
+    // (function calls alone carry no binding dependency)
+    readonly property var q: {
+        api.lastFetchAt
+        if (!cardModel) return null
+        for (var i = 0; i < cardModel.count; i++) {
+            var r = cardModel.get(i)
+            if (r.symbol === sel) return r
+        }
+        return null
+    }
+
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
-        columns: 3
-        columnSpacing: 12
-        rowSpacing: 12
+        spacing: 10
 
-        Repeater {
-            model: tab.cardModel
+        // ---- tile strip (selector) ------------------------------------
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
 
-            Rectangle {
-                readonly property bool isTnx: symbol === "^TNX"
-                // bind to model ROLES (price/change/pct/series) — they
-                // notify on model.set(). A marketRow() function call here
-                // created no binding dependency, so cards froze at their
-                // empty creation state ("—", no spark) even after fetch.
-                readonly property real raw: model.price
-                readonly property real delta: model.change
-                readonly property real pctv: model.pct
-                readonly property var pts: model.series
+            Repeater {
+                model: tab.cardModel
 
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 8
-                color: ma.containsMouse ? Qt.rgba(1, 1, 1, 0.08)
-                                        : Qt.rgba(1, 1, 1, 0.05)
+                delegate: Rectangle {
+                    id: tile
+                    readonly property bool isTnx: symbol === "^TNX"
+                    readonly property bool selected: symbol === tab.sel
+                    readonly property real raw: model.price
+                    readonly property real delta: model.change
+                    readonly property real pctv: model.pct
 
-                MouseArea {
-                    id: ma
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: api.detailSymbol = symbol
-                }
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 62
+                    radius: 8
+                    color: selected ? Qt.rgba(1, 1, 1, 0.10)
+                          : ma.containsMouse ? Qt.rgba(1, 1, 1, 0.07)
+                          : Qt.rgba(1, 1, 1, 0.04)
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 2
-
-                    Text {
-                        text: label
-                        color: Kirigami.Theme.disabledTextColor
-                        font.pixelSize: 10
-                        font.letterSpacing: 0.6
-                        font.capitalization: Font.AllUppercase
+                    // accent underline marks selection, colored by direction
+                    Rectangle {
+                        visible: tile.selected
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 6
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        width: 18; height: 2; radius: 1
+                        color: delta >= 0 ? api.cPos : api.cNeg
                     }
-                    Text {
-                        text: {
-                            if (raw <= 0) return "—"
-                            if (isTnx)
-                                return (raw < 25 ? raw : raw / 10).toFixed(2) + "%"
-                            return api.fmt(raw)
+
+                    MouseArea {
+                        id: ma
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: tab.sel = symbol
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 0
+
+                        Text {
+                            text: label
+                            color: Kirigami.Theme.disabledTextColor
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.5
+                            font.capitalization: Font.AllUppercase
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
-                        color: Kirigami.Theme.textColor
-                        font.pixelSize: 22
-                        font.weight: Font.DemiBold
-                        font.features: { "tnum": 1 }
-                    }
-                    Text {
-                        text: {
-                            if (raw <= 0 || isNaN(delta)) return ""
-                            var up = delta >= 0
-                            var arrow = up ? "▲" : "▼"
-                            if (isTnx)
-                                return arrow + (up ? "+" : "−")
-                                       + Math.abs(delta * (raw < 25 ? 100 : 10)).toFixed(1) + "bp"
-                            return arrow + (up ? "+" : "−")
-                                   + Math.abs(pctv).toFixed(2) + "%"
+                        Text {
+                            text: {
+                                if (raw <= 0) return "—"
+                                if (isTnx) return (raw < 25 ? raw : raw / 10).toFixed(2) + "%"
+                                return api.fmt(raw)
+                            }
+                            color: Kirigami.Theme.textColor
+                            font.pixelSize: 17
+                            font.weight: Font.DemiBold
+                            font.features: { "tnum": 1 }
                         }
-                        color: raw > 0 && delta >= 0 ? api.cPos : api.cNeg
-                        font.pixelSize: 12
-                        font.bold: true
-                        font.features: { "tnum": 1 }
-                    }
-                    Item { Layout.fillHeight: true }
-                    Sparkline {
-                        Layout.preferredWidth: 60
-                        Layout.preferredHeight: 28
-                        Layout.alignment: Qt.AlignLeft | Qt.AlignBottom
-                        points: pts
-                        lineColor: delta >= 0 ? api.cPos : api.cNeg
+                        Text {
+                            text: {
+                                if (raw <= 0 || isNaN(delta)) return ""
+                                var up = delta >= 0
+                                if (isTnx)
+                                    return (up ? "+" : "−")
+                                           + Math.abs(delta * (raw < 25 ? 100 : 10)).toFixed(1) + "bp"
+                                return (up ? "+" : "−") + Math.abs(pctv).toFixed(2) + "%"
+                            }
+                            color: delta >= 0 ? api.cPos : api.cNeg
+                            font.pixelSize: 10
+                            font.bold: true
+                            font.features: { "tnum": 1 }
+                        }
                     }
                 }
+            }
+        }
+
+        // ---- header: selected name + day move | horizon chips ---------
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: (tab.q ? tab.q.label : tab.sel)
+                      + (tab.q && tab.q.price > 0
+                         ? "   " + (tab.q.change >= 0 ? "▲ +" : "▼ −")
+                           + Math.abs(tab.q.pct).toFixed(2) + "% today"
+                         : "")
+                color: Kirigami.Theme.textColor
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+            }
+            Item { Layout.fillWidth: true }
+            Repeater {
+                model: tab.spans
+                delegate: Rectangle {
+                    readonly property bool active: modelData.key === tab.spanKey
+                    radius: 4
+                    width: spText.implicitWidth + 14
+                    height: 24
+                    color: active ? Qt.rgba(1, 1, 1, 0.14)
+                          : spMa.containsMouse ? Qt.rgba(1, 1, 1, 0.07) : "transparent"
+                    MouseArea {
+                        id: spMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: tab.spanKey = modelData.key
+                    }
+                    Text {
+                        id: spText
+                        anchors.centerIn: parent
+                        text: modelData.key
+                        color: active ? Kirigami.Theme.textColor
+                                      : Kirigami.Theme.disabledTextColor
+                        font.pixelSize: 11
+                        font.bold: active
+                    }
+                }
+            }
+        }
+
+        // ---- the one big chart ----------------------------------------
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            PriceChart {
+                anchors.fill: parent
+                points: tab.chartData ? tab.chartData.points : []
+                times: tab.chartData ? tab.chartData.times : []
+                base: tab.chartData ? tab.chartData.base : 0
+                lineColor: tab.chartData && tab.chartData.up ? api.cPos : api.cNeg
+            }
+
+            Text {
+                visible: tab.loadState === "loading"
+                anchors.centerIn: parent
+                text: "loading chart…"
+                color: Kirigami.Theme.disabledTextColor
+                font.pixelSize: 12
+            }
+            QQC2.Button {
+                visible: tab.loadState === "error"
+                anchors.centerIn: parent
+                text: "Couldn't load chart — Retry"
+                onClicked: tab.load()
             }
         }
     }
 
     Text {
-        // empty / first-paint state: cards exist as skeletons via "—" data
         visible: !tab.cardModel || tab.cardModel.count === 0
         anchors.centerIn: parent
         text: "loading markets…"
