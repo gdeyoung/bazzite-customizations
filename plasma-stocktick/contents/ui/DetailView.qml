@@ -58,7 +58,7 @@ Item {
 
     Keys.onEscapePressed: api.detailSymbol = ""
 
-    readonly property var row: api.marketRow(symbol)
+    readonly property var row: { api.lastFetchAt; return api.marketRow(symbol) }
 
     function fmtVol(n) {
         if (!n || isNaN(n)) return "—"

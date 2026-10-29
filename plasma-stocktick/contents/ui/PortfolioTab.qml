@@ -14,6 +14,12 @@ Item {
     id: tab
 
     property var api
+
+    // re-eval notifier: bindings that CALL api.marketRow()/tab.totals()
+    // carry no dependency on the models (function calls don't notify), so
+    // they'd freeze at popup-open state. Referencing `tick` forces them to
+    // re-run whenever a fetch lands.
+    readonly property var tick: api.lastFetchAt
     // parse config JSON defensively (Plasmoid = context property, valid in
     // every QML file of this applet)
     function positions() {
@@ -58,7 +64,7 @@ Item {
                 spacing: 0
                 Text { text: "TOTAL VALUE"; color: Kirigami.Theme.disabledTextColor; font.pixelSize: 10; font.letterSpacing: 0.6 }
                 Text {
-                    text: fmtUsd(tab.totals().value)
+                    text: { tab.tick; return fmtUsd(tab.totals().value) }
                     color: Kirigami.Theme.textColor
                     font.pixelSize: 22; font.weight: Font.DemiBold
                     font.features: { "tnum": 1 }
@@ -68,7 +74,7 @@ Item {
                 spacing: 0
                 Text { text: "DAY CHANGE"; color: Kirigami.Theme.disabledTextColor; font.pixelSize: 10; font.letterSpacing: 0.6 }
                 Text {
-                    readonly property var t: tab.totals()
+                    readonly property var t: { tab.tick; return tab.totals() }
                     text: (t.day >= 0 ? "▲ +" : "▼ −") + fmtUsd(Math.abs(t.day)).replace("$", "$")
                           + " (" + (t.dayPct >= 0 ? "+" : "−") + Math.abs(t.dayPct).toFixed(2) + "%)"
                     color: t.day >= 0 ? api.cPos : api.cNeg
@@ -80,7 +86,7 @@ Item {
                 spacing: 0
                 Text { text: "OVERALL P/L"; color: Kirigami.Theme.disabledTextColor; font.pixelSize: 10; font.letterSpacing: 0.6 }
                 Text {
-                    readonly property var t: tab.totals()
+                    readonly property var t: { tab.tick; return tab.totals() }
                     text: (t.pl >= 0 ? "▲ +" : "▼ −") + fmtUsd(Math.abs(t.pl))
                           + " (" + (t.plPct >= 0 ? "+" : "−") + Math.abs(t.plPct).toFixed(1) + "%)"
                     color: t.pl >= 0 ? api.cPos : api.cNeg
@@ -88,7 +94,7 @@ Item {
                     font.features: { "tnum": 1 }
                 }
                 Text {
-                    text: "vs " + fmtUsd(tab.totals().cost) + " invested"
+                    text: { tab.tick; return "vs " + fmtUsd(tab.totals().cost) + " invested" }
                     color: Kirigami.Theme.disabledTextColor; font.pixelSize: 10
                 }
             }
@@ -185,7 +191,7 @@ Item {
             delegate: Item {
                 width: posList.width
                 height: 44
-                readonly property var quote: api.marketRow(model.symbol)
+                readonly property var quote: { tab.tick; return api.marketRow(model.symbol) }
                 readonly property real value: quote ? quote.price * model.qty : 0
                 readonly property real day: quote ? quote.change * model.qty : 0
                 readonly property real pl: value - model.cost * model.qty

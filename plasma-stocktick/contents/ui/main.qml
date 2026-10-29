@@ -302,10 +302,13 @@ PlasmoidItem {
     Component.onCompleted: { rebuild(); refresh() }
 
     // ---- chip (spec A: two-line lockup, price is the headline) -------------
-    compactRepresentation: MouseArea {
+    compactRepresentation: Item {
         id: chip
-        hoverEnabled: true
-        onClicked: root.expanded = !root.expanded
+        // NOTE: deliberately NO MouseArea/click handling. Plasma's
+        // containment activates the applet natively (same as the digital
+        // clock). A custom onClicked toggle raced Plasma's popup
+        // suppression: popup opened then instantly re-closed and the
+        // next clicks were swallowed for seconds.
 
         readonly property real bigPx: Math.round(Math.max(12, height * 0.44))
         readonly property real smallPx: Math.round(Math.max(10, height * 0.30))

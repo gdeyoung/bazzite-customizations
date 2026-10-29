@@ -27,9 +27,14 @@ Item {
 
             Rectangle {
                 readonly property bool isTnx: symbol === "^TNX"
-                readonly property var d: api.marketRow(symbol)
-                readonly property real raw: d ? d.price : 0
-                readonly property real delta: d ? d.change : 0
+                // bind to model ROLES (price/change/pct/series) — they
+                // notify on model.set(). A marketRow() function call here
+                // created no binding dependency, so cards froze at their
+                // empty creation state ("—", no spark) even after fetch.
+                readonly property real raw: model.price
+                readonly property real delta: model.change
+                readonly property real pctv: model.pct
+                readonly property var pts: model.series
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -59,7 +64,7 @@ Item {
                     }
                     Text {
                         text: {
-                            if (!d) return "—"
+                            if (raw <= 0) return "—"
                             if (isTnx)
                                 return (raw < 25 ? raw : raw / 10).toFixed(2) + "%"
                             return api.fmt(raw)
@@ -71,16 +76,16 @@ Item {
                     }
                     Text {
                         text: {
-                            if (!d || isNaN(delta)) return ""
+                            if (raw <= 0 || isNaN(delta)) return ""
                             var up = delta >= 0
                             var arrow = up ? "▲" : "▼"
                             if (isTnx)
                                 return arrow + (up ? "+" : "−")
                                        + Math.abs(delta * (raw < 25 ? 100 : 10)).toFixed(1) + "bp"
                             return arrow + (up ? "+" : "−")
-                                   + Math.abs(d.pct).toFixed(2) + "%"
+                                   + Math.abs(pctv).toFixed(2) + "%"
                         }
-                        color: d && delta >= 0 ? api.cPos : api.cNeg
+                        color: raw > 0 && delta >= 0 ? api.cPos : api.cNeg
                         font.pixelSize: 12
                         font.bold: true
                         font.features: { "tnum": 1 }
@@ -90,8 +95,8 @@ Item {
                         Layout.preferredWidth: 60
                         Layout.preferredHeight: 28
                         Layout.alignment: Qt.AlignLeft | Qt.AlignBottom
-                        points: d ? d.series : []
-                        lineColor: d && d.change >= 0 ? api.cPos : api.cNeg
+                        points: pts
+                        lineColor: delta >= 0 ? api.cPos : api.cNeg
                     }
                 }
             }
