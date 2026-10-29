@@ -298,17 +298,31 @@ PlasmoidItem {
         onTriggered: root.rotIndex = (root.rotIndex + 1) % root.syms().length
     }
     onSelectedChanged: fetchChipSeries()
-    onExpandedChanged: if (expanded) fetchMarkets()
+    // fetches deferred off the open signal itself — the synchronous XHR
+    // burst inside the expanded-changed handler is the prime suspect for
+    // the v4.1 popup open-then-close flakiness (weatherx does no work here)
+    onExpandedChanged: function(expanded) {
+        if (expanded) openFetchTimer.restart()
+    }
+    Timer {
+        id: openFetchTimer
+        interval: 150
+        onTriggered: if (root.expanded) fetchMarkets()
+    }
     Component.onCompleted: { rebuild(); refresh() }
 
     // ---- chip (spec A: two-line lockup, price is the headline) -------------
-    compactRepresentation: Item {
+    compactRepresentation: MouseArea {
         id: chip
-        // NOTE: deliberately NO MouseArea/click handling. Plasma's
-        // containment activates the applet natively (same as the digital
-        // clock). A custom onClicked toggle raced Plasma's popup
-        // suppression: popup opened then instantly re-closed and the
-        // next clicks were swallowed for seconds.
+        hoverEnabled: true
+        // EXACT pattern of plasma-weatherx compact (proven flawless on this
+        // build) — function-form handler, toggle PlasmoidItem.expanded.
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton)
+                root.openConfigure()
+            else
+                root.expanded = !root.expanded
+        }
 
         readonly property real bigPx: Math.round(Math.max(12, height * 0.44))
         readonly property real smallPx: Math.round(Math.max(10, height * 0.30))
