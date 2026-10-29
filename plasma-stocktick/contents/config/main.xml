@@ -22,5 +22,17 @@
       <min>0</min>
       <label>Chip rotation interval in seconds (0 = pin to primary)</label>
     </entry>
+    <entry name="lastTab" type="String">
+      <default>markets</default>
+      <label>Last-open popup tab (markets/watchlist/portfolio)</label>
+    </entry>
+    <entry name="chartSpan" type="String">
+      <default>3M</default>
+      <label>Last-used chart span in detail view</label>
+    </entry>
+    <entry name="portfolioJson" type="String">
+      <default></default>
+      <label>Portfolio positions as JSON ({version,positions:[{symbol,qty,cost}]})</label>
+    </entry>
   </group>
 </kcfg>

@@ -8,7 +8,7 @@
             }
         ],
         "Category": "Online Services",
-        "Description": "Stock watchlist chip + popup (Yahoo Finance, keyless). WeatherX plumbing: per-symbol curl, JS parsing.",
+        "Description": "Markets on your bar: watchlist chip + Markets/Watchlist/Portfolio popup with charts, search, and portfolio tracking (Yahoo Finance, keyless).",
         "Icon": "office-chart-line",
         "Id": "com.gdeyoung.plasma.stocktick",
         "License": "MIT",
