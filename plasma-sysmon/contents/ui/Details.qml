@@ -82,7 +82,7 @@ Item {
                 Layout.leftMargin: 4
                 text: details.stampText
                 color: details.probeStale ? details.cAmber : details.muted
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.letterSpacing: 0.4
                 font.features: ({ "tnum": 1 })
             }

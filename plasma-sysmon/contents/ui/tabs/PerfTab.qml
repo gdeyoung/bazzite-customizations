@@ -94,7 +94,7 @@ Item {
                         Text {
                             text: tab.sysmon.corePcts.length > 0 ? tab.sysmon.corePcts.length + " logical" : ""
                             color: tab.muted
-                            font.pixelSize: 10
+                            font.pixelSize: 11
                             font.features: ({ "tnum": 1 })
                         }
                     }

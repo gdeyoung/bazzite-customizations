@@ -67,7 +67,7 @@ Item {
                             visible: root.numbered
                             text: Math.round(cell.pct)
                             color: Kirigami.Theme.textColor
-                            font.pixelSize: 10
+                            font.pixelSize: 11
                             font.features: ({ "tnum": 1 })
                         }
                     }
@@ -106,7 +106,7 @@ Item {
             anchors.topMargin: 5
             text: "1"
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: 10
+            font.pixelSize: 11
             font.features: ({ "tnum": 1 })
         }
         Text {
@@ -115,7 +115,7 @@ Item {
             anchors.topMargin: 5
             text: root.n + " CORES"
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: 10
+            font.pixelSize: 11
             font.letterSpacing: 0.4
             font.features: ({ "tnum": 1 })
         }

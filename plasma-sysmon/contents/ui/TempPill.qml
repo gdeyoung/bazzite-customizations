@@ -24,7 +24,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: pill.label
             color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: 10
+            font.pixelSize: 11
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 0.6
         }
@@ -32,7 +32,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: Math.round(pill.temp) + "\u00B0"
             color: pill.temp >= 85 ? pill.cCrit : (pill.temp >= 70 ? pill.cWarn : Kirigami.Theme.textColor)
-            font.pixelSize: 11
+            font.pixelSize: 12
             font.features: ({ "tnum": 1 })
         }
     }

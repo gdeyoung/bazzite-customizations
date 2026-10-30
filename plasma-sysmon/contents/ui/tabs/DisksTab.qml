@@ -56,7 +56,7 @@ Item {
                         + " \u00B7 R " + sysmon.fmtRateLong(Math.max(0, sysmon.diskReadBps))
                         + " \u00B7 W " + sysmon.fmtRateLong(Math.max(0, sysmon.diskWriteBps))
                     color: tab.muted
-                    font.pixelSize: 10
+                    font.pixelSize: 11
                     font.features: ({ "tnum": 1 })
                 }
             }
@@ -125,7 +125,7 @@ Item {
                                 ? sysmon.fmtGbB(sysmon.swapUsedKb) + " / " + sysmon.fmtGbB(sysmon.swapTotalKb)
                                 : sysmon.fmtDisk(modelData.v.usedB) + " / " + sysmon.fmtDisk(modelData.v.sizeB)
                             color: tab.fg
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             font.features: ({ "tnum": 1 })
                         }
                         Text {
@@ -133,7 +133,7 @@ Item {
                             horizontalAlignment: Text.AlignRight
                             text: Math.round(rowPct()) + "%"
                             color: modelData.kind === "swap" ? tab.muted : sysmon.levelColor(modelData.v.pct)
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             font.weight: Font.DemiBold
                             font.features: ({ "tnum": 1 })
                         }
@@ -146,7 +146,7 @@ Item {
                                 : modelData.v.mnt + "  \u00B7  " + modelData.v.fs
                             elide: Text.ElideLeft
                             color: tab.fg
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                         }
                     }
                     U.Hair {
@@ -193,7 +193,7 @@ Item {
                             Text {
                                 text: modelData
                                 color: tab.fg
-                                font.pixelSize: 11
+                                font.pixelSize: 12
                                 font.weight: Font.DemiBold
                             }
                             Text {
@@ -203,7 +203,7 @@ Item {
                                     + " \u00B7 W " + sysmon.fmtRateLong(rates[1])
                                     + " \u00B7 " + Math.round(rates[2]) + "/" + Math.round(rates[3])
                                 color: tab.muted
-                                font.pixelSize: 10
+                                font.pixelSize: 11
                                 font.features: ({ "tnum": 1 })
                             }
                         }

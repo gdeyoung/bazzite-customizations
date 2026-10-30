@@ -127,7 +127,7 @@ ColumnLayout {
                             return "\u2193" + col.sysmon.fmtRate(r ? r[0] : 0) + "  \u2191" + col.sysmon.fmtRate(r ? r[1] : 0)
                         }
                         color: col.fg
-                        font.pixelSize: 10
+                        font.pixelSize: 11
                         font.features: ({ "tnum": 1 })
                     }
                 }

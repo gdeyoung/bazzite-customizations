@@ -88,7 +88,8 @@ PlasmoidItem {
     property real probeStampMs: 0     // last sysmon.sh apply (drives provenance stamp)
     property real clockNow: Date.now()  // 1s wall clock (stale detection, uptime tick)
     property bool procTabActive: false  // set by Details when Processes tab is shown
-    property string procFilter: ""      // processes search text (routed here for harness access)
+    property string procFilter: ""
+    property int procSelectedPid: 0    // selected process (ProcsTab rows); routed for harness/tests      // processes search text (routed here for harness access)
     property var pidHist: ({})        // pid -> comma-packed CPU% series (30 samples)
     readonly property int lastTab: Math.max(0, Math.min(3, Number(Plasmoid.configuration.lastTab) || 0))
     onKillTargetChanged: killExit = 0
@@ -518,7 +519,7 @@ PlasmoidItem {
                         Layout.alignment: Qt.AlignHCenter
                         text: grp.modelData.letter
                         color: compactRoot.containsMouse ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
-                        font.pixelSize: Kirigami.Units.gridUnit * 0.45
+                        font.pixelSize: 11
                         font.bold: true
                     }
                     Rectangle {

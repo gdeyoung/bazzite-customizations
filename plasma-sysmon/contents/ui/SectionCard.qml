@@ -25,7 +25,7 @@ Rectangle {
             Text {
                 text: card.title
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.capitalization: Font.AllUppercase
                 font.letterSpacing: 0.6
             }

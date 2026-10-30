@@ -16,7 +16,7 @@ RowLayout {
     Text {
         text: hwRow.label
         color: Kirigami.Theme.disabledTextColor
-        font.pixelSize: 10
+        font.pixelSize: 11
         font.capitalization: Font.AllUppercase
         font.letterSpacing: 0.6
         Layout.preferredWidth: 84
@@ -25,7 +25,7 @@ RowLayout {
         text: hwRow.value
         textFormat: Text.PlainText
         color: Kirigami.Theme.textColor
-        font.pixelSize: 11
+        font.pixelSize: 12
         elide: Text.ElideRight
         Layout.fillWidth: true
     }

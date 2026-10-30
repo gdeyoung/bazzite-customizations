@@ -32,7 +32,7 @@ Rectangle {
                   ? i18n("\u2717 no permission \u2014 " + sysmon.killName + " (" + sysmon.killTarget + ")")
                   : i18n("Kill " + sysmon.killName + " (" + sysmon.killTarget + ")?")
             color: sysmon.killExit !== 0 ? bar.cRed : bar.fg
-            font.pixelSize: 11
+            font.pixelSize: 12
         }
         Rectangle {
             implicitWidth: killBtn.implicitWidth + 12
@@ -44,7 +44,7 @@ Rectangle {
                 anchors.centerIn: parent
                 text: sysmon.killTermed ? "Force kill (9)" : "Kill (TERM)"
                 color: bar.cRed
-                font.pixelSize: 10
+                font.pixelSize: 11
             }
             MouseArea {
                 anchors.fill: parent
@@ -62,7 +62,7 @@ Rectangle {
                 anchors.centerIn: parent
                 text: "Cancel"
                 color: bar.muted
-                font.pixelSize: 10
+                font.pixelSize: 11
             }
             MouseArea {
                 anchors.fill: parent

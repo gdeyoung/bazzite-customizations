@@ -2,32 +2,48 @@ import QtQuick
 import org.kde.plasma.components as PC3
 import org.kde.kirigami as Kirigami
 
-// ProcRow — one 24px process row: NAME(fill)/USER/S/PID/CPU%/MEM%/RSS/1m/kill.
-// Column widths mirror ProcsTab.procCols (fixed sum 472; NAME gets the rest).
-// `owner` is the owning ProcsTab (colors, selection pid, sysmon, pidHist).
+// ProcRow — one 26px process row: NAME(fill)/USER/S/PID/CPU%/MEM%/RSS/1m.
+// v0.8: the per-row kill pill is GONE — the PC3 ScrollBar overlay sat on top
+// of it (list is always scrollable at 1000+ rows) and covered/munched the
+// buttons. Kill now lives in the tab footer's End-process bar, driven by row
+// selection (click = select, double-click = straight to the confirm bar).
+// Column widths mirror ProcsTab.procCols (fixed sum 444; NAME gets the rest).
 Rectangle {
     id: row
     required property var owner
-    required property var modelData   // view-injected: [pid, user, name, pcpu, pmem, rss_kb, state, args]
+    required property var modelData   // [pid, user, name, pcpu, pmem, rss_kb, state, args]
     readonly property var m: modelData
+    readonly property bool selected: row.m[0] === owner.selectedPid
 
-    width: ListView.view ? ListView.view.width : 0
-    height: 24
-    color: row.m[0] === owner.selectedPid
-             ? Qt.alpha(owner.cGreen, 0.10)
-             : (rowMa.containsMouse ? Qt.alpha(Kirigami.Theme.textColor, 0.05) : "transparent")
+    // 14px narrower than the viewport: the attached PC3 ScrollBar overlays
+    // the flickable's right edge, so this reserve is its lane — content can
+    // never be covered by it (v0.7 bug: kill pill lived under the bar).
+    width: ListView.view ? ListView.view.width - 14 : 0
+    height: 26
+    color: selected ? Qt.alpha(owner.cGreen, 0.10)
+         : (rowMa.containsMouse ? Qt.alpha(Kirigami.Theme.textColor, 0.05) : "transparent")
 
     Rectangle {  // selection left rail
         width: 2
         height: parent.height
         color: owner.cGreen
-        visible: row.m[0] === owner.selectedPid
+        visible: row.selected
     }
+    // whole-row select. Declared BEFORE content so text/hover areas stack
+    // above it; the tooltip MouseAreas below use acceptedButtons: NoButton
+    // so presses fall through to this one (a hover-only MouseArea with no
+    // acceptedButtons:NoButton SWALLOWS clicks — second click-thief after
+    // the scrollbar overlay).
     MouseArea {
         id: rowMa
         anchors.fill: parent
         hoverEnabled: true
         onClicked: owner.selectedPid = row.m[0]
+        onDoubleClicked: {
+            owner.selectedPid = row.m[0]
+            owner.sysmon.killTermed = false
+            owner.sysmon.killTarget = row.m[0]
+        }
     }
 
     Row {
@@ -43,24 +59,28 @@ Rectangle {
                 verticalAlignment: Text.AlignVCenter
                 text: row.m[2]
                 color: Kirigami.Theme.textColor
-                font.pixelSize: 11
+                font.pixelSize: 12
                 elide: Text.ElideRight
             }
             PC3.ToolTip.visible: nameMa.containsMouse
             PC3.ToolTip.text: row.m[7] !== "" ? row.m[7] : row.m[2]
             PC3.ToolTip.delay: 500
-            MouseArea { id: nameMa; anchors.fill: parent; hoverEnabled: true }
+            MouseArea {
+                id: nameMa
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton   // hover-only; clicks reach rowMa
+            }
         }
-        // USER (in the probe since v0.1, displayed since v0.7)
+        // USER
         Item {
             width: 84; height: parent.height
             Text {
                 anchors.fill: parent
                 verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: Text.AlignLeft
                 text: row.m[1]
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: 11
+                font.pixelSize: 12
                 elide: Text.ElideRight
             }
         }
@@ -73,7 +93,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 text: row.m[6]
                 color: owner.stateColor(row.m[6])
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.bold: row.m[6] === "D" || row.m[6] === "Z"
             }
             PC3.ToolTip.visible: stateMa.containsMouse
@@ -82,7 +102,12 @@ Rectangle {
                              Z: "zombie", T: "stopped", I: "idle (kernel thread)" }
                 return mm[row.m[6]] || row.m[6]
             }
-            MouseArea { id: stateMa; anchors.fill: parent; hoverEnabled: true }
+            MouseArea {
+                id: stateMa
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+            }
         }
         // PID
         Item {
@@ -93,7 +118,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: String(row.m[0])
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.features: ({ "tnum": 1 })
             }
         }
@@ -106,7 +131,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: Number(row.m[3]).toFixed(1)
                 color: owner.cpuColor(Number(row.m[3]))
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.features: ({ "tnum": 1 })
             }
         }
@@ -119,7 +144,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: Number(row.m[4]).toFixed(1)
                 color: Kirigami.Theme.textColor
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.features: ({ "tnum": 1 })
             }
         }
@@ -132,7 +157,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 text: owner.sysmon.fmtRss(Number(row.m[5]))
                 color: Kirigami.Theme.textColor
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.features: ({ "tnum": 1 })
             }
         }
@@ -160,30 +185,6 @@ Rectangle {
                         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
                     }
                     ctx.stroke()
-                }
-            }
-        }
-        // kill pill (existing mechanic, restyled)
-        Item {
-            width: 28; height: parent.height
-            Rectangle {
-                anchors.centerIn: parent
-                width: 28; height: 18
-                radius: 3
-                color: Qt.alpha(owner.cRed, 0.18)
-                Text {
-                    anchors.centerIn: parent
-                    text: "kill"
-                    color: owner.cRed
-                    font.pixelSize: 10
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        owner.sysmon.killTermed = false
-                        owner.sysmon.killTarget = row.m[0]
-                    }
                 }
             }
         }

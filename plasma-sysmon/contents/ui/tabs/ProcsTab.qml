@@ -16,9 +16,18 @@ Item {
     required property var sysmon
 
     readonly property var sortCol: ({ name: 2, user: 1, pid: 0, cpu: 3, mem: 4, rss: 5 })
-    readonly property int fixedW: 472
+    readonly property int fixedW: 444
 
-    property int selectedPid: 0
+    property int selectedPid: sysmon.procSelectedPid
+
+    // the currently selected row's data (or null) — drives the footer
+    // action bar
+    readonly property var sel: {
+        if (!selectedPid) return null
+        for (let i = 0; i < view.length; i++)
+            if (Number(view[i][0]) === selectedPid) return view[i]
+        return null
+    }
 
     // filter is routed through sysmon (main.qml) so the harness and future
     // external triggers can drive it; state also survives tab switches.
@@ -41,8 +50,7 @@ Item {
         { key: "cpu",   label: "CPU%",  w: 60 },
         { key: "mem",   label: "MEM%",  w: 60 },
         { key: "rss",   label: "RSS",   w: 68 },
-        { key: "hist",  label: "1m",    w: 88 },
-        { key: "kill",  label: "",      w: 28 }
+        { key: "hist",  label: "1m",    w: 88 }
     ]
     readonly property var view: {
         const src = sysmon.procs
@@ -94,7 +102,7 @@ Item {
                     id: search
                     width: 240
                     placeholderText: i18n("Filter \u00B7 name, user, pid")
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     onTextEdited: sysmon.procFilter = text
                     Keys.onEscapePressed: { text = ""; sysmon.procFilter = "" }
                 }
@@ -106,7 +114,7 @@ Item {
                         anchors.centerIn: parent
                         text: "\u2715"
                         color: tab.muted
-                        font.pixelSize: 10
+                        font.pixelSize: 11
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -121,15 +129,17 @@ Item {
                       ? "showing " + tab.view.length
                       : "showing " + tab.view.length + " / " + sysmon.procs.length
                 color: tab.muted
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.features: ({ "tnum": 1 })
             }
         }
 
-        // ---- sticky column header 26 ----------------------------------------
+        // ---- sticky column header 28 (rightMargin 14 = the scrollbar lane,
+        // same reserve as the rows so header and cells stay aligned) --------
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 26
+            Layout.rightMargin: 14
+            Layout.preferredHeight: 28
             spacing: 0
             Repeater {
                 model: tab.procCols
@@ -138,7 +148,7 @@ Item {
                     required property var modelData
                     Layout.fillWidth: hcell.modelData.w < 0
                     Layout.preferredWidth: hcell.modelData.w > 0 ? hcell.modelData.w : 0
-                    Layout.preferredHeight: 26
+                    Layout.preferredHeight: 28
 
                     Text {
                         anchors.fill: parent
@@ -147,13 +157,13 @@ Item {
                         horizontalAlignment: {
                             const k = hcell.modelData.key
                             return (k === "name" || k === "user") ? Text.AlignLeft
-                                 : (k === "state" || k === "kill") ? Text.AlignHCenter
+                                 : k === "state" ? Text.AlignHCenter
                                  : Text.AlignRight
                         }
                         text: hcell.modelData.label + (tab.sortCol[hcell.modelData.key] !== undefined ? tab.headerArrow(hcell.modelData.key) : "")
                         color: sysmon.procSort === hcell.modelData.key ? tab.fg : tab.muted
                         font.bold: sysmon.procSort === hcell.modelData.key
-                        font.pixelSize: 10
+                        font.pixelSize: 11
                         font.capitalization: Font.AllUppercase
                         font.letterSpacing: 0.6
                     }
@@ -211,7 +221,7 @@ Item {
                     anchors.centerIn: parent
                     text: i18n("no matches for \u201C" + sysmon.procFilter + "\u201D")
                     color: tab.muted
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                 }
             }
 
@@ -222,6 +232,57 @@ Item {
         KillBar {
             Layout.fillWidth: true
             sysmon: tab.sysmon
+        }
+
+        // ---- action bar 32: selection drives the kill affordance -----------
+        // (v0.8: replaces the per-row kill pill that the scrollbar overlay
+        // covered. Click a row to select it; End process opens the confirm
+        // bar above; double-clicking a row skips straight to it.)
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: 2
+            Layout.rightMargin: 2
+            Layout.preferredHeight: 32
+            spacing: 10
+
+            Text {
+                Layout.fillWidth: true
+                elide: Text.ElideMiddle
+                text: tab.sel
+                      ? tab.sel[2] + "  \u00B7  pid " + tab.sel[0]
+                        + "  \u00B7  " + tab.sel[1]
+                        + "  \u00B7  " + tab.sysmon.fmtRss(Number(tab.sel[5]))
+                      : i18n("click a row to select \u00B7 double-click to kill")
+                color: tab.sel ? tab.fg : tab.muted
+                font.pixelSize: 12
+                font.features: ({ "tnum": 1 })
+                verticalAlignment: Text.AlignVCenter
+            }
+            Rectangle {
+                visible: tab.sel !== null
+                implicitWidth: endBtn.implicitWidth + 24
+                implicitHeight: 24
+                radius: 4
+                color: Qt.alpha(tab.cRed, 0.18)
+                border.color: Qt.alpha(tab.cRed, 0.55)
+                border.width: 1
+                Text {
+                    id: endBtn
+                    anchors.centerIn: parent
+                    text: "End process"
+                    color: tab.cRed
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        tab.sysmon.killTermed = false
+                        tab.sysmon.killTarget = tab.selectedPid
+                    }
+                }
+            }
         }
 
         // ---- totals 28 --------------------------------------------------------
@@ -236,7 +297,7 @@ Item {
                     + " \u00B7 \u03A3 RSS " + sysmon.fmtRss(totals.rss)
                     + " \u00B7 " + ((sysmon.procSort === "name" || sysmon.procSort === "user") ? "a\u2013z" : "high\u2013low")
                 color: tab.muted
-                font.pixelSize: 10
+                font.pixelSize: 11
                 font.letterSpacing: 0.3
                 font.features: ({ "tnum": 1 })
             }
