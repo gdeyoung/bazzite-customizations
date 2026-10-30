@@ -14,26 +14,26 @@ Canvas {
     property var times: []           // epoch seconds, aligned with points
     property real base: 0            // baseline value (span start / prev close)
     property color lineColor: "#3fd18b"
-    // guarded: NaN dpr silently kills every paint call
-    readonly property real dpr: {
-        var v = Screen.devicePixelRatio
-        return (v !== undefined && v !== null && isFinite(v) && v > 0) ? v : 1
-    }
-
-    readonly property real labelW: 56 * dpr
-    readonly property real tickH: 18 * dpr
+    // Logical-coordinate drawing (omastocks pattern): the Canvas context is
+    // already scaled by the session's device ratio — multiplying paint
+    // coordinates by Screen.devicePixelRatio on top of that DOUBLE-scales
+    // whenever the two diverge (QT_SCALE_FACTOR, or kscreen 1.05 with dpr
+    // reporting 2): labels/gridlines land off-canvas, the line shifts low,
+    // right/bottom clip. No dpr math anywhere in the paint path.
+    readonly property real labelW: 56
+    readonly property real tickH: 18
 
     visible: points !== null && points.length >= 5
     antialiasing: true
-    // hidpi: canvas coordinate space must match device pixels. Managed
-    // imperatively via resync() — a canvasSize BINDING alone does not
-    // reliably re-allocate the backing store when the item is laid out
+    // canvasSize managed imperatively via resync() — a binding alone does
+    // not reliably re-allocate the backing store when the item is laid out
     // after creation (popup opens → item resizes → stale store clips
     // everything furthest from the origin: right-edge price labels and
     // bottom date ticks vanish while the top-left of the chart paints).
+    // Canvas size = LOGICAL item size; Qt scales the store for the device.
     function resync() {
-        var cw = Math.max(1, Math.floor(width * dpr))
-        var ch = Math.max(1, Math.floor(height * dpr))
+        var cw = Math.max(1, Math.floor(width))
+        var ch = Math.max(1, Math.floor(height))
         canvasSize = Qt.size(cw, ch)
         // (imperative canvasSize assignment re-allocates the store + repaints)
         requestPaint()
@@ -70,8 +70,8 @@ Canvas {
         min -= head
         max += head
 
-        var w = width * dpr, h = height * dpr
-        var padL = 4 * dpr, padR = labelW, padT = 10 * dpr, padB = 24 * dpr
+        var w = width, h = height
+        var padL = 4, padR = labelW, padT = 10, padB = 24
         var iw = w - padL - padR, ih = h - padT - padB
         var sx = iw / (n - 1)
         var sy = ih / (max - min)
@@ -89,17 +89,17 @@ Canvas {
             ctx.lineWidth = 1
             ctx.stroke()
             ctx.fillStyle = Qt.rgba(1, 1, 1, 0.45)
-            ctx.font = (10 * dpr) + "px sans-serif"
+            ctx.font = "10px sans-serif"
             ctx.textAlign = "left"
             ctx.textBaseline = "middle"
-            ctx.fillText(fmt(gridSteps[g]), padL + iw + 4 * dpr, gy)
+            ctx.fillText(fmt(gridSteps[g]), padL + iw + 4, gy)
         }
 
         // dashed baseline at span start
         if (base > 0) {
             var by = Y(base)
             ctx.beginPath()
-            ctx.setLineDash([4 * dpr, 4 * dpr])
+            ctx.setLineDash([4, 4])
             ctx.moveTo(padL, by)
             ctx.lineTo(padL + iw, by)
             ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.30)
@@ -126,14 +126,14 @@ Canvas {
         ctx.moveTo(X(0), Y(pts[0]))
         for (var k = 1; k < n; k++) ctx.lineTo(X(k), Y(pts[k]))
         ctx.strokeStyle = lineColor
-        ctx.lineWidth = 2 * dpr
+        ctx.lineWidth = 2
         ctx.lineJoin = "round"
         ctx.stroke()
 
         // 3 date ticks bottom
         var intraDay = (tms[n - 1] - tms[0]) < 86400 * 2
         ctx.fillStyle = Qt.rgba(1, 1, 1, 0.40)
-        ctx.font = (10 * dpr) + "px sans-serif"
+        ctx.font = "10px sans-serif"
         ctx.textBaseline = "top"
         var slots = [0, Math.floor((n - 1) / 2), n - 1]
         var aligns = ["left", "center", "right"]
@@ -146,7 +146,7 @@ Canvas {
             var tx = X(slots[s])
             if (aligns[s] === "left") tx = padL
             if (aligns[s] === "right") tx = padL + iw
-            ctx.fillText(label, tx, padT + ih + 3 * dpr)
+            ctx.fillText(label, tx, padT + ih + 3)
         }
     }
 
