@@ -27,6 +27,12 @@ steps live at the bottom as a punch list.
 | omarchy-audiofx | — | parked | FX engine not installed on Omarchy yet; revisit after engine ships |
 | omarchy-clearvoice | — | separate track | KDE frontend scoped in clearvoice-core skill (v3 plan) |
 
+## Redesign queue (post-ship improvements)
+
+| Target | Scope | State |
+|---|---|---|
+| `plasma-sysmon` v0.7 | **Full audit + UX review + redesign** (assigned 2026-10-30): wasted space in popup layout, process manager ("can be improved a lot"), section rhythm. Flow per the standing gate: harness screenshots + source audit → UX-agent redesign → harness validation at scale 1 + host DPR → present. | OPEN — kanban |
+
 Meta sources: `omarchy-recipes` (discipline) and `omarchy-skills` (agent
 skills) have no KDE artifact — their KDE equivalents are this repo + the
 `plasma-plasmoid-development` skill.
