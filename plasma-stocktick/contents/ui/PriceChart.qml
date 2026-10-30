@@ -49,8 +49,15 @@ Canvas {
         if (base > 0) { if (base < min) min = base; if (base > max) max = base }
         if (max === min) { max = min + 1 }
 
+        // Headroom (omastocks pattern): pad the y-range so the line and the
+        // dashed baseline never touch the plot edges — troughs read as cut
+        // off otherwise. 12% of span (min 0.05% of price, min 0.01).
+        var head = Math.max((max - min) * 0.12, Math.abs(max) * 0.0005, 0.01)
+        min -= head
+        max += head
+
         var w = width * dpr, h = height * dpr
-        var padL = 4 * dpr, padR = labelW, padT = 6 * dpr, padB = tickH
+        var padL = 4 * dpr, padR = labelW, padT = 10 * dpr, padB = 24 * dpr
         var iw = w - padL - padR, ih = h - padT - padB
         var sx = iw / (n - 1)
         var sy = ih / (max - min)
