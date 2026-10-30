@@ -61,10 +61,11 @@ Item {
         onTriggered: tab.load()
     }
 
-    // selected tile's live quote; re-evaluated whenever a fetch lands
-    // (function calls alone carry no binding dependency)
+    // selected tile's live quote; re-evaluated whenever markets data lands
+    // (function calls alone carry no binding dependency — tick on both
+    // the markets bump and the generic fetch clock)
     readonly property var q: {
-        api.lastFetchAt
+        api.marketsTick; api.lastFetchAt
         if (!cardModel) return null
         for (var i = 0; i < cardModel.count; i++) {
             var r = cardModel.get(i)

@@ -28,6 +28,7 @@ PlasmoidItem {
     property string detailSymbol: ""
     property var chipSeries: []
     property var lastFetchAt: null       // epoch ms of last good quote
+    property int marketsTick: 0          // bumped when marketM rows update
     readonly property bool freshData: lastFetchAt !== null
                                       && (Date.now() - lastFetchAt) < 10 * 60 * 1000
     readonly property string asOfTime: lastFetchAt !== null
@@ -235,6 +236,7 @@ PlasmoidItem {
                             pct: prev ? (d / prev) * 100 : 0,
                             series: extractCloses(r).pts
                         })
+                        root.marketsTick++
                         break
                     }
                 }
@@ -332,7 +334,18 @@ PlasmoidItem {
         // under the pointer between ticks, and missed clicks read as
         // "popup won't reopen". 132 covers the widest lockup (BTC-USD +
         // spark). Contents stay centered inside the fixed cell.
-        implicitWidth: 132
+        //
+        // SIZING RULE (panelpad lesson, c361156): a compactRepresentation
+        // that sets ONLY implicitWidth collapses to a ~34px default cell —
+        // the rest of the content paints outside the hit area. The hit box
+        // WAS only the delta/spark corner of the chip (user-verified via
+        // screenshot 2026-10-29). Set width/implicit/preferred/minimum
+        // TOGETHER or the MouseArea stays tiny.
+        readonly property real cellW: 132
+        width: cellW
+        implicitWidth: cellW
+        Layout.preferredWidth: cellW
+        Layout.minimumWidth: cellW
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         // hover feedback so pointer-on-chip is visible
@@ -344,7 +357,12 @@ PlasmoidItem {
 
         RowLayout {
             id: chipRow
-            anchors.centerIn: parent
+            // RIGHT-anchored: the right edge (nearest the clock) never moves
+            // when rotation swaps symbols — gap stays constant, group
+            // geometry stable. Left part of the cell = clickable space.
+            anchors.right: parent.right
+            anchors.rightMargin: Kirigami.Units.smallSpacing
+            anchors.verticalCenter: parent.verticalCenter
             spacing: Kirigami.Units.smallSpacing
 
             Column {
