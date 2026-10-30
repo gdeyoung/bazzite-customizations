@@ -417,18 +417,15 @@ PlasmoidItem {
         }
     }
 
-    // ---- popup shell (spec B: fixed frame 960×640, min 720×520) ------------
+    // ---- popup shell -------------------------------------------------------
+    // Plasma 6 sizes popup applets from the fullRepresentation's
+    // implicitWidth/implicitHeight. Layout.preferredWidth/Height is IGNORED
+    // on this build (verified against weatherx, the known-good reference):
+    // the popup silently rendered at the 720×520 minimum for every prior
+    // build while the layout was designed for 960×640.
     fullRepresentation: Item {
-        // width fixed; height capped to what the screen can actually show
-        // below/above the panel (Screen.height = logical px; 96 = panel +
-        // popup frame allowance). Prevents unreachable clipped content on
-        // short screens — popup shrinks to fit instead.
-        Layout.preferredWidth: 960
-        Layout.preferredHeight: Math.min(640, (typeof Screen !== "undefined"
-            && isFinite(Screen.height) && Screen.height > 200
-            ? Screen.height : 736) - 96)
-        Layout.minimumWidth: 720
-        Layout.minimumHeight: 520
+        implicitWidth: 960
+        implicitHeight: 640
 
         PopupShell {
             anchors.fill: parent
