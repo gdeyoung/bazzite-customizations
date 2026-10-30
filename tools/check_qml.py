@@ -34,9 +34,17 @@ def warn(path, msg):
 
 
 def strip_qml_noise(text):
-    """Replace comments and string literals with spaces so bracket counting
-    cannot be fooled. (Does not attempt to understand QML LR grammar.)"""
+    """Replace comments, string literals, and regex literals with spaces so
+    bracket counting cannot be fooled. (Does not attempt to understand QML
+    LR grammar.) Regex literals matter: ``.replace(/^file:\\/\\//, "")``
+    contains ``//`` which a naive comment scan truncates, dropping the
+    closing paren and producing a phantom "unbalanced ()" (sysmon 2026-10-30).
+    """
     out, i, n = [], 0, len(text)
+    # A "/" opens a regex literal only in expression position: the previous
+    # significant char is an operator/opening bracket (or start of input).
+    # After an identifier, ")" or "]" a "/" must be division.
+    last_sig = ""
     while i < n:
         c = text[i]
         if c == "/" and i + 1 < n and text[i + 1] == "/":
@@ -47,6 +55,16 @@ def strip_qml_noise(text):
             while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
                 i += 1
             i += 2
+        elif c == "/" and (last_sig == "" or last_sig in "(,=:[!&|?{;+-*<>"):
+            # regex literal: consume to the unescaped closing "/"
+            i += 1
+            while i < n and text[i] != "/":
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+            while i < n and text[i].isalpha():   # flags (g/i/s...)
+                i += 1
+            out.append(" ")
+            last_sig = "/"
         elif c == '"':
             i += 1
             while i < n and text[i] != '"':
@@ -61,6 +79,8 @@ def strip_qml_noise(text):
             out.append(" ")
         else:
             out.append(c)
+            if not c.isspace():
+                last_sig = c
             i += 1
     return "".join(out)
 
@@ -115,13 +135,46 @@ def check_qml_file(qml_path, is_main, plugin_id):
                           f"QtQuick.Layouts — use Text.horizontalAlignment")
         if "#" == s[:1] and re.match(r"^#[0-9a-fA-F]{3,8}\b", s[1:]):
             warn(qml_path, f"L{lineno}: hardcoded hex color — use theme colors")
-    # Duplicate signal handlers in one file -> "Property value set multiple times"
-    for name, count in Counter(
-        m.group(1) for m in re.finditer(r"^\s*(on[A-Z]\w+)\s*[:{]", text, re.M)
-    ).items():
-        if count > 1:
-            err(qml_path, f"handler {name} declared {count}x in this file — "
-                          f"one handler per signal per component")
+    # Duplicate signal handlers on the SAME object -> "Property value set
+    # multiple times" (the kill-applet lesson). Scoped per component: sibling
+    # objects each declaring onClicked once is legal QML; two on ONE object
+    # is the killer. File-level counting (pre-2026-10-30) flagged every file
+    # with 3+ MouseAreas — sysmon v0.7 forced the fix.
+    depth = 0
+    stack = []           # per-object key: its id, or @depth.anon
+    anon = 0
+    seen = {}            # (object_key, handler) -> first lineno
+    for lineno, line in enumerate(stripped.split("\n"), 1):
+        events = []
+        for hm in re.finditer(r"\b(on[A-Z]\w+)\s*[:{]", line):
+            events.append((hm.start(), "h", hm.group(1)))
+        for im in re.finditer(r"\bid\s*:\s*(\w+)", line):
+            events.append((im.start(), "i", im.group(1)))
+        for idx, ch in enumerate(line):
+            if ch == "{" or ch == "}":
+                events.append((idx, "b", ch))
+        events.sort()
+        for _, kind, val in events:
+            if kind == "b" and val == "{":
+                anon += 1
+                depth += 1
+                stack.append(f"@{depth}.{anon}")
+            elif kind == "b" and val == "}":
+                depth -= 1
+                if stack:
+                    stack.pop()
+            elif kind == "i":
+                if stack:
+                    stack[-1] = val
+            elif kind == "h":
+                key = stack[-1] if stack else "<root>"
+                hk = (key, val)
+                if hk in seen:
+                    err(qml_path, f"handler {val} declared again on the same "
+                                  f"component as line {seen[hk]} — "
+                                  f"one handler per signal per component")
+                else:
+                    seen[hk] = lineno
     if is_main:
         if "PlasmoidItem" not in text:
             err(qml_path, "main.qml root must be PlasmoidItem "

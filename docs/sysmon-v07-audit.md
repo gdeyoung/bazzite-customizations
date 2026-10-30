@@ -6,15 +6,17 @@ Method: virtual harness (skill `devops/plasma-virtual-harness`), scale 1.0,
 Code: main.qml 443 (chip @370, popup root @438), Details.qml 664, CoreGrid 126,
 Sparkline 103, SysSection 71, HistBars 52, Gauge 40 — 1,528 LOC.
 
-## P0 — sizing (the big one)
+## P0 — sizing (CORRECTED after source read)
 
-- Popup opens **~230×160-190px** — Details.qml has NO `Layout.minimumWidth/
-  Height` on the fullRepresentation (predates the sizing rules learned in the
-  stocktick campaign). Popup height = `children[currentTab].implicitHeight`
-  (StackLayout) → height jumps between tabs; no floor.
-- Per stocktick-verified rules: popup design size comes from
-  `Layout.minimumWidth/Height` alone; 960×640 is a proven comfortable size
-  for this class of popup.
+- Vision-based "opens at ~230px, no Layout.minimum" was WRONG (miscalibrated
+  on a downscaled screenshot — vision absolute-size estimates are
+  unreliable; structural findings stand). Details.qml DOES set:
+  `Layout.preferredWidth: gridUnit*34` (~612px), `minimumWidth: gridUnit*30`
+  (~540px); height self-tracks the active tab's implicit height
+  (`children[currentTab].implicitHeight`, lines 23-30).
+- REAL sizing issues: popup height JUMPS between tabs (self-sizing — decide
+  fixed vs per-tab in the redesign); no maximum, so tall pages can exceed
+  comfortable popup height.
 
 ## Performance tab findings
 
@@ -60,3 +62,28 @@ Sparkline 103, SysSection 71, HistBars 52, Gauge 40 — 1,528 LOC.
 - omastocks reference patterns available: provenance stamps, per-block
   refresh cadence, proven tile-strip and chart-craft patterns
   (`reference-repos/omastocks/`).
+
+## CORRECTIONS (post-review, 2026-10-30 — user re-read the source)
+
+Several vision-based findings below were miscalibrated (measured on a
+downscaled screenshot). Superseded items:
+
+- P0 sizing: popup does NOT open at ~230×160. Real width ~540–612px
+  (`Layout.preferredWidth` 34GU, min 30GU); height self-tracks the active
+  tab. The real sizing issues: height JUMPS between tabs (self-sizing) and
+  the width under-serves the content — fixed-frame vs per-tab is a design
+  decision, made in the v0.7 spec.
+- Processes "no sort": FALSE — CPU%/MEM% headers already sort (bold +
+  highlighted, click to switch, Details.qml 406–421). The real defect is
+  the probe: `procprobe.sh` runs `ps --sort=-pcpu | head -14`, so the list
+  is a CPU-biased 14-row snapshot — MEM sort re-sorts a biased subset and
+  mem-hungry processes outside the CPU top-14 are invisible.
+- Processes "no kill": FALSE — per-row kill pill + confirm bar with
+  TERM→Force-9 escalation exists (Details.qml 453–528).
+- "Percentages left-aligned": FALSE — CPU%/MEM%/PID are already
+  right-aligned.
+- The probe already emits `user` and `state`; the UI never displays them.
+- Whitespace % and the "30px spark column" / "3px cells" px figures
+  inherit the same scale miscalibration — re-measure at the design frame.
+
+Design response: `docs/sysmon-v07-popup-spec.md` (authoritative for v0.7).

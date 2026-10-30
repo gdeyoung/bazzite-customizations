@@ -1,80 +1,74 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
 
-// CoreGrid — per-core utilization "rainbow": one colored bar per logical CPU
-// (amber->violet hue walk), each bar showing its core's live %. Colors are
-// fixed by core index so a core keeps its color across ticks. Legend strip
-// under the grid maps color -> core number.
-// Ported from gdeyoung/omarchy-sysmon; Style.* tokens swapped for Kirigami.
+// CoreGrid v2 — per-core utilization grid, amber->violet hue walk (fixed per
+// core index), fill bottom-up, AND the core's integer % drawn inside the cell
+// at 10px tnum when cells are >=26px wide (the v0.6 3px-cell grid was
+// unreadable; numbers below 26px would render as noise, so they drop out).
+// Legend strip under the grid maps color -> core number.
 Item {
     id: root
     property var corePcts: []
-    property int perRow: 12
-    property real barH: 30
+    property int perRow: 16
+    property real cellH: 56
     property bool showLegend: true
 
     readonly property int n: corePcts ? corePcts.length : 0
     readonly property int rows: n > 0 ? Math.ceil(n / perRow) : 1
     readonly property real gap: 3
+    readonly property int perRowActual: Math.min(perRow, Math.max(1, n))
+    readonly property real cellW: Math.min(30, (width - (perRowActual - 1) * gap) / perRowActual)
+    readonly property bool numbered: cellW >= 26
 
-    function coreColor(i) {
+    function coreColor(i, a) {
         const h = 55 + (205 * i) / Math.max(1, n - 1)
-        return Qt.hsla((h % 360) / 360, 0.72, 0.58, 1)
-    }
-    function coreGhost(i) {
-        const h = 55 + (205 * i) / Math.max(1, n - 1)
-        return Qt.hsla((h % 360) / 360, 0.72, 0.58, 0.16)
+        return Qt.hsla((h % 360) / 360, 0.72, 0.58, a === undefined ? 1 : a)
     }
 
-    readonly property var chunks: {
-        const out = []
-        for (let r = 0; r < rows; r++) {
-            const pcts = []
-            for (let c = 0; c < perRow; c++) {
-                const i = r * perRow + c
-                if (i < n) pcts.push(corePcts[i] || 0)
-            }
-            out.push({ base: r * perRow, pcts: pcts })
-        }
-        return out
-    }
-
-    implicitHeight: rows * barH + (rows - 1) * gap + (showLegend ? 14 : 0)
+    implicitHeight: rows * cellH + (rows - 1) * gap + (showLegend && n > 1 ? 16 : 0)
 
     Column {
-        id: grid
         width: parent.width
         spacing: root.gap
 
         Repeater {
-            model: root.chunks
+            model: root.rows
 
             Row {
                 id: row
-                required property var modelData
+                required property int index
                 width: parent.width
                 spacing: root.gap
 
                 Repeater {
-                    model: row.modelData.pcts
+                    model: Math.min(root.perRow, root.n - row.index * root.perRow)
 
                     Rectangle {
                         id: cell
                         required property int index
-                        readonly property int coreIdx: row.modelData.base + index
-                        readonly property real pct: modelData
-                        width: (parent.width - (row.modelData.pcts.length - 1) * root.gap) / row.modelData.pcts.length
-                        height: root.barH
-                        radius: 2
-                        color: root.coreGhost(coreIdx)
+                        readonly property int coreIdx: row.index * root.perRow + index
+                        readonly property real pct: root.corePcts ? (root.corePcts[coreIdx] || 0) : 0
+                        width: root.cellW
+                        height: root.cellH
+                        radius: 3
+                        color: root.coreColor(coreIdx, 0.14)
 
                         Rectangle {
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
-                            width: parent.width
-                            height: Math.max(3, parent.height * Math.min(1, pct / 100))
-                            radius: 2
-                            color: root.coreColor(coreIdx)
+                            anchors.right: parent.right
+                            height: Math.max(4, parent.height * Math.min(1, cell.pct / 100))
+                            radius: 3
+                            color: root.coreColor(cell.coreIdx, 0.62)
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: root.numbered
+                            text: Math.round(cell.pct)
+                            color: Kirigami.Theme.textColor
+                            font.pixelSize: 10
+                            font.features: ({ "tnum": 1 })
                         }
                     }
                 }
@@ -102,7 +96,7 @@ Item {
                     width: parent.width / root.n
                     height: 3
                     radius: 1
-                    color: root.coreColor(index)
+                    color: root.coreColor(index, 1)
                 }
             }
         }
@@ -112,15 +106,18 @@ Item {
             anchors.topMargin: 5
             text: "1"
             color: Kirigami.Theme.disabledTextColor
-            font: Kirigami.Theme.smallFont
+            font.pixelSize: 10
+            font.features: ({ "tnum": 1 })
         }
         Text {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: 5
-            text: root.n + " cores"
+            text: root.n + " CORES"
             color: Kirigami.Theme.disabledTextColor
-            font: Kirigami.Theme.smallFont
+            font.pixelSize: 10
+            font.letterSpacing: 0.4
+            font.features: ({ "tnum": 1 })
         }
     }
 }

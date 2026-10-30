@@ -29,12 +29,20 @@ l3_kb=${l3_kb:-null}
 
 # --- GPU --------------------------------------------------------------------
 # lspci prefixes the vendor ("Advanced Micro Devices, Inc. [AMD/ATI] " etc.) —
-# keep the concise marketing name: drop bracketed vendor forms, then the
-# common bracketless vendor prefixes, then the "(rev xx)" suffix.
+# keep the concise marketing name. Order matters:
+#   1. drop the class prefix ("VGA compatible controller: ")
+#   2. drop "(rev xx)" suffix
+#   3. BRACKETED vendor forms ("Advanced Micro Devices, Inc. [AMD/ATI] Raphael")
+#      — only stripped when the bracket follows a company marker (Inc./Ltd./
+#      Corporation/...); a blind '^[^]]*] //' would eat NVIDIA marketing names
+#      like "GB203 [GeForce RTX 5080]" down to "(rev a1)".
+#   4. bracketless vendor prefixes (NVIDIA Corporation, ASPEED Technology, ...)
 gpu=$(lspci 2>/dev/null | grep -iE "vga|3d controller|display controller" | head -1 | cut -d: -f3- \
-  | sed -e 's/^ *//' -e 's/^[^]]*\] //' \
-        -e 's/^\(Intel Corporation\|NVIDIA Corporation\|Advanced Micro Devices, Inc\.\|ATI Technologies Inc\.\|Matrox Electronics Systems Ltd\.\|ASPEED Technology, Inc\.\|S3 Graphics Co\., Ltd\.\|Silicon Integrated Systems \[SiS\]\|Loongson Technology Co\., Ltd\.\|VMware SVGA II Adapter\|Red Hat, Inc\.\|Cirrus Logic\| Trident Microsystems\) //' \
-        -e 's/ (rev [0-9a-f]*)$//')
+  | sed -e 's/^ *//' -e 's/^[^:]*: //' -e 's/ (rev [0-9a-f]*)$//')
+if printf '%s' "$gpu" | grep -qE '(Inc\.|Ltd\.|Corporation|Systems|Technology) \['; then
+  gpu=$(printf '%s' "$gpu" | sed -e 's/^[^]]*\] //')
+fi
+gpu=$(printf '%s' "$gpu" | sed -e 's/^\(Intel Corporation\|NVIDIA Corporation\|Advanced Micro Devices, Inc\.\|ATI Technologies Inc\.\|Matrox Electronics Systems Ltd\.\|ASPEED Technology, Inc\.\|S3 Graphics Co\., Ltd\.\|Silicon Integrated Systems \[SiS\]\|Loongson Technology Co\., Ltd\.\|VMware SVGA II Adapter\|Red Hat, Inc\.\|Cirrus Logic\|Trident Microsystems\) //')
 
 # --- Memory -----------------------------------------------------------------
 mem_total_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)

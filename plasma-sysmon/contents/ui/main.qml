@@ -55,6 +55,7 @@ PlasmoidItem {
     property real load1: 0
     property real load5: 0
     property real load15: 0
+    property real upS: 0            // host uptime seconds (ticks every probe)
     property real cpuTempC: -1
     property real gpuTempC: -1
     property real nvmeTempC: -1
@@ -71,6 +72,10 @@ PlasmoidItem {
     property var corePcts: []
     property var ifRates: ({})
     property var vols: []
+    property string diskDev: ""      // v0.7: named disk for the Disk card header
+    property var diskRates: ({})     // v0.7: name -> [rBps, wBps, riops, wiops]
+    property var diskHist: ({})      // v0.7: name -> {r:[], w:[]} ring (90)
+    property var prevDiskMap: ({})
 
     // ---- Processes (popup only) --------------------------------------------
     property var procs: []
@@ -78,6 +83,16 @@ PlasmoidItem {
     property string procSort: "cpu"
     property int killTarget: 0
     property bool killTermed: false
+    property int killExit: 0          // exit code of last kill attempt (EPERM etc)
+    property real procStampMs: 0
+    property real probeStampMs: 0     // last sysmon.sh apply (drives provenance stamp)
+    property real clockNow: Date.now()  // 1s wall clock (stale detection, uptime tick)
+    property bool procTabActive: false  // set by Details when Processes tab is shown
+    property string procFilter: ""      // processes search text (routed here for harness access)
+    property var pidHist: ({})        // pid -> comma-packed CPU% series (30 samples)
+    readonly property int lastTab: Math.max(0, Math.min(3, Number(Plasmoid.configuration.lastTab) || 0))
+    onKillTargetChanged: killExit = 0
+
     readonly property var killRow: {
         for (let i = 0; i < procs.length; i++)
             if (procs[i][0] === killTarget) return procs[i]
@@ -88,15 +103,12 @@ PlasmoidItem {
         killTermed = false
     }
     readonly property string killName: killRow ? killRow[2] : ""
-    readonly property var sortedProcs: {
-        const col = procSort === "mem" ? 4 : 3
-        const arr = procs.slice()
-        arr.sort((a, b) => Number(b[col]) - Number(a[col]))
-        return arr
-    }
 
     function doKill(pid, sig) {
-        execSource.connectSource("kill -" + sig + " " + pid + "; true")
+        // No "; true" suffix — the real exit code is surfaced in the
+        // confirm bar (v0.6 swallowed it, so EPERM on root procs failed
+        // silently). Exit code is read in execSource.onNewData.
+        execSource.connectSource("kill -" + sig + " " + pid)
         if (sig === 15) {
             killTermed = true
         } else {
@@ -105,6 +117,8 @@ PlasmoidItem {
         }
         refreshProcsTimer.start()
     }
+
+    function saveTab(i) { Plasmoid.configuration.lastTab = i }
 
     // ---- Delta math state ----------------------------------------------------
     property real prevCpuTotal: -1
@@ -146,9 +160,39 @@ PlasmoidItem {
       + "\nDisk " + diskText + " (" + Math.round(diskPct) + "%)"
 
     function levelColor(pct) {
-        if (pct >= 90) return "#f7768e"
+        // v0.7 semantic palette (spec §color): ok/warn/crit — same hues the
+        // plasma-systemmonitor siblings use; thresholds unchanged.
+        if (pct >= 90) return "#f4405c"
         if (pct >= 70) return "#e5c07b"
-        return "#3fb950"
+        return "#3fd18b"
+    }
+
+    // ---- v0.7 unit helpers (single site, all tabs reuse) ---------------------
+    // rates: "4.3 MB/s" (space, /s, 1 decimal <10, int above)
+    function fmtRateLong(bps) {
+        if (!(bps >= 0)) return "\u2014"
+        const tiers = [[1e9, "GB/s"], [1e6, "MB/s"], [1e3, "KB/s"]]
+        for (let i = 0; i < tiers.length; i++) {
+            if (bps >= tiers[i][0]) {
+                const v = bps / tiers[i][0]
+                return (v < 10 ? v.toFixed(1) : String(Math.round(v))) + " " + tiers[i][1]
+            }
+        }
+        return Math.round(bps) + " B/s"
+    }
+    // sizes (prose): "18.4 GB"
+    function fmtSizeP(b) {
+        const gb = b / 1073741824
+        if (gb >= 1) return (gb < 10 ? gb.toFixed(1) : String(Math.round(gb))) + " GB"
+        const mb = b / 1048576
+        if (mb >= 1) return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + " MB"
+        return Math.round(b / 1024) + " KB"
+    }
+    // RSS (dense rows): "1.2G" / "340M"
+    function fmtRss(kb) {
+        if (kb >= 1048576) return (kb / 1048576).toFixed(1) + "G"
+        if (kb >= 1024) return Math.round(kb / 1024) + "M"
+        return Math.round(kb) + "K"
     }
 
     // ---- Data plumbing: executable dataengine + probe scripts ---------------
@@ -172,6 +216,10 @@ PlasmoidItem {
                 root.applyProcs(out)
             } else if (cmd.indexOf("sysinfo-probe.sh") >= 0) {
                 root.applyHw(out)
+            } else if (cmd.indexOf("kill ") === 0) {
+                // Surface the kill exit code (EPERM on root procs etc).
+                const ec = data["exit code"]
+                root.killExit = (ec === undefined || ec === "") ? 0 : Number(ec)
             }
             execSource.disconnectSource(sourceName)
         }
@@ -186,6 +234,25 @@ PlasmoidItem {
         onTriggered: execSource.connectSource(root.scriptPath("sysmon.sh"))
     }
 
+    // v0.7: process list refreshes every 2s ONLY while the popup is open and
+    // the Processes tab is visible (v0.6 fetched one stale snapshot).
+    Timer {
+        id: procTick
+        interval: 2000
+        repeat: true
+        triggeredOnStart: true
+        running: root.expanded && root.procTabActive
+        onTriggered: root.refreshProcs()
+    }
+
+    // 1s wall clock: drives provenance/stale stamp + uptime ticking.
+    Timer {
+        interval: 1000
+        repeat: true
+        running: true
+        onTriggered: root.clockNow = Date.now()
+    }
+
     Timer {
         id: refreshProcsTimer
         interval: 400
@@ -193,7 +260,12 @@ PlasmoidItem {
     }
 
     function refreshProcs() {
-        execSource.connectSource(scriptPath("procprobe.sh"))
+        // The probe keeps top-1500-by-CPU UNION rows matching the filter, so
+        // search finds idle processes even on hosts with more rows than the
+        // cap. procFilter is sanitized to a shell-safe charset before it is
+        // ever placed in a command string (executable engine runs a shell).
+        const f = procFilter.replace(/[^a-zA-Z0-9 .:_\/-]/g, "").trim()
+        execSource.connectSource(scriptPath("procprobe.sh") + (f === "" ? "" : " '" + f + "'"))
     }
 
     Component.onCompleted: {
@@ -214,9 +286,29 @@ PlasmoidItem {
     }
 
     function applyProcs(line) {
+        const t0 = Date.now()
         let data
-        try { data = JSON.parse(String(line).trim()) } catch (e) { return }
-        if (data && data.procs) procs = data.procs
+        try { data = JSON.parse(String(line).trim()) } catch (e) {
+            console.error("HARNESS-PROC parse-fail")
+            return
+        }
+        if (!data || !data.procs) return
+        const t1 = Date.now()
+        procs = data.procs
+        procStampMs = Date.now()
+        // Per-PID CPU history for the 1m column: comma-packed strings
+        // (array roles in ListModel are a dead transport — string it is).
+        const nh = {}
+        for (let i = 0; i < data.procs.length; i++) {
+            const r = data.procs[i]
+            const k = String(r[0])
+            const parts = pidHist[k] ? String(pidHist[k]).split(",") : []
+            parts.push(Number(r[3]).toFixed(1))
+            if (parts.length > 30) parts.shift()
+            nh[k] = parts.join(",")
+        }
+        pidHist = nh
+        console.error("HARNESS-PROC n=" + data.procs.length + " parseMs=" + (t1 - t0) + " histMs=" + (Date.now() - t1))
     }
 
     function applyVols(data) {
@@ -225,7 +317,7 @@ PlasmoidItem {
         for (let i = 0; i < v.length; i++) {
             const used = Number(v[i][1]) || 0
             const size = Number(v[i][2]) || 1
-            out.push({ mnt: v[i][0], usedB: used, sizeB: size, pct: size > 0 ? (used / size) * 100 : 0 })
+            out.push({ mnt: v[i][0], usedB: used, sizeB: size, pct: size > 0 ? (used / size) * 100 : 0, fs: v[i][3] || "" })
         }
         vols = out
     }
@@ -248,6 +340,7 @@ PlasmoidItem {
         load1 = Number(data.load1) || 0
         load5 = Number(data.load5) || 0
         load15 = Number(data.load15) || 0
+        upS = Number(data.up_s) || upS
         cpuTempC = data.cpu_temp_mc >= 0 ? data.cpu_temp_mc / 1000 : -1
         gpuTempC = data.gpu_temp_mc >= 0 ? data.gpu_temp_mc / 1000 : -1
         nvmeTempC = data.nvme_temp_mc >= 0 ? data.nvme_temp_mc / 1000 : -1
@@ -335,6 +428,34 @@ PlasmoidItem {
         prevDiskReads = reads
         prevDiskWrites = writes
         prevStampMs = now
+        probeStampMs = now
+
+        // Per-disk rates + history from the v0.7 disks[] counters
+        diskDev = String(data.disk_dev || "")
+        const dks = data.disks || []
+        const dRates = {}
+        const dHist = {}
+        for (let i = 0; i < dks.length; i++) {
+            const nm = String(dks[i].n)
+            const rs = Number(dks[i].rs) || 0
+            const ws = Number(dks[i].ws) || 0
+            const ri = Number(dks[i].ri) || 0
+            const wi = Number(dks[i].wi) || 0
+            const p = prevDiskMap[nm]
+            if (p && dt > 0.4) {
+                dRates[nm] = [Math.max(0, ((rs - p[0]) * 512) / dt), Math.max(0, ((ws - p[1]) * 512) / dt),
+                              Math.max(0, (ri - p[2]) / dt), Math.max(0, (wi - p[3]) / dt)]
+            } else {
+                dRates[nm] = [0, 0, 0, 0]
+            }
+            dHist[nm] = {
+                r: (diskHist[nm] ? diskHist[nm].r : []).concat([dRates[nm][0]]).slice(-90),
+                w: (diskHist[nm] ? diskHist[nm].w : []).concat([dRates[nm][1]]).slice(-90)
+            }
+            prevDiskMap[nm] = [rs, ws, ri, wi]
+        }
+        diskRates = dRates
+        diskHist = dHist
 
         // History append (always, so the popup opens warm)
         if (cpuPct >= 0) histCpu = pushHist(histCpu, now, cpuPct)
@@ -435,9 +556,8 @@ PlasmoidItem {
         onClicked: root.expanded = !root.expanded
     }
 
-    fullRepresentation: Details {
-        sysmon: root
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 30
-        Layout.minimumHeight: Kirigami.Units.gridUnit * 28
-    }
+    // Sizing lives ONLY in Details.qml (Layout.minimumWidth/Height 960x640,
+    // the harness-proven single-site rule). No hints here — attached props
+    // at this site fought the popup's own sizing in v0.6.
+    fullRepresentation: Details { sysmon: root }
 }
