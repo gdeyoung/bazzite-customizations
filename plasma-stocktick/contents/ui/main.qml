@@ -212,6 +212,20 @@ PlasmoidItem {
     }
 
     // markets cards — fetched only while popup is open
+    // Seed all six market tiles up-front, synchronously. fetchMarkets()
+    // appends each tile only inside its own XHR callback, so the tile strip
+    // grows response-by-response and every append reflows the popup — the
+    // chart area gets resized 469→239→417px across the first seconds after
+    // open (headless trace, t_995d223d) and Canvas repaints at each size.
+    // Fixed-height tiles seeded as placeholders make the first layout pass
+    // the final one; fetches then only set() values.
+    function seedMarkets() {
+        if (marketM.count > 0) return
+        marketCards.forEach(function(c) {
+            marketM.append({ symbol: c.symbol, label: c.label,
+                             price: 0, change: 0, pct: 0, series: [] })
+        })
+    }
     function fetchMarkets() {
         marketCards.forEach(function(c) {
             xhrGet(chartUrl(c.symbol, "1d", "30m"), function(ok, json) {
@@ -311,7 +325,7 @@ PlasmoidItem {
         interval: 150
         onTriggered: if (root.expanded) fetchMarkets()
     }
-    Component.onCompleted: { rebuild(); refresh() }
+    Component.onCompleted: { seedMarkets(); rebuild(); refresh() }
 
     // ---- chip (spec A: two-line lockup, price is the headline) -------------
     compactRepresentation: MouseArea {
