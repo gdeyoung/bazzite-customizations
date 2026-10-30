@@ -25,8 +25,22 @@ Canvas {
 
     visible: points !== null && points.length >= 5
     antialiasing: true
-    // hidpi: match canvas coordinate space to device pixels (see Sparkline)
-    canvasSize: Qt.size(Math.max(1, width * dpr), Math.max(1, height * dpr))
+    // hidpi: canvas coordinate space must match device pixels. Managed
+    // imperatively via resync() — a canvasSize BINDING alone does not
+    // reliably re-allocate the backing store when the item is laid out
+    // after creation (popup opens → item resizes → stale store clips
+    // everything furthest from the origin: right-edge price labels and
+    // bottom date ticks vanish while the top-left of the chart paints).
+    function resync() {
+        var cw = Math.max(1, Math.floor(width * dpr))
+        var ch = Math.max(1, Math.floor(height * dpr))
+        canvasSize = Qt.size(cw, ch)
+        // (imperative canvasSize assignment re-allocates the store + repaints)
+        requestPaint()
+    }
+    onWidthChanged: resync()
+    onHeightChanged: resync()
+    Component.onCompleted: resync()
 
     onPaint: {
         var ctx = getContext("2d")
@@ -143,6 +157,4 @@ Canvas {
     }
 
     onPointsChanged: requestPaint()
-    onWidthChanged: requestPaint()
-    onHeightChanged: requestPaint()
 }

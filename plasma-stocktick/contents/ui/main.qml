@@ -419,8 +419,14 @@ PlasmoidItem {
 
     // ---- popup shell (spec B: fixed frame 960×640, min 720×520) ------------
     fullRepresentation: Item {
+        // width fixed; height capped to what the screen can actually show
+        // below/above the panel (Screen.height = logical px; 96 = panel +
+        // popup frame allowance). Prevents unreachable clipped content on
+        // short screens — popup shrinks to fit instead.
         Layout.preferredWidth: 960
-        Layout.preferredHeight: 640
+        Layout.preferredHeight: Math.min(640, (typeof Screen !== "undefined"
+            && isFinite(Screen.height) && Screen.height > 200
+            ? Screen.height : 736) - 96)
         Layout.minimumWidth: 720
         Layout.minimumHeight: 520
 

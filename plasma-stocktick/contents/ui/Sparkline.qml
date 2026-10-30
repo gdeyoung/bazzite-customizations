@@ -20,9 +20,19 @@ Canvas {
 
     visible: points !== null && points.length >= 5
     antialiasing: true
-    // hidpi: canvas coordinate space must equal device pixels, else every
-    // draw past the logical size is silently clipped
-    canvasSize: Qt.size(Math.max(1, width * dpr), Math.max(1, height * dpr))
+    // hidpi + backing-store: same resync pattern as PriceChart — a
+    // canvasSize binding alone doesn't reliably re-allocate the store
+    // on post-creation resize (panel thickness change, theme reload).
+    function resync() {
+        var cw = Math.max(1, Math.floor(width * dpr))
+        var ch = Math.max(1, Math.floor(height * dpr))
+        canvasSize = Qt.size(cw, ch)
+        // (imperative canvasSize assignment re-allocates the store + repaints)
+        requestPaint()
+    }
+    onWidthChanged: resync()
+    onHeightChanged: resync()
+    Component.onCompleted: resync()
 
     onPaint: {
         var ctx = getContext("2d")
@@ -67,6 +77,4 @@ Canvas {
     }
 
     onPointsChanged: requestPaint()
-    onWidthChanged: requestPaint()
-    onHeightChanged: requestPaint()
 }
