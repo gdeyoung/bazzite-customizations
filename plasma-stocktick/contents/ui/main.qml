@@ -332,16 +332,51 @@ PlasmoidItem {
         // FIXED cell width (design-spec note): rotation cycles symbols of
         // different rendered widths — a natural-size chip physically moves
         // under the pointer between ticks, and missed clicks read as
-        // "popup won't reopen". 132 covers the widest lockup (BTC-USD +
-        // spark). Contents stay centered inside the fixed cell.
+        // "popup won't reopen". The cell must cover the WIDEST lockup ever
+        // shown (all symbols' price + spark), measured with TextMetrics —
+        // a hardcoded 132 underestimated the price column and the RowLayout
+        // overflowed LEFT past the item bounds: visible-but-unclickable
+        // strip (user-reported 2026-10-30). Width is computed from ALL
+        // rows, not the currently shown one, so it never moves on rotation.
         //
         // SIZING RULE (panelpad lesson, c361156): a compactRepresentation
         // that sets ONLY implicitWidth collapses to a ~34px default cell —
-        // the rest of the content paints outside the hit area. The hit box
-        // WAS only the delta/spark corner of the chip (user-verified via
-        // screenshot 2026-10-29). Set width/implicit/preferred/minimum
-        // TOGETHER or the MouseArea stays tiny.
-        readonly property real cellW: 132
+        // the rest of the content paints outside the hit area. Set
+        // width/implicit/preferred/minimum TOGETHER or the MouseArea stays
+        // tiny.
+        TextMetrics {
+            id: tmPrice
+            font.pixelSize: chip.bigPx
+            font.weight: Font.DemiBold
+            font.features: { "tnum": 1 }
+        }
+        TextMetrics {
+            id: tmSym
+            font.pixelSize: chip.smallPx
+            font.letterSpacing: 0.6
+        }
+        readonly property real measuredW: {
+            var c = root.watchModel.count
+            // dependency kick: rows are appended as stubs ("—" prices) and
+            // filled AFTER, with count unchanged — reading row 0's price
+            // here re-fires this binding when real prices land.
+            var kick = c > 0 ? (root.watchModel.get(0).price || "") : ""
+            var w = 0
+            for (var i = 0; i < c; i++) {
+                var r = root.watchModel.get(i)
+                tmPrice.text = r.price || ""
+                var col = tmPrice.advanceWidth
+                tmSym.text = (r.symbol || "") + "  ▲00.00%"
+                col = Math.max(col, tmSym.advanceWidth)
+                if (col > w) w = col
+            }
+            return w
+        }
+        readonly property real cellW: Math.max(
+            132,
+            Math.ceil(measuredW) + 64 /* spark */
+                + Kirigami.Units.smallSpacing * 3 /* row spacing + right margin */
+                + 2)
         width: cellW
         implicitWidth: cellW
         Layout.preferredWidth: cellW
@@ -418,14 +453,29 @@ PlasmoidItem {
     }
 
     // ---- popup shell -------------------------------------------------------
-    // Plasma 6 sizes popup applets from the fullRepresentation's
-    // implicitWidth/implicitHeight. Layout.preferredWidth/Height is IGNORED
-    // on this build (verified against weatherx, the known-good reference):
-    // the popup silently rendered at the 720×520 minimum for every prior
-    // build while the layout was designed for 960×640.
+    // Popup size resolution, Plasma 6.7 (source-verified, libplasma v6.7.5
+    // src/plasmaquick/appletpopup.cpp + plasma-desktop desktoppackage
+    // CompactApplet.qml — full writeup in docs/popup-sizing-plasma67.md):
+    //   1. popupWidth/popupHeight in THIS applet's config group win over
+    //      everything, forever (m_sizeExplicitlySetFromConfig early-return
+    //      in updateSize). hideEvent writes both keys on EVERY popup close
+    //      (and Alt+RightClick-drag persists a resized size the same way),
+    //      so one close at a wrong size pins it across restarts — delete
+    //      the two keys with the shell STOPPED to unstick.
+    //   2. Otherwise wanted size = fullRep Layout.preferred* if > 0, else
+    //      fullRep implicitWidth/Height (via CompactApplet's appletParent
+    //      implicit bindings), else CompactApplet fallback
+    //      iconSizes.sizeForLabels*35 × *25  (the old 720×520 floor).
+    //   3. Final = clamp(wanted, Layout.minimum*, min(Layout.maximum*,
+    //      95% of screen)).
+    // A bare Item root has implicit size 0, so Layout.minimum* = design size
+    // clamps the fallback UP to 960×640 — the shipped pattern of
+    // vpsone/stock-monitor-widget, harness-verified: content item exactly
+    // 960 wide × 640+1 (the +1 is CompactApplet's 1px panel separator,
+    // extraHeight), popup window 968×649 = content + 4px/side frame padding.
     fullRepresentation: Item {
-        implicitWidth: 960
-        implicitHeight: 640
+        Layout.minimumWidth: 960
+        Layout.minimumHeight: 640
 
         PopupShell {
             anchors.fill: parent
