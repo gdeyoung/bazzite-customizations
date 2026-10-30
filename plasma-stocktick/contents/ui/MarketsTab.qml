@@ -51,7 +51,15 @@ Item {
 
     onSelChanged: load()
     onSpanKeyChanged: { api.cfg.chartSpan = spanKey; load() }
-    Component.onCompleted: load()
+    // deferred off the popup-open path: synchronous work during popup
+    // instantiation correlates with the popup open/close/reopen failures
+    Component.onCompleted: initTimer.start()
+
+    Timer {
+        id: initTimer
+        interval: 150
+        onTriggered: tab.load()
+    }
 
     // selected tile's live quote; re-evaluated whenever a fetch lands
     // (function calls alone carry no binding dependency)

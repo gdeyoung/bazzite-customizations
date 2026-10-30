@@ -327,8 +327,20 @@ PlasmoidItem {
         readonly property real bigPx: Math.round(Math.max(12, height * 0.44))
         readonly property real smallPx: Math.round(Math.max(10, height * 0.30))
 
-        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 3
+        // FIXED cell width (design-spec note): rotation cycles symbols of
+        // different rendered widths — a natural-size chip physically moves
+        // under the pointer between ticks, and missed clicks read as
+        // "popup won't reopen". 132 covers the widest lockup (BTC-USD +
+        // spark). Contents stay centered inside the fixed cell.
+        implicitWidth: 132
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
+
+        // hover feedback so pointer-on-chip is visible
+        Rectangle {
+            anchors.fill: parent
+            radius: 4
+            color: chip.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+        }
 
         RowLayout {
             id: chipRow
