@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.plasma5support 2.0
 import org.kde.kirigami as Kirigami
