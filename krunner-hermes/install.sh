@@ -77,9 +77,11 @@ print("python3-dbus + gobject present")
 PY
 command -v notify-send >/dev/null || echo "WARN: notify-send not found (notifications will be skipped)"
 
-# 4. start
+# 4. start (restart, not enable --now — that no-ops on a running service and
+# leaves the old code in memory; bit us twice on 2026-10-31)
 systemctl --user daemon-reload
-systemctl --user enable --now hermes-runner.service
+systemctl --user enable hermes-runner.service
+systemctl --user restart hermes-runner.service
 sleep 1
 busctl --user status org.kde.runners.hermes >/dev/null 2>&1 \
   || { echo "runner did not own the bus name; check: journalctl --user -u hermes-runner -e"; exit 1; }

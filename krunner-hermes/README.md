@@ -21,6 +21,8 @@ runner — no C++, no KDE SDK, nothing layered into the image.
 
 Errors are their own state: a failed ask shows a red row with a one-line humanized reason ("LiteLLM unreachable at …") and Enter retries it. Errors are never cached as answers.
 
+**Handoffs (v0.3):** `<prefix> <query>` opens a fleet-scoped search in your browser — `gh` GitHub · `sea` fleet SearXNG · `el` Elastic docs (via site: search). Enter opens the URL with your original-case query. Bare prefix (`gh` alone) shows its help row; `hermes` lists all configured handoffs. Config: `"handoffs": [{prefix, label, url}]` — prefix 2–6 lowercase letters, label ≤24 chars, URL must be http(s) with exactly one `%s`, duplicates and lane prefixes (`ai`/`hr`/`hermes` — whatever yours are renamed to) are rejected at load; malformed entries are skipped with one journal line, never fatal. `map` was cut in UX review: generic web search is the native webshortcuts runner's job — this lane stays fleet-scoped. Jellyfin/Galaxy handoffs: verify the search URL first, then add to config.
+
 KRunner stays KRunner: apps, windows, calculator, unit conversion, timers and
 file search remain native. This runner only adds the two agent lanes — the
 parts of Omarchy's Foyer that have no KDE equivalent.

@@ -175,6 +175,29 @@ $B call org.kde.krunner /App org.kde.krunner.App query s "ai $Q" >/dev/null 2>&1
 sleep 2
 spectacle -b -n -o "$OUT/kr-answer-$TAG.png" 2>/dev/null && echo "SHOT-kr-answer"
 
+# Phase 2: handoffs lane — config injects gh/el/sea; query a gh handoff
+python3 - "$H/.config/hermes-runner/config.json" <<'PYEOF'
+import json, sys
+p = sys.argv[1]
+c = json.load(open(p))
+c["handoffs"] = [
+    {"prefix": "gh", "label": "GitHub",
+     "url": "https://github.com/search?q=%s"},
+    {"prefix": "sea", "label": "SearXNG fleet",
+     "url": "http://192.168.1.249:8787/search?q=%s"},
+]
+json.dump(c, open(p, "w"), indent=1)
+PYEOF
+kill -HUP $RUNNER_PID 2>/dev/null; sleep 2
+# /App query drives the KRunner UI (async, returns void — kr-appquery is
+# always 0 bytes); Match on the runner is the deterministic row check.
+$B call org.kde.krunner /App org.kde.krunner.App query s "gh krunner hermes" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "gh krunner hermes" \
+    > "$ROOT/kr-handoff-$TAG.txt" 2>&1 && echo "CKPT-HANDOFF-QUERY=OK" || echo "CKPT-HANDOFF-QUERY=FAIL"
+grep -q "handoff:gh:" "$ROOT/kr-handoff-$TAG.txt" && echo "CKPT-HANDOFF-ROW=OK" || echo "CKPT-HANDOFF-ROW=FAIL"
+sleep 1
+spectacle -b -n -o "$OUT/kr-handoff-$TAG.png" 2>/dev/null && echo "SHOT-kr-handoff"
+
 kill $RUNNER_PID $KRUNNER_PID $MON_PID $KWIN_PID 2>/dev/null
 sleep 2
 for pid in $(ls /proc | grep -E '^[0-9]+$'); do

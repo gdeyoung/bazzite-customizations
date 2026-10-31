@@ -380,6 +380,12 @@ class IconLint(unittest.TestCase):
     """F-6 gate: every icon route() can emit must resolve in Breeze on this
     host (rglob includes symlinked icons — the find -type f trap)."""
 
+    HANDOFF_CONF = json.loads(json.dumps(CONF))
+    HANDOFF_CONF["handoffs"] = [
+        {"prefix": "gh", "label": "GitHub",
+         "url": "https://github.com/search?q=%s"}]
+    HANDOFF_CONF["_handoffs"], _sk = hr.sanitize_handoffs(HANDOFF_CONF)
+
     def test_all_route_icons_exist_in_breeze(self):
         c = FakeCache()
         c.m["ping"] = ("answer", "pong", time.time())
@@ -397,6 +403,8 @@ class IconLint(unittest.TestCase):
             hr.route("hr t", c, set(), running, CONF),
             hr.route("hermes", c, set(), {}, CONF),
             hr.route("ask hermes about dns", c, set(), {}, CONF),
+            hr.route("gh KRunner Hermes", c, set(), {}, self.HANDOFF_CONF),
+            hr.route("gh", c, set(), {}, self.HANDOFF_CONF),
         ]
         icons = {r[3] for rows in battery for r in rows}
         self.assertGreaterEqual(len(icons), 6, f"battery too thin: {icons}")
@@ -407,6 +415,132 @@ class IconLint(unittest.TestCase):
         missing = {i for i in icons if i.lower() not in have}
         self.assertEqual(missing, set(),
                          f"icons missing from Breeze on this host: {missing}")
+
+
+class Handoffs(unittest.TestCase):
+    """UX-SPEC F-5 — sanitize, claims, rows, dispatch, resilience."""
+
+    def conf_with_handoffs(self, entries):
+        conf = json.loads(json.dumps(CONF))
+        conf["handoffs"] = entries
+        conf["_handoffs"], _ = hr.sanitize_handoffs(conf)
+        return conf
+
+    def test_sanitize_fixtures(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import fixtures_handoffs as fx
+        for entry, ok in fx.SANITIZE_FIXTURES:
+            conf = self.conf_with_handoffs([entry])
+            self.assertEqual(len(conf["_handoffs"]) == 1, ok, entry)
+
+    def test_sanitize_reserved_from_config(self):
+        conf = self.conf_with_handoffs(
+            [{"prefix": "gh", "label": "Shadowed",
+              "url": "https://a.co/?q=%s"}])
+        conf["answer_prefix"] = "gh"   # rename a lane onto the handoff
+        conf["_handoffs"], skipped = hr.sanitize_handoffs(conf)
+        self.assertEqual(conf["_handoffs"], [])
+        self.assertEqual(skipped, 1)
+        # defaults too: ai/hr/hermes can never be handoff prefixes
+        for bad in ("ai", "hr", "hermes"):
+            conf = self.conf_with_handoffs(
+                [{"prefix": bad, "label": "X", "url": "https://a.co/?q=%s"}])
+            self.assertEqual(conf["_handoffs"], [], bad)
+
+    def test_sanitize_dupes_and_count(self):
+        conf = self.conf_with_handoffs([
+            {"prefix": "gh", "label": "One", "url": "https://a.co/?q=%s"},
+            {"prefix": "gh", "label": "Two", "url": "https://b.co/?q=%s"},
+            {"prefix": "bad entry", "label": "X", "url": "https://c.co/?q=%s"},
+        ])
+        self.assertEqual([h["prefix"] for h in conf["_handoffs"]], ["gh"])
+        self.assertEqual(conf["_handoffs"][0]["label"], "One")
+
+    def test_claims_exactness(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import fixtures_handoffs as fx
+        conf = self.conf_with_handoffs([
+            {"prefix": "gh", "label": "GitHub",
+             "url": "https://github.com/search?q=%s"},
+            {"prefix": "sea", "label": "SearXNG fleet",
+             "url": "http://192.168.1.249:8787/search?q=%s"},
+            {"prefix": "el", "label": "Elastic docs",
+             "url": "https://duckduckgo.com/?q=site%3Aelastic.co+%s"},
+        ])
+        for q, claim in fx.CLAIM_FIXTURES:
+            rows = hr.route(q, FakeCache(), set(), {}, conf)
+            self.assertEqual(bool(rows), claim, q)
+
+    def test_action_and_help_rows(self):
+        conf = self.conf_with_handoffs(
+            [{"prefix": "gh", "label": "GitHub",
+              "url": "https://github.com/search?q=%s"}])
+        r = hr.route("gh KRunner Hermes", FakeCache(), set(), {}, conf)[0]
+        self.assertEqual(r[0], "handoff:gh:krunner hermes")
+        self.assertEqual(r[1], "GitHub: KRunner Hermes")
+        self.assertIn("SEARCH github.com", r[2])
+        self.assertIn("ENTER OPENS BROWSER", r[2])
+        self.assertEqual(r[3], "internet-web-browser")
+        self.assertEqual((r[4], r[5]), (100, 1.0))
+        self.assertEqual(r[6]["actions"], [])
+        # bare prefix -> its own help row
+        b = hr.route("gh", FakeCache(), set(), {}, conf)[0]
+        self.assertEqual(b[0], "handoff:gh")
+        self.assertIn("type the query after 'gh'", b[1])
+        self.assertEqual(b[4], 50)
+        # hermes help gains the handoff row below dictation
+        help_rows = hr.route("hermes", FakeCache(), set(), {}, conf)
+        self.assertEqual([x[0] for x in help_rows],
+                         ["help-ai", "help-hr", "help-dictation",
+                          "help-handoff-gh"])
+        self.assertEqual(help_rows[3][5], 0.43)
+        self.assertIn("SEARCHES github.com", help_rows[3][2])
+
+    def test_dispatch_opens_url_original_case(self):
+        from unittest import mock
+        conf = self.conf_with_handoffs(
+            [{"prefix": "gh", "label": "GitHub",
+              "url": "https://github.com/search?q=%s"}])
+        ctx = Dispatch.Ctx()
+        ctx.conf = conf
+        with mock.patch("hermes_runner.subprocess.Popen") as po:
+            hr.run_dispatch("handoff", "gh:krunner hermes",
+                            "KRunner Hermes", "", ctx)
+            po.assert_called_once()
+            self.assertEqual(po.call_args[0][0],
+                             ["xdg-open",
+                              "https://github.com/search?q=KRunner+Hermes"])
+
+    def test_dispatch_other_action_noop(self):
+        from unittest import mock
+        conf = self.conf_with_handoffs(
+            [{"prefix": "gh", "label": "G",
+              "url": "https://github.com/search?q=%s"}])
+        ctx = Dispatch.Ctx()
+        ctx.conf = conf
+        with mock.patch("hermes_runner.subprocess.Popen") as po:
+            hr.run_dispatch("handoff", "gh:x", "x", "copy", ctx)
+            po.assert_not_called()
+
+    def test_malformed_config_lanes_survive(self):
+        conf = self.conf_with_handoffs(
+            [{"prefix": "!!", "label": "X", "url": "nope"},
+             "garbage", {"prefix": "gh"}])
+        cache = FakeCache()
+        cache.m["ping"] = ("answer", "pong", time.time())
+        self.assertEqual(hr.route("ai ping", cache, set(), {}, conf)[0][0],
+                         "answer:ping")
+        self.assertEqual(hr.route("hr t", FakeCache(), set(), {}, conf)[0][0],
+                         "task:t")
+        self.assertEqual(hr.route("hermes", FakeCache(), set(), {}, conf)[0][0],
+                         "help-ai")
+
+    def test_default_handoffs_verified_urls(self):
+        conf = json.loads(json.dumps(hr.DEFAULT_CONF))
+        conf["_handoffs"], skipped = hr.sanitize_handoffs(conf)
+        self.assertEqual(skipped, 0)
+        self.assertEqual([h["prefix"] for h in conf["_handoffs"]],
+                         ["gh", "sea", "el"])
 
 
 if __name__ == "__main__":

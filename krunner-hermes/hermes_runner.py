@@ -68,6 +68,14 @@ DEFAULT_CONF = {
     "copy_answers": True,
     "web_search_url": "https://duckduckgo.com/?q=%s",
     "web_search_name": "DUCKDUCKGO",
+    "handoffs": [
+        {"prefix": "gh", "label": "GitHub",
+         "url": "https://github.com/search?q=%s"},
+        {"prefix": "sea", "label": "SearXNG fleet",
+         "url": "http://192.168.1.249:8787/search?q=%s"},
+        {"prefix": "el", "label": "Elastic docs",
+         "url": "https://duckduckgo.com/?q=site%3Aelastic.co+%s"},
+    ],
 }
 
 CONF_PATH = Path(os.environ.get(
@@ -96,6 +104,32 @@ def clip(text, n):
     return text if len(text) <= n else text[: n - 1].rstrip() + "…"
 
 
+def sanitize_handoffs(conf):
+    """F-5: foyer-identical sanitize. RESERVED is built FROM config prefixes
+    so renaming a lane can't be silently shadowed. Returns (clean, skipped);
+    malformed entries are dropped, never fatal."""
+    reserved = {conf.get("answer_prefix", "ai"),
+                conf.get("task_prefix", "hr"), "hermes"}
+    clean, seen, skipped = [], set(), 0
+    for h in (conf.get("handoffs") or []):
+        try:
+            p = str(h["prefix"]).strip()
+            label = str(h["label"]).strip()
+            url = str(h["url"]).strip()
+        except (KeyError, AttributeError, TypeError):
+            skipped += 1
+            continue
+        if (not re.fullmatch(r"[a-z]{2,6}", p) or p in reserved or p in seen
+                or not label or len(label) > 24
+                or not re.match(r"^https?://", url) or url.count("%s") != 1):
+            skipped += 1
+            continue
+        seen.add(p)
+        clean.append({"prefix": p, "label": label, "url": url,
+                      "host": urllib.parse.urlparse(url).netloc})
+    return clean, skipped
+
+
 def load_conf():
     conf = json.loads(json.dumps(DEFAULT_CONF))  # deep copy
     try:
@@ -109,6 +143,9 @@ def load_conf():
         pass  # run on defaults; install.sh writes a real config
     except Exception as e:  # broken user config: defaults, loudly
         log(f"config unreadable ({e}); using defaults")
+    conf["_handoffs"], skipped = sanitize_handoffs(conf)
+    if skipped:
+        log(f"{skipped} handoff entries skipped (sanitize)")
     return conf
 
 
@@ -339,6 +376,35 @@ def route(query, cache, fetching, running, conf):
             "'tell hermes …' runs",
             "VOXTYPE PHRASES FOLD INTO THE ai/hr LANES",
             "help-browser", R_MODERATE, 0.45)
+        for i, h in enumerate(conf.get("_handoffs", ())):
+            # below help-ai 0.55 / help-hr 0.50 / help-dictation 0.45,
+            # config order, deterministic (spec F-4)
+            row(f"help-handoff-{h['prefix']}",
+                f"Hermes: hand off with '{h['prefix']} <query>'",
+                f"SEARCHES {h['host']} · OPENS IN BROWSER",
+                "internet-web-browser", R_MODERATE,
+                round(0.43 - 0.02 * i, 2))
+    else:
+        # F-5 handoff claims: exact FIRST-WORD match on a sanitized prefix —
+        # "gh" can never eat "ghost", "sea" never matches "seagate".
+        for h in conf.get("_handoffs", ()):
+            if first != h["prefix"]:
+                continue
+            # original-case query for the title (id mint lowercases)
+            qw = q.split(" ", 1)
+            orig_rest = qw[1].strip() if len(qw) > 1 else ""
+            if not rest:
+                row(f"handoff:{h['prefix']}",
+                    f"{h['label']} — type the query after '{h['prefix']}'",
+                    f"SEARCHES {h['host']} · OPENS IN BROWSER",
+                    "internet-web-browser", R_MODERATE, 0.55)
+            else:
+                row(f"handoff:{h['prefix']}:{rest.lower()}",
+                    f"{h['label']}: {orig_rest}",
+                    f"SEARCH {h['host']} · ENTER OPENS BROWSER",
+                    "internet-web-browser", 100, 1.0,
+                    {"actions": []})
+            break
     return out
 
 
@@ -407,6 +473,18 @@ def run_dispatch(kind, key, text, act, ctx):
             ctx.fetch_answer(text)
         elif act == "copy":
             clipboard(text)
+    elif kind == "handoff":
+        # F-5: key is "<prefix>:<lowercased q>"; text is the ORIGINAL-CASE
+        # query from the payload map. Only Enter opens; row has actions: [].
+        p, _, _ = key.partition(":")
+        h = next((x for x in conf.get("_handoffs", ())
+                  if x["prefix"] == p), None)
+        if h and act == "":
+            subprocess.Popen(
+                ["xdg-open", h["url"].replace(
+                    "%s", urllib.parse.quote_plus(text or key.partition(":")[2]))],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     elif kind == "task":
         if act in ("", "askagain"):
             ctx.fire_task(text)
@@ -545,14 +623,17 @@ class HermesRunner(dbus.service.Object):
         rows = route(query, self.cache, self.fetching, self.running_tasks,
                      self.conf)
         out = []
-        # id→payload map: preserve original case for ask/task round-trips.
-        q = (query or "").strip()
+        # id→payload map: preserve ORIGINAL CASE for ask/task/web/handoff
+        # round-trips — derived from the NORMALIZED query (dictated phrases
+        # must not carry "hermes about …" into the payload), v0.2.3.
+        q = normalize(query or "", self.conf).strip()
         words = q.split(" ", 1)
         payload_text = words[1].strip() if len(words) > 1 else ""
         for (mid, title, subtext, icon, catrel, rel, props) in rows:
             if payload_text and (mid.startswith("ask:")
                                  or mid.startswith("task:")
-                                 or mid.startswith("web:")):
+                                 or mid.startswith("web:")
+                                 or mid.startswith("handoff:")):
                 self.payload[mid] = payload_text
                 if len(self.payload) > 256:
                     self.payload.pop(next(iter(self.payload)))
