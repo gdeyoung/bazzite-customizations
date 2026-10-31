@@ -4,16 +4,18 @@ The Omarchy "front door" feeling, KDE-native: Alt+Space, ask a question or
 fire an agent task, no terminal, no browser. Zero-compile Plasma 6 DBus
 runner — no C++, no KDE SDK, nothing layered into the image.
 
-**Status: code-complete + live-verified against the session bus (not yet
-installed as a KRunner plugin — install is a deliberate, listed step).**
+**Status: v0.2 — UX-reviewed (UX-SPEC.md), harness-gated, unit-tested.**
 
 ## What the two prefixes do
 
 | You type (Alt+Space) | What happens |
 |---|---|
-| `ai what is the fleet LiteLLM alias for GLM-5.3` | Question goes to the fleet LiteLLM proxy (default model `local-fast`). Answer pops as a desktop notification; retype/re-match the same query and the answer row appears inline in KRunner. Enter copies it. |
-| `hr check jellyfin service health and notify me` | Fires one unattended Hermes agent turn (`hermes -z`), logs to `~/.cache/hermes-runner/task-<ts>.log`, and notifies with the tail of the result when the turn ends. |
-| `hermes` | Shows the two syntax rows. |
+| `ai <question>` | Enter on the row ASKS: background fetch from the fleet LiteLLM proxy (default `local-fast`). Answer pops as a desktop notification; retype the same query and the answer row appears inline in KRunner — Enter copies it. Match time does NO I/O (no request spam while typing). |
+| `hr <task>` | Enter FIRES one unattended Hermes agent turn (`hermes -z`), notifies "task started", logs to `~/.cache/hermes-runner/task-<ts>.log`, and notifies with the cleaned tail when it ends. A running registry prevents double-fire; while running, the row shows elapsed time and Enter shows the log tail. |
+| `ai` / `hr` (nothing after) | Lane help: what the prefix does. |
+| `hermes` | Both syntax rows. |
+
+Errors are their own state: a failed ask shows a red row with a one-line humanized reason ("LiteLLM unreachable at …") and Enter retries it. Errors are never cached as answers.
 
 KRunner stays KRunner: apps, windows, calculator, unit conversion, timers and
 file search remain native. This runner only adds the two agent lanes — the
@@ -23,15 +25,17 @@ parts of Omarchy's Foyer that have no KDE equivalent.
 
 ```
 KRunner ──org.kde.krunner1──▶ hermes_runner.py (systemd user service)
-   Match(s) → a(sssuda{sv})      ├─ 'ai': background thread → LiteLLM /chat/completions
-   Run(ss)                       │        answer → notification + bounded cache →
+   Match(s) → a(sssida{sv})      ├─ 'ai': Run → background thread → LiteLLM /chat/completions
+   Run(ss)                       │        answer/error → notification + typed cache →
    Actions() → a(sss)            │        inline on the next Match of the same query
-                                 └─ 'hr': Popen(hermes -z) → watcher thread → notification
+   SetActivationToken(s)         └─ 'hr': Popen(hermes -z) → watcher → notification
 ```
 
-- Interface signatures taken from the live Plasma 6.7.5 session
-  (`busctl introspect org.kde.KWin /WindowsRunner`, 2026-10-26) —
-  `Match(s)→a(sssuda{sv})`, `Run(ss)`, `Actions()→a(sss)`.
+- Wire signatures per the installed KRunner 6.31 interface: field 4 is
+  **int32** CategoryRelevance. KWin's introspection XML advertises 'u' but
+  marshals C++ int as 'i' — a daemon trusting the XML gets every reply
+  rejected with InvalidSignature (harness-caught 2026-10-30). Trust the
+  caller's demarshal expectation, not the provider's self-description.
 - Runtime deps: `python3-dbus` + `python3-gobject` (both in the Bazzite base
   image) + `notify-send`. No pip, no venv, no sudo.
 - Discovered via `~/.local/share/krunner/dbusplugins/org.kde.runners.hermes.desktop`
@@ -43,7 +47,7 @@ KRunner ──org.kde.krunner1──▶ hermes_runner.py (systemd user service)
 Copy `config.json.example`. Fields: `answer_prefix`/`task_prefix`, `litellm.base_url`,
 `litellm.model`, `litellm.timeout_s`, `api_key_env` / `api_key_file` (parsed
 at runtime; never hardcoded — see below), `max_answer_chars`, `copy_answers`,
-`notify` (set false for headless testing), `notify_icon`.
+`notify` (set false for headless testing).
 Reload without restarting: `systemctl --user kill -s HUP hermes-runner`.
 
 ## Install (when at the tower)
@@ -57,30 +61,28 @@ systemctl --user restart plasma-krunner.service
 
 Rollback: `./uninstall.sh` (removes daemon/spec/unit, keeps config+cache).
 
-## Verified (2026-10-26, live session bus — daemon run standalone, KRunner unaware)
+## Verified
 
-- Bus name `org.kde.runners.hermes` owned; introspection returns the exact
-  krunner1 signatures (`Match s → a(sssuda{sv})`, `Run ss`, `Actions → a(sss)`).
-- `Match("hermes")` → two syntax rows; `Match("ai ")` → help row;
-  `Match("hr check the nas")` → task row. All non-blocking (<5 ms).
-- `Match("ai ping")` → async fetch against fleet LiteLLM `local-fast` →
-  notification → re-Match shows `answer:ping "Pong!"` inline (multiLine).
-- `Match("ai say hello")` → `"Hello!"` cached; `Run("answer:say hello")`
-  notify path clean (clipboard lane exercised with `copy_answers:true` on
-  install day via Klipper DBus).
-- `Run("task:reply with exactly: TASK-LANE-OK")` → real `hermes -z` turn;
-  log contains `TASK-LANE-OK`; completion notification fired.
-- Test rig leaves no trace: standalone process (no desktop file, no unit
-  enabled), killed by PID after the run; only `~/.cache/hermes-runner/*.log`
-  and `/tmp/hr-test/` remain.
+**2026-10-30 — harness gate (nested Wayland session, krunner 6.31 live):**
+26/26 unit tests (`test/test_runner.py` — routing matrix, humanizer, tail
+cleaner, typed cache, enum bounds); daemon on the nested bus: help rows,
+cold ask with zero Match-time I/O, `Run` → real LiteLLM fetch → notification
+→ cached inline answer with per-row action icons, error lane via dead-port
+daemon (humanized row, Enter-retry, never cached as answer), `Actions()`
+triples, `SetActivationToken` no-op; real krunner discovered us from
+`~/.local/share/krunner/dbusplugins` and rendered both states (pixel-checked).
+The 2026-10-26 "verified" note below was the trap this gate caught:
+
+- 2026-10-26 checks trusted introspection XML (`a(sssuda{sv})`) and were
+  daemon-only — krunner was never an actual consumer, so the uint32/int32
+  rejection was invisible until the 2026-10-30 harness run.
 
 ## Design notes / gotchas folded in
 
-- **Match must never block.** KRunner calls it synchronously on typing; the
-  LLM fetch runs in a daemon thread and the answer surfaces via notification
-  + cache. KRunner only re-Matches on text change, so the inline answer
-  appears on retype — documented in the subtext ("answer arrives as a
-  notification; retypes show it inline").
+- **Match must never block — and never do I/O.** KRunner calls it
+  synchronously on every keystroke; the fetch fires only on Run (Enter).
+  KRunner only re-Matches on text change, so the inline answer appears on
+  retype — documented in the subtext.
 - **No secrets in code or repo.** Key resolution: env var first, then a
   `KEY=value` local file. The repo's example points at `LITELLM_API_KEY`;
   fleet install passes the real env/file names as install args.
