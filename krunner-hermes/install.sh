@@ -41,6 +41,7 @@ install -m 0644 "$SRC/hermes-runner.service" \
 # 2. config (existing config is kept unless --force-config)
 if [[ ! -f "$CONF" || "$FORCE_CONFIG" -eq 1 ]]; then
   API_KEY_FILE="${API_KEY_FILE/#\~/$HOME}"
+  mkdir -p "$(dirname "$CONF")"   # silent cat-fail bug: daemon ran on defaults
   cat > "$CONF" <<EOF
 {
   "answer_prefix": "ai",

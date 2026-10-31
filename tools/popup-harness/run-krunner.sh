@@ -53,6 +53,24 @@ cat > "$H/.config/hermes-runner/config.json" <<'EOF'
   "notify": true
 }
 EOF
+
+# stub hermes for the task lane — MUST be in the config BEFORE the daemon
+# starts (kr7 lesson: a post-start sed left the daemon on real-hermes
+# autodetect and the harness spawned a genuine agent turn)
+cat > "$H/stub-hermes.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "STUB-START $*"
+sleep 3
+echo "STUB-TASK-OK $*"
+EOF
+chmod +x "$H/stub-hermes.sh"
+/usr/bin/python3 - "$H" <<'PY'
+import json, sys, pathlib
+p = pathlib.Path(sys.argv[1]) / ".config/hermes-runner/config.json"
+c = json.loads(p.read_text())
+c["hermes_exe"] = str(pathlib.Path(sys.argv[1]) / "stub-hermes.sh")
+p.write_text(json.dumps(c, indent=2))
+PY
 # dead-port config for the error-lane daemon (second instance)
 sed 's#http://192.168.1.243:4000/v1#http://127.0.0.1:9/v1#' \
     "$H/.config/hermes-runner/config.json" \
@@ -96,6 +114,15 @@ $B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "answer:$Q" ""
 echo "--- T9 hr match-only rows (cold + running shape via fresh key) ---"
 probe "hr rebuild the nas index"
 probe "hermes"
+
+echo "--- T11 task lane via stub hermes (full Run cycle) ---"
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss \
+    "task:count to three then stop" ""
+sleep 2
+probe "hr count to three then stop"          # expect taskrun: RUNNING
+sleep 5
+probe "hr count to three then stop"          # expect task: again (registry cleared)
+grep -c "STUB-TASK-OK" "$H/.cache/hermes-runner/"task-*.log | tail -1
 
 echo "--- T10 error lane: relaunch daemon on dead port ---"
 kill $RUNNER_PID 2>/dev/null; sleep 1

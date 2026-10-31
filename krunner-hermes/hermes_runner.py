@@ -350,8 +350,12 @@ class HermesRunner(dbus.service.Object):
                 return
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         logf = CACHE_DIR / f"task-{int(time.time())}.log"
-        exe = shutil.which("hermes", path=os.path.expanduser(
-            "~/.local/bin") + ":" + os.environ.get("PATH", ""))
+        # hermes_exe override exists so the harness can cover this lane with
+        # a stub (a real hermes -z turn is never spawned in the gate).
+        exe = self.conf.get("hermes_exe")
+        if not exe:
+            exe = shutil.which("hermes", path=os.path.expanduser(
+                "~/.local/bin") + ":" + os.environ.get("PATH", ""))
         if not exe:
             exe = str(Path("~/.hermes/hermes-agent/venv/bin/hermes").expanduser())
         if not Path(exe).exists():
@@ -374,9 +378,10 @@ class HermesRunner(dbus.service.Object):
             deadline = time.time() + 3600  # watch at most 1 h total
             while time.time() < deadline:
                 time.sleep(1)
-                try:
-                    os.kill(proc.pid, 0)  # raises when the process is gone
-                except OSError:
+                # poll() reaps; os.kill(pid,0) SUCCEEDS on zombies, so a
+                # kill-based loop never sees the child die and the registry
+                # leaks "Running" forever (live-caught 2026-10-30).
+                if proc.poll() is not None:
                     with self.task_lock:
                         self.running_tasks.pop(key, None)
                     notify("Hermes · task done", clean_tail(logf),
