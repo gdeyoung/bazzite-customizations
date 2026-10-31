@@ -365,36 +365,43 @@ help row instead of the generic pair — the prefix teaches its lane.
 
 ---
 
-## F. v2 additions — foyer-informed improvements (2026-10-31, Phase 0 draft)
+## F. v2 additions — foyer-informed improvements (2026-10-31, UX-reviewed)
 
 Source review: `omarchy-foyer` (Omarchy original, full clone audited). Admission
-bar held: nothing KRunner already owns natively. Baseline measured same day:
-5 real `ai` questions via local-fast → **min 0.25s · median 0.63s · max 0.79s**
-(well inside the 8s p95 target). Known non-goal: model answered one
-fleet-specific question wrong (`o1` for `local-heavy`) — knowledge quality is a
-model/prompt issue, not a runner mechanic; revisit only if counters show it bites.
+bar held: nothing KRunner already owns natively. **Scope rule (UX review):**
+the handoffs lane stays on the right side of the bar only while it remains
+*fleet-scoped* — LAN/fleet targets and config-managed defaults; generic public
+web search belongs to the native webshortcuts runner + KCM. Baseline measured
+2026-10-31: 5 real `ai` questions via local-fast → **min 0.25s · median 0.63s ·
+max 0.79s** (target p95 <8s). Known non-goal: model answered one fleet question
+wrong (`o1` for `local-heavy`) — model knowledge, not runner mechanics.
 
 ### F-1. Dictation normalization (Phase 1a) — voice-native lanes
 
 VoxType dictation lands whole phrases in the box; today they miss the lanes.
-`normalize(query)` runs at the top of `route()` AND in `Run()` before id lookup
-(the id embeds the normalized key). Semantics ported from foyer VoiceModel,
-lane-adapted:
+`normalize(query)` runs **in `route()` only** — `Run()` receives only the row
+id, and ids are minted from the normalized query inside `route()`. Semantics
+ported from foyer VoiceModel, lane-adapted:
 
 - `^(?:ask|question)\s+(?:the\s+)?(?:ai|assistant|hermes|computer)\s+(?:about\s+|to\s+)?` → `ai `
-  ("ask the assistant about tailscale" → `ai tailscale`)
+  ("ask the assistant about tailscale" → `ai tailscale`). ASK phrasing →
+  answer lane (the safe direction — answers can't act).
 - `^(?:tell|have)\s+(?:the\s+)?(?:ai|assistant|hermes|computer)\s+(?:to\s+)?` → `hr `
-  ("tell hermes to check the backups" → `hr check the backups`)
-  — ASK phrasing → answer lane; TELL/HAVE phrasing → task lane.
+  ("tell hermes to check the backups" → `hr check the backups`; "tell ai a
+  joke" → `hr a joke` — TELL defaults to the task lane by design). Nothing
+  fires without Enter on a row titled `Run Hermes: {task}` — a misparse is
+  visible before it costs anything.
 - Dictated colons: `(ai|hr)\s*:\s*` (case-insensitive) → `"$1 "` — the router
   matches on first word only, so colon forms must fold.
 - Early-rewrite filler: `(ai|hr)\s+(?:about|to)\s+` → `"$1 "` (idempotent while
   typing one character at a time).
 - Hard rules: idempotent (`normalize(normalize(x)) == normalize(x)`); any query
   that doesn't match a rule passes through byte-identical — never invent a
-  prefix ("why is dns slow" stays unprefixed; "ask a friend" untouched).
-- Fixtures: `test/fixtures_normalize.py` (ported from foyer's voice-model
-  tests + our no-false-claim cases: "2048 game", "2+2", "hermesy").
+  prefix ("why is dns slow" stays unprefixed; "ask a friend" untouched; ASR
+  artifacts like "ask I about x" fold correctly; "seagate"/"hermesy" can't
+  match — exact-word, whitespace-terminated).
+- Fixtures: `test/fixtures_normalize.py` (foyer voice-model ports + our
+  no-false-claim cases + the two tell→hr intended-default fixtures).
 
 ### F-2. Web-fallback sibling row (Phase 1b)
 
@@ -403,68 +410,93 @@ Every cached **answer** row gains a sibling directly below it:
 | field | value |
 |---|---|
 | id | `web:{key}` |
-| title | `web: {question}` |
-| subtext | `OPEN BROWSER SEARCH · ENTER OPENS` |
-| icon | `web-browser` (verify exists in Breeze; fallback `internet-web-browser`) |
-| catrel / rel | Moderate / 0.9 (answer row stays 0.95 above it) |
+| title | `Web search: {question}` (Sentence case, v0.2 grammar) |
+| subtext | `SEARCH {web_search_name} · ENTER OPENS BROWSER` |
+| icon | `internet-web-browser` (verified: breeze + breeze-dark apps/48; `web-browser` is NOT in Breeze on this host) |
+| catrel / rel | **High(70) / 0.6** — same tier as nothing above it, lower rel than the parent answer (High/0.95) so the sibling renders directly under it; Moderate/0.9 would break tier grammar and let other runners interpose |
+| props | `actions: []` explicit (B-2 rule) |
 
-- Enter → `xdg-open` of `web_search_url` with `{q}` replaced by
-  URL-encoded question. Config field `web_search_url`, default
-  `https://duckduckgo.com/?q={q}` (works off-LAN; fleet SearXNG URL is a
-  one-line config override — OPEN QUESTION for UX review).
-- Error rows get NO web sibling (Enter retries — one verb per row).
-- The `asking:` in-flight row gets no sibling either (no answer to fall back
-  from yet).
+- Enter (`Run` actionId `""` on a `web:` id) → `xdg-open` with the
+  **original-case** question substituted into `web_search_url`; other action
+  ids on the row no-op (one verb per row).
+- Config: `web_search_url` (default `https://duckduckgo.com/?q=%s`, `%s`
+  placeholder — same substitution grammar as handoffs) + `web_search_name`
+  (≤12 chars, default `DUCKDUCKGO`, mirrors the `{model} VIA LITELLM` pattern).
+  Fleet install gets SearXNG via `install.sh --web-search-url
+  http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG` and a
+  commented fleet block in `config.json.example` (the P2-6 litellm pattern).
+  A fallback row must survive off-LAN and Watertower-down; DDG default, fleet
+  URL by config.
+- NO web sibling on: error rows (Enter retries), in-flight rows (nothing to
+  fall back from yet), or recents rows (passive history, one verb already).
 
 ### F-3. Bare-`ai` recents (Phase 1c)
 
-`ai` with no query → help row (unchanged, id `ai-help` keeps muscle memory)
-followed by up to **5** most-recent **answer** cache entries, newest first:
+`ai` with no query → help row (unchanged, id `ai-help`, Moderate/0.6 stays on
+top) followed by up to **5** most-recent **answer** cache entries, newest
+first:
 
 | field | value |
 |---|---|
 | id | `recent:{key}` |
-| title | clipped answer (same clip as answer rows) |
-| subtext | `Q: {question} · {age} AGO · ENTER COPIES` |
-| icon / catrel / rel | `help-browser` / High / 0.8 (below help 0.6? — OPEN QUESTION) |
-| actions | `["copy", "askagain", "reshow"]` (same set as answer rows) |
+| title | clipped **question** (120 chars) — the question is what the user scans for and the entry's unique key; answers as titles put five past answers' content on screen and truncate badly |
+| subtext | `ANSWER CACHED {age} AGO · ENTER COPIES` |
+| icon / catrel / rel | `help-browser` / **Moderate(50)** / `0.5 − 0.03·i` (0.50→0.38 — below help 0.6, descending rel pins newest-first deterministically under re-sort) |
+| actions | `["copy", "askagain", "reshow"]` |
 
-- Privacy scoping (foyer discipline): only ai-lane Q&A. Never `hr` task text
-  (agent work, often sensitive), never error rows (they'd be noise).
-- Cache already stores ts; recents = sort by ts, filter type==answer, cap 5.
+- `Run` dispatch for `recent:` is identical to `answer:` — Enter copies the
+  full cached answer; copy/askagain (drop + refetch)/reshow (re-notify).
+- Privacy scoping (foyer discipline, confirmed correct by review): only
+  ai-lane Q&A. Never `hr` task text (hostnames/paths, agent work), never
+  error rows (noise). Cache is 32 entries; help + 5 = 6 rows, viewport-sized.
 
 ### F-4. Help extension (Phase 1d)
 
-`hermes` / `hermes help` gains one row per new behavior, and in Phase 2 one
-row per configured handoff prefix (dynamic: title `Hermes: hand off with
-'{prefix} <query>'`, subtext `OPENS {label}`). Help rows stay Moderate/≤0.55
-so real matches outrank them.
+Help rows only for behaviors with **new syntax**: dictation phrases and
+(Phase 2) handoff prefixes. Web sibling and recents are passive — no help
+rows. Phase-2 handoff help rows: Moderate(50), rel `0.45 − 0.02·i` in config
+order (below help-ai 0.55 / help-hr 0.50), title `Hermes: hand off with
+'{prefix} <query>'`, subtext `SEARCHES {url host} · OPENS IN BROWSER` (help
+rows never promise Enter — D-6).
 
 ### F-5. Handoffs lane (Phase 2) — new lane, new config
 
-Config: `"handoffs": [{"prefix": "gh", "label": "GitHub", "url": "https://github.com/search?q=%s"}]`
-Example-config defaults: `gh` GitHub · `el` Elastic docs · `map` Maps ·
-`sea` fleet SearXNG · `jf` Jellyfin search · `gal` Galaxy portal.
+Config: `"handoffs": [{"prefix": "gh", "label": "GitHub", "url": "https://github.com/search?q=%s"}]`.
+Example-config defaults (**`map` cut — generic public search is the native
+webshortcuts runner's job and the likeliest English-word collision**): `gh`
+GitHub · `el` Elastic docs · `sea` fleet SearXNG · `jf` Jellyfin search ·
+`gal` Galaxy portal.
 
 Sanitize rules (foyer-identical): prefix `/^[a-z]{2,6}$/`; label ≤24 chars;
-url `https?://` **with `%s`**; no dupes; **RESERVED = [`ai`, `hr`, `hermes`]
-may not be shadowed**. Malformed entry → skipped + ONE journal WARN line
-(count, not per-entry spam); the runner keeps serving every other lane.
+url `https?://` **with `%s`**; no dupes; **RESERVED built from config —
+`[conf.answer_prefix, conf.task_prefix, "hermes"]`** (prefixes are
+user-configurable; a custom `answer_prefix: "gh"` must be rejected — a
+hardcoded list wouldn't catch it). Malformed entry → skipped + ONE journal
+WARN line (count, not per-entry spam); the runner keeps serving every lane.
 
 Rows: `<prefix> <q>` → id `handoff:{prefix}:{q}`, title `{label}: {q}`,
-subtext `OPENS {url host} · ENTER OPENS BROWSER`, icon `web-browser`,
-Highest/1.0. Bare `<prefix>` → its own help row ("type the query after '{prefix}'").
-Enter → `xdg-open(url.replace("%s", urlencode(q)))`. Claim is exact-first-word
-match on a SANITIZED prefix — never substring, so "gh" can't eat "ghost".
+subtext `SEARCH {url host} · ENTER OPENS BROWSER`, icon
+`internet-web-browser`, Highest/1.0. Bare `<prefix>` → help row: title
+`{label} — type the query after '{prefix}'`, subtext `SEARCHES {url host} ·
+OPENS IN BROWSER`, Moderate(50)/0.55. Enter → `xdg-open(url.replace("%s",
+urlencode(q)))`. Claim is exact-first-word match on a SANITIZED prefix —
+never substring ("gh" can't eat "ghost"; "sea" can't match "seagate").
 
 ### F-6. Phase acceptance gates (extends §E)
 
+- Icon-lint: every icon literal emitted by `route()` must resolve under
+  `/usr/share/icons/breeze` (catches the `web-browser` class forever).
 - Phase 1: all `NORMALIZE_FIXTURES` pass + idempotence loop; route() returns
-  answer+web sibling with correct URL template; bare-`ai` returns help+≤5
-  recents newest-first, errors/hr excluded; zero row changes for non-lane
-  queries (golden-set diff against v0.2 route() output).
-- Phase 2: sanitize table (reserved shadow / dupe / http / missing %s /
-  long label / bad prefix all rejected); malformed-config fixture leaves both
-  v0.2 lanes green; handoff row Enter opens correct URL (mocked xdg-open).
+  answer+web sibling with correct URL template and `actions: []`; bare-`ai`
+  returns help+≤5 recents newest-first with descending rel, errors/hr
+  excluded; sibling renders directly under its answer (adjacency check);
+  `recent:`/`web:` dispatch covered (copy semantics / xdg-open with
+  original-case question); normalization asserted route()-only.
+- Phase 2: sanitize table (reserved-from-config shadow / dupe / http /
+  missing %s / long label / bad prefix all rejected); malformed-config
+  fixture leaves both v0.2 lanes green; handoff row Enter opens correct URL
+  (mocked xdg-open); handoff help rows in config order with stated rel.
 - Live (both phases): one real dictated phrase claimed+answered; one web row
   opened; harness kr-driver screenshots; journal clean.
+- Zero-row-drift: golden-set diff of route() output for non-lane queries
+  against v0.2 (the "2048 game" discipline).

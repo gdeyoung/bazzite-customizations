@@ -41,3 +41,9 @@ NORMALIZE_FIXTURES = [
 
 # Every fixture must ALSO be idempotent: normalize(x) == normalize(normalize(x))
 # (the runner sees the text again on every keystroke).
+
+# tell->hr intended defaults (UX review RC-7: document the design choice)
+NORMALIZE_FIXTURES += [
+    ("tell ai a joke",                "hr a joke"),
+    ("tell hermes about the incident", "hr the incident"),
+]
