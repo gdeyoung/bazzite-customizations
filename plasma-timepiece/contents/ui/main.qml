@@ -244,7 +244,7 @@ PlasmoidItem {
         id: chip
         hoverEnabled: true
 
-        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 3
+        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 4
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         Row {
@@ -253,13 +253,16 @@ PlasmoidItem {
             spacing: Kirigami.Units.smallSpacing
 
             Text {
+                id: chipDate
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.displayText
                 color: chip.containsMouse ? Kirigami.Theme.highlightColor : Kirigami.Theme.textColor
                 font: Kirigami.Theme.defaultFont
             }
             Text {
-                anchors.verticalCenter: parent.verticalCenter
+                // Baseline-anchored (ux-review-v2 P0-4): verticalCenter floats
+                // mid-gap under any multi-line custom format.
+                anchors.baseline: chipDate.baseline
                 visible: root.timerSuffix !== ""
                 text: root.timerSuffix
                 color: root.timerDoneAt > 0 && !root.pomodoroActive

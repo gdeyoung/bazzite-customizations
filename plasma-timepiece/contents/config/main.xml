@@ -3,7 +3,7 @@
     <group name="General">
         <entry name="clockFormat" type="String">
             <label>Panel chip time format (Qt tokens; ww=ISO week; [UM]=UPPERCASE month, [OD]=ordinal day)</label>
-            <default>dddd, [UM] [OD] h:mm AP</default>
+            <default>ddd [UM] [OD] · h:mm AP</default>
         </entry>
         <entry name="showDate" type="Bool">
             <label>Date in the panel chip (masks date tokens out of whatever format is set)</label>

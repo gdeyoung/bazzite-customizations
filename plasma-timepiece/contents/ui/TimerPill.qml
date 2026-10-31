@@ -22,8 +22,14 @@ Rectangle {
     radius: Kirigami.Units.smallSpacing / 2
     opacity: pill.dimmed ? 0.3 : 1
     border.width: 1
-    border.color: !pill.dimmed && pillMouse.containsMouse ? pill.toneColor : Qt.alpha(pill.foreground, 0.4)
-    color: !pill.dimmed && pillMouse.containsMouse ? Qt.alpha(pill.toneColor, 0.15) : "transparent"
+    // Primary verbs read as primary (ux-review-v2 P1-7): prominent = the
+    // selected-tab idiom — persistent tone border + tinted fill + tone text,
+    // not recolored text alone. Ghost pills stay hover-only.
+    border.color: pill.prominent || (!pill.dimmed && pillMouse.containsMouse)
+        ? pill.toneColor
+        : Qt.alpha(pill.foreground, 0.4)
+    color: pill.prominent ? Qt.alpha(pill.toneColor, 0.18)
+        : (!pill.dimmed && pillMouse.containsMouse ? Qt.alpha(pill.toneColor, 0.15) : "transparent")
 
     Text {
         id: pillText
@@ -31,7 +37,7 @@ Rectangle {
         text: pill.label
         color: pill.prominent ? pill.toneColor : pill.foreground
         font.bold: true
-        font.pixelSize: Kirigami.Units.gridUnit * 0.62
+        font.pixelSize: 11 // fleet micro tier (sysmon v0.8)
         font.letterSpacing: 1
     }
 

@@ -207,7 +207,7 @@ test("plasma5support is imported unaliased and versioned", () => {
 })
 
 test("chip defaults to the date-inclusive format and masks via Model", () => {
-  assert.match(kcfg, /<default>dddd, \[UM\] \[OD\] h:mm AP<\/default>/)
+  assert.match(kcfg, /<default>ddd \[UM\] \[OD\] · h:mm AP<\/default>/);
   assert.match(main, /Model\.applyShowDate\(configuredFormat, showDate\)/)
 })
 

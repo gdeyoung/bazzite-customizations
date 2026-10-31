@@ -36,8 +36,8 @@ JS
 echo "CKPT-START scale=$SCALE"
 QT_SCALE_FACTOR=$SCALE plasmashell --no-respawn > $ROOT/shell-tp-s$SCALE-$TAG.log 2>&1 & SHELL_PID=$!
 sleep 18
-busctl --user call org.kde.plasma.shell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tp.js)" >/dev/null 2>&1 \
- || busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tp.js)" >/dev/null 2>&1
+busctl --address="$DBUS_SESSION_BUS_ADDRESS" call org.kde.plasma.shell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tp.js)" >/dev/null 2>&1 \
+ || busctl --address="$DBUS_SESSION_BUS_ADDRESS" call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tp.js)" >/dev/null 2>&1
 
 sleep 7   # chip only (auto-open fires at ~+12s after widget add)
 spectacle -b -n -o $ROOT/shots/tp-chip-s$SCALE-$TAG.png
@@ -47,14 +47,23 @@ echo "HARNESS-LOG-BEGIN"
 grep -aE "TypeError|ReferenceError|not a type|Cannot read|error when loading" $ROOT/shell-tp-s$SCALE-$TAG.log | head -5
 echo "HARNESS-LOG-END"
 
-# teardown without pgrep -f (self-match trap): kill by tracked pids + exact /proc cmdline scan
+# teardown without pgrep -f (self-match trap): kill by tracked pids, then a
+# /proc scan gated on the process's OWN environment — NEVER on argv alone.
+# ARGV IS NOT IDENTIFYING: the user's real Plasma 6 shell runs as
+# `plasmashell --no-respawn` too (systemd unit plasma-plasmashell.service),
+# and an argv-globbed kill SIGKILLed the live desktop shell twice on
+# 2026-10-30. Only a process whose environ contains HOME=$ROOT/home belongs
+# to this harness.
 kill $SHELL_PID $KWIN_PID 2>/dev/null
 sleep 2
 for pid in $(ls /proc | grep -E '^[0-9]+$'); do
   [ -r "/proc/$pid/cmdline" ] || continue
   cmd=$(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null)
   case "$cmd" in
-    *"plasmashell --no-respawn"*|*"kwin_wayland --virtual"*) kill -9 "$pid" 2>/dev/null ;;
+    *"plasmashell --no-respawn"*|*"kwin_wayland --virtual"*) ;;
+    *) continue ;;
   esac
+  tr '\0' '\n' < /proc/$pid/environ 2>/dev/null | grep -q "^HOME=$ROOT/home$" || continue
+  kill -9 "$pid" 2>/dev/null
 done
 echo "DONE-tp-$TAG-s$SCALE"
