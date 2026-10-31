@@ -200,6 +200,10 @@ PlasmoidItem {
         readonly property real ipx: Math.round(fpx * 1.65)   // icon glyph
         implicitWidth: compactRow.implicitWidth + Kirigami.Units.gridUnit * 3
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
+        // SIZING RULE: see timepiece/stocktick — implicitWidth alone lets the
+        // container size the cell from stale metrics and neighbors collide.
+        Layout.preferredWidth: implicitWidth
+        Layout.minimumWidth: implicitWidth
 
         Row {
             id: compactRow

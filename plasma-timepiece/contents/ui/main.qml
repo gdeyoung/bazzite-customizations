@@ -246,6 +246,12 @@ PlasmoidItem {
 
         implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 4
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
+        // SIZING RULE (panelpad/stocktick lesson): implicitWidth alone lets
+        // the container size the cell from stale metrics; the centered Row
+        // then renders past both edges and neighbors overlap it (harness
+        // repro bar-b2 2026-10-30: weatherx drew 65px inside this chip).
+        Layout.preferredWidth: implicitWidth
+        Layout.minimumWidth: implicitWidth
 
         Row {
             id: chipRow
