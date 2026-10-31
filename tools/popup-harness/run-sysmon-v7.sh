@@ -6,16 +6,28 @@
 set -u
 SCALE="${SCALE:-1}"; TAB="${TAB:-0}"; SORT="${SORT:-cpu}"; FILTER="${FILTER:-}"; KILLPID="${KILLPID:-0}"; SELECTPID="${SELECTPID:-0}"; TAG="${TAG:-v7}"
 ROOT=/tmp/stk-harness
-export QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1 XDG_RUNTIME_DIR=/run/user/1000
+# --- 2026-10-31 isolation (2026-10-30 incident): private XDG_RUNTIME_DIR,
+# harness HOME exported BEFORE kwin launch, named socket. Self-wrapping.
+export HOME=$ROOT/home
+export XDG_CONFIG_HOME=$HOME/.config XDG_DATA_HOME=$HOME/.local/share XDG_CACHE_HOME=$HOME/.cache
+if [ -z "${HARNESS_RT_ISOLATED:-}" ]; then
+  RT="$ROOT/run"; mkdir -p "$RT"; chmod 700 "$RT" 2>/dev/null || true
+  exec dbus-run-session env HARNESS_RT_ISOLATED=1 XDG_RUNTIME_DIR="$RT" \
+      HOME="$HOME" XDG_CONFIG_HOME="$XDG_CONFIG_HOME" XDG_DATA_HOME="$XDG_DATA_HOME" \
+      XDG_CACHE_HOME="$XDG_CACHE_HOME" QT_QPA_PLATFORM=wayland \
+      LIBGL_ALWAYS_SOFTWARE=1 bash "$0" "$@"
+fi
+SOCK="wayland-h$$"
+export QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1
 
 case "$SCALE" in
   2) W=5120; H=2880 ;;
   *) W=2560; H=1440 ;;
 esac
 
-kwin_wayland --virtual --no-lockscreen --width $W --height $H & KWIN_PID=$!
-for i in $(seq 1 30); do [ -S "$XDG_RUNTIME_DIR/wayland-1" ] && break; sleep 0.5; done
-export WAYLAND_DISPLAY=wayland-1
+kwin_wayland --virtual --no-lockscreen --width $W --height $H --socket "$SOCK" & KWIN_PID=$!
+for i in $(seq 1 30); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.5; done
+export WAYLAND_DISPLAY="$SOCK"
 export HOME=$ROOT/home
 export XDG_CONFIG_HOME=$HOME/.config XDG_DATA_HOME=$HOME/.local/share XDG_CACHE_HOME=$HOME/.cache
 rm -rf "$XDG_CONFIG_HOME/plasma"*

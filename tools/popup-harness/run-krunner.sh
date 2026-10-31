@@ -16,18 +16,28 @@ mkdir -p "$OUT" "$ROOT/home"
 
 export QT_QPA_PLATFORM=wayland
 export LIBGL_ALWAYS_SOFTWARE=1
-export XDG_RUNTIME_DIR=/run/user/1000
 
-kwin_wayland --virtual --no-lockscreen --width 2560 --height 1440 \
-    > "$ROOT/kwin-krunner-$TAG.log" 2>&1 &
-KWIN_PID=$!
-for i in $(seq 1 30); do [ -S "$XDG_RUNTIME_DIR/wayland-1" ] && break; sleep 0.5; done
-export WAYLAND_DISPLAY=wayland-1
-
+# --- 2026-10-31 isolation (2026-10-30 incident): private XDG_RUNTIME_DIR,
+# harness HOME exported BEFORE kwin launch so the environ gate can identify
+# and clean every harness process. Self-wrap holds however we're invoked.
 H="$ROOT/home/kr-$TAG"
 rm -rf "$H"
 export HOME="$H"
 export XDG_CONFIG_HOME="$H/.config" XDG_DATA_HOME="$H/.local/share" XDG_CACHE_HOME="$H/.cache"
+if [ -z "${HARNESS_RT_ISOLATED:-}" ]; then
+  RT="$ROOT/run"; mkdir -p "$RT"; chmod 700 "$RT" 2>/dev/null || true
+  exec dbus-run-session env HARNESS_RT_ISOLATED=1 XDG_RUNTIME_DIR="$RT" \
+      HOME="$H" XDG_CONFIG_HOME="$H/.config" XDG_DATA_HOME="$H/.local/share" \
+      XDG_CACHE_HOME="$H/.cache" QT_QPA_PLATFORM=wayland \
+      LIBGL_ALWAYS_SOFTWARE=1 bash "$0" "$@"
+fi
+SOCK="wayland-h$$"
+
+kwin_wayland --virtual --no-lockscreen --width 2560 --height 1440 --socket "$SOCK" \
+    > "$ROOT/kwin-krunner-$TAG.log" 2>&1 &
+KWIN_PID=$!
+for i in $(seq 1 30); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.5; done
+export WAYLAND_DISPLAY="$SOCK"
 
 mkdir -p "$XDG_DATA_HOME/krunner/dbusplugins" "$XDG_DATA_HOME/hermes-runner" \
          "$H/.config/hermes-runner"

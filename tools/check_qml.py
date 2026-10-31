@@ -108,9 +108,69 @@ def check_metadata(meta_path):
     return meta
 
 
+def strip_imports(text):
+    """Return the import lines and the code with import lines removed."""
+    imports = []
+    code_lines = []
+    for line in text.splitlines():
+        m = re.match(r"\s*import\s+([\w.]+)(?:\s+\d+(?:\.\d+)?)?(?:\s+as\s+(\w+))?", line)
+        if m:
+            imports.append((m.group(1), m.group(2)))
+        else:
+            code_lines.append(line)
+    return imports, "\n".join(code_lines)
+
+
+# Attached-property prefixes -> LAST dotted segment (lowercased) of the
+# module whose unaliased import provides them, or any import aliased as the
+# prefix. The 2026-10-30 crash: Layout.* used without
+# `import QtQuick.Layouts` -> applet fails to LOAD on the live host.
+KNOWN_PREFIXES = {
+    "Layout": "layouts",
+    "Kirigami": "kirigami",
+    "PlasmaCore": "core",
+    "PlasmaComponents": "components",
+    "PlasmaComponents3": "components3",
+    "PlasmaExtras": "extras",
+    "KSvg": "ksvg",
+}
+
+# Bare identifiers that are NOT import-provided attached objects.
+BUILTIN_QUALIFIERS = {"Qt", "Math", "console", "Plasmoid", "JSON", "Date",
+                      "Number", "String", "Array", "Promise", "XMLHttpRequest",
+                      "GlobalShortcut", "devices"}
+
+
+def check_attached_imports(qml_path):
+    text = qml_path.read_text()
+    imports, code = strip_imports(text)
+    code = strip_qml_noise(code)          # drop comments/strings
+    provided = set()
+    for module, alias in imports:
+        if alias:
+            provided.add(alias.lower())
+        else:
+            provided.add(module.split(".")[-1].lower())
+    used = set(re.findall(r"\b([A-Z]\w+)\s*\.", code))
+    for prefix in sorted(used - BUILTIN_QUALIFIERS):
+        if prefix in KNOWN_PREFIXES:
+            need = KNOWN_PREFIXES[prefix]
+            has_alias = prefix.lower() in provided
+            has_module = need in provided
+            if not (has_alias or has_module):
+                err(qml_path,
+                    f"attached object '{prefix}.' used but its import is "
+                    f"missing — add the import or the applet fails to LOAD "
+                    f"(timepiece 2026-10-30)")
+        else:
+            warn(qml_path, f"qualified reference '{prefix}.' with no known "
+                           f"import — verify the import exists")
+
+
 def check_qml_file(qml_path, is_main, plugin_id):
     text = qml_path.read_text()
     stripped = strip_qml_noise(text)
+    check_attached_imports(qml_path)
     for open_c, close_c in (("{", "}"), ("(", ")"), ("[", "]")):
         if stripped.count(open_c) != stripped.count(close_c):
             err(qml_path, f"unbalanced {open_c}{close_c}: "
@@ -208,7 +268,13 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(2)
     root = Path(sys.argv[1]).resolve()
-    run_probes = sys.argv[2:]
+    rest = sys.argv[2:]
+    compare_to = None
+    if "--compare" in rest:
+        i = rest.index("--compare")
+        compare_to = Path(rest[i + 1]).resolve()
+        del rest[i:i + 2]
+    run_probes = rest
 
     meta_path = root / "metadata.json"
     if not meta_path.exists():
@@ -219,7 +285,27 @@ if __name__ == "__main__":
 
     qml_files = sorted(root.glob("contents/ui/**/*.qml"))
     if not qml_files:
-        warn(root, "no QML files under contents/ui/")
+        # 2026-10-30: a silent 0/0 pass let a load-breaking QML ship.
+        err(root, "no QML files under contents/ui/ — this is a GATE FAILURE, "
+                  "not a clean pass (wrong directory? bad glob?)")
+
+    if compare_to is not None:
+        import hashlib
+        if not compare_to.exists():
+            err(compare_to, "installed dir does not exist")
+        else:
+            for f in sorted(root.glob("contents/**/*")) + [meta_path]:
+                if not f.is_file():
+                    continue
+                rel = f.relative_to(root)
+                twin = compare_to / rel
+                if not twin.exists():
+                    err(rel, f"missing in installed copy {compare_to}")
+                    continue
+                if hashlib.sha256(f.read_bytes()).hexdigest() != \
+                        hashlib.sha256(twin.read_bytes()).hexdigest():
+                    err(rel, f"differs from installed copy {compare_to} — "
+                             f"repo and live artifact are out of sync")
     for qf in qml_files:
         check_qml_file(qf, qf.name == "main.qml",
                        meta.get("KPlugin", {}).get("Id", "?") if meta else "?")

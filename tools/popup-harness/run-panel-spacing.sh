@@ -14,7 +14,19 @@ LIVE_APPLET=/var/home/gdeyoung/.config/plasma-org.kde.plasma.desktop-appletsrc
 
 export HOME=$ROOT/home
 export XDG_CONFIG_HOME=$HOME/.config XDG_DATA_HOME=$HOME/.local/share XDG_CACHE_HOME=$HOME/.cache
-export QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1 XDG_RUNTIME_DIR=/run/user/1000
+# --- 2026-10-31 isolation: private XDG_RUNTIME_DIR, never /run/user/1000.
+# The live session's compositor socket lives in the shared dir; a harness
+# kwin that squats its name unlinks the REAL socket on exit and takes the
+# desktop down (2026-10-30 incident). Self-wrap so it holds however we're
+# invoked; dbus socket also lands in the private dir.
+if [ -z "${HARNESS_RT_ISOLATED:-}" ]; then
+  RT="$ROOT/run"; mkdir -p "$RT"; chmod 700 "$RT" 2>/dev/null || true
+  exec dbus-run-session env HARNESS_RT_ISOLATED=1 XDG_RUNTIME_DIR="$RT" \
+      QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1 bash "$0" "$@"
+fi
+SOCK="wayland-h$$"
+
+export QT_QPA_PLATFORM=wayland LIBGL_ALWAYS_SOFTWARE=1
 
 teardown() {
   [ -n "${SHELL_PID:-}" ] && kill "$SHELL_PID" 2>/dev/null
@@ -31,10 +43,10 @@ teardown() {
 trap teardown EXIT
 
 kwin_wayland --virtual --no-lockscreen --width 2560 --height 1440 \
-  --socket wayland-hbar > "$ROOT/kwin-$TAG.log" 2>&1 & KWIN_PID=$!
-for i in $(seq 1 40); do [ -S "$XDG_RUNTIME_DIR/wayland-hbar" ] && break; sleep 0.5; done
-[ -S "$XDG_RUNTIME_DIR/wayland-hbar" ] || { echo "CKPT-KWIN-FAIL"; exit 1; }
-export WAYLAND_DISPLAY=wayland-hbar
+  --socket "$SOCK" > "$ROOT/kwin-$TAG.log" 2>&1 & KWIN_PID=$!
+for i in $(seq 1 40); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.5; done
+[ -S "$XDG_RUNTIME_DIR/$SOCK" ] || { echo "CKPT-KWIN-FAIL"; exit 1; }
+export WAYLAND_DISPLAY="$SOCK"
 
 for p in plasma-stocktick plasma-timepiece plasma-weatherx plasma-panelpad; do
   D="$XDG_DATA_HOME/plasma/plasmoids/com.gdeyoung.plasma.${p#plasma-}"
