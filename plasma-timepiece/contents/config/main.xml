@@ -11,7 +11,7 @@
         </entry>
         <entry name="worldClocks" type="String">
             <label>World clocks shown in the popup, as LABEL:Zone pairs comma separated (max 5), e.g. ET:America/New_York,PT:America/Los_Angeles</label>
-            <default>NY:America/New_York,London:Europe/London,Tokyo:Asia/Tokyo</default>
+            <default>ET:America/New_York,CT:America/Chicago,MT:America/Denver,PT:America/Los_Angeles</default>
         </entry>
         <entry name="timerMinutes" type="Int">
             <label>Idle countdown timer preset in minutes (1-600)</label>
