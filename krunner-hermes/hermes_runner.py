@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -65,6 +66,8 @@ DEFAULT_CONF = {
     },
     "max_answer_chars": 700,
     "copy_answers": True,
+    "web_search_url": "https://duckduckgo.com/?q=%s",
+    "web_search_name": "DUCKDUCKGO",
 }
 
 CONF_PATH = Path(os.environ.get(
@@ -206,14 +209,50 @@ class AnswerCache:
         with self.lock:
             self.map.pop(q, None)
 
+    def recent_answers(self, n=5):
+        """[(question, ts)] newest-first, answers only (UX-SPEC F-3:
+        privacy scope — never errors, and hr task text never enters the
+        cache at all)."""
+        with self.lock:
+            items = [(q, v[2]) for q, v in self.map.items() if v[0] == "answer"]
+        items.sort(key=lambda t: t[1], reverse=True)
+        return items[:n]
+
 
 # ------------------------------------------------------- pure row routing
 # Module-level and I/O-free so unit tests can exercise every state without
 # a session bus (UX-SPEC B-2 state matrix; Match() only wraps this).
 
+def normalize(query, conf):
+    """Dictation normalization (UX-SPEC F-1, foyer VoiceModel semantics).
+    route()-only — Run() receives ids minted from the normalized text.
+    Idempotent; a query matching no rule passes through byte-identical.
+    Lane TARGETS follow config; the speakable words (ai/assistant/hermes/
+    computer) are fixed."""
+    text = str(query or "")
+    ap = str(conf["answer_prefix"])
+    tp = str(conf["task_prefix"])
+    spoken = r"(?:ai|assistant|hermes|computer)"
+    m = re.match(rf"^(?:ask|question)\s+(?:the\s+)?{spoken}\s+"
+                 r"(?:about\s+|to\s+)?", text, re.I)
+    if m:
+        return ap + " " + text[m.end():].lstrip()
+    m = re.match(rf"^(?:tell|have)\s+(?:the\s+)?{spoken}\s+"
+                 r"(?:to\s+|about\s+)?", text, re.I)
+    if m:
+        return tp + " " + text[m.end():].lstrip()
+    lanes = rf"({re.escape(ap)}|{re.escape(tp)})"
+    m = re.match(lanes + r"\s*:\s*", text, re.I)      # dictated colon folds
+    if m:
+        return m.group(1).lower() + " " + text[m.end():]
+    m = re.match(lanes + r"\s+(?:about|to)\s+", text, re.I)  # rewrite filler
+    if m:
+        return m.group(1).lower() + " " + text[m.end():]
+    return text
+
 def route(query, cache, fetching, running, conf):
     """Rows as (id, title, subtext, icon, catrel, relevance, props-dict)."""
-    q = (query or "").strip()
+    q = normalize(query, conf).strip()
     low = q.lower()
     words = low.split(" ", 1)
     first = words[0] if words else ""
@@ -233,6 +272,13 @@ def route(query, cache, fetching, running, conf):
                 f"ONE-SHOT ANSWER · NOTIFIED, THEN CACHED INLINE · {model} "
                 "VIA LITELLM",
                 "help-browser", R_MODERATE, 0.6)
+            # Recents (F-3): newest-first below help, descending rel pins
+            # order under re-sort; question is the title, never the answer.
+            for i, (rkey, rts) in enumerate(cache.recent_answers(5)):
+                row(f"recent:{rkey}", clip(rkey, 120),
+                    f"ANSWER CACHED {age_str(rts, now)} AGO · ENTER COPIES",
+                    "help-browser", R_MODERATE, round(0.5 - 0.03 * i, 2),
+                    {"actions": ["copy", "askagain", "reshow"]})
             return out
         key = rest
         entry = cache.get(key)
@@ -246,6 +292,12 @@ def route(query, cache, fetching, running, conf):
                 "help-browser", R_HIGH, 0.95,
                 {"multiline": True,
                  "actions": ["copy", "askagain", "reshow"]})
+            # Web fallback (F-2): sibling directly under the answer; same
+            # tier (High), lower rel — never Moderate/0.9 (tier grammar).
+            row(f"web:{key}", f"Web search: {rest}",
+                f"SEARCH {conf.get('web_search_name', 'DUCKDUCKGO')} · "
+                "ENTER OPENS BROWSER",
+                "internet-web-browser", R_HIGH, 0.6, {"actions": []})
         elif entry and entry[0] == "error":
             row(f"error:{key}", f"Ask failed — {rest}",
                 f"{clip(entry[1], 80)} · ENTER RETRIES",
@@ -283,7 +335,93 @@ def route(query, cache, fetching, running, conf):
         row("help-hr", "Hermes: run a task with 'hr <task>'",
             "UNATTENDED AGENT TURN · NOTIFIED WHEN DONE",
             "system-run", R_MODERATE, 0.5)
+        row("help-dictation", "Hermes: dictate — 'ask hermes …' answers, "
+            "'tell hermes …' runs",
+            "VOXTYPE PHRASES FOLD INTO THE ai/hr LANES",
+            "help-browser", R_MODERATE, 0.45)
     return out
+
+
+# --------------------------------------------------------- run dispatch
+# Module-level so unit tests can cover every kind/action pair with a fake
+# ctx (UX-SPEC F-6 dispatch gates; v0.2 could not unit-test Run at all).
+# ctx needs: .conf, .cache, .fetch_answer(text), .running_tasks — side
+# effects go through clipboard()/notify()/Popen, all patchable.
+
+def web_target(conf, text):
+    """F-2: substitute the ORIGINAL-CASE question into web_search_url."""
+    url = conf.get("web_search_url", "https://duckduckgo.com/?q=%s")
+    return url.replace("%s", urllib.parse.quote_plus(text or ""))
+
+
+def run_dispatch(kind, key, text, act, ctx):
+    conf = ctx.conf
+
+    if kind == "ask":
+        if act in ("", "askagain"):
+            ctx.fetch_answer(text)
+        elif act == "copy":
+            clipboard(text)
+        elif act == "reshow":
+            e = ctx.cache.get(key)
+            if e:
+                notify(f"Hermes · {clip(text, 60)}", e[1],
+                       "help-browser", "normal", conf)
+    elif kind == "asking":
+        if act == "":
+            notify("Hermes · still asking",
+                   f"{text}\nanswer notifies when done", "clock", "low", conf)
+        elif act == "copy":
+            clipboard(text)
+    elif kind == "answer" or kind == "recent":
+        # F-3: recent: dispatch identical to answer:.
+        entry = ctx.cache.get(key)
+        if act in ("", "copy"):
+            if entry and conf.get("copy_answers", True) \
+                    and clipboard(entry[1]):
+                notify("Hermes · copied", "Answer is on the clipboard.",
+                       "edit-copy", "low", conf)
+            elif entry:
+                notify(f"Hermes · {clip(text, 60)}", entry[1],
+                       "help-browser", "normal", conf)
+        elif act == "askagain":
+            ctx.cache.drop(key)
+            ctx.fetch_answer(text)
+        elif act == "reshow":
+            if entry:
+                notify(f"Hermes · {clip(text, 60)}", entry[1],
+                       "help-browser", "normal", conf)
+    elif kind == "web":
+        # F-2: one verb — Enter opens the browser search; other ids no-op.
+        if act == "":
+            target = web_target(conf, text)
+            try:
+                subprocess.Popen(["xdg-open", target],
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+            except FileNotFoundError:
+                log("xdg-open missing; web search skipped:", target)
+    elif kind == "error":
+        if act in ("", "askagain"):
+            ctx.cache.drop(key)
+            ctx.fetch_answer(text)
+        elif act == "copy":
+            clipboard(text)
+    elif kind == "task":
+        if act in ("", "askagain"):
+            ctx.fire_task(text)
+        elif act == "copy":
+            clipboard(text)
+    elif kind == "taskrun":
+        info = ctx.running_tasks.get(key)
+        if act == "" and info:
+            notify("Hermes · still running",
+                   f"{text}\nstarted {age_str(info['start'])} ago\n\n"
+                   f"{clean_tail(info['logf'])}",
+                   "chronometer", "low", conf)
+        elif act == "copy":
+            clipboard(text)
+    # help rows: no-op
 
 
 class HermesRunner(dbus.service.Object):
@@ -413,7 +551,8 @@ class HermesRunner(dbus.service.Object):
         payload_text = words[1].strip() if len(words) > 1 else ""
         for (mid, title, subtext, icon, catrel, rel, props) in rows:
             if payload_text and (mid.startswith("ask:")
-                                 or mid.startswith("task:")):
+                                 or mid.startswith("task:")
+                                 or mid.startswith("web:")):
                 self.payload[mid] = payload_text
                 if len(self.payload) > 256:
                     self.payload.pop(next(iter(self.payload)))
@@ -438,62 +577,7 @@ class HermesRunner(dbus.service.Object):
         # Original-case text from the payload map; the (lowercased) id tail
         # is the graceful fallback after a daemon restart.
         text = self.payload.get(mid, key)
-
-        if kind == "ask":
-            if act in ("", "askagain"):
-                self.fetch_answer(text)
-            elif act == "copy":
-                clipboard(text)
-            elif act == "reshow":
-                e = self.cache.get(key)
-                if e:
-                    notify(f"Hermes · {clip(text, 60)}", e[1],
-                           "help-browser", "normal", self.conf)
-        elif kind == "asking":
-            if act == "":
-                notify("Hermes · still asking",
-                       f"{text}\nanswer notifies when done", "clock", "low",
-                       self.conf)
-            elif act == "copy":
-                clipboard(text)
-        elif kind == "answer":
-            entry = self.cache.get(key)
-            if act in ("", "copy"):
-                if entry and self.conf.get("copy_answers", True) \
-                        and clipboard(entry[1]):
-                    notify("Hermes · copied", "Answer is on the clipboard.",
-                           "edit-copy", "low", self.conf)
-                elif entry:
-                    notify(f"Hermes · {clip(text, 60)}", entry[1],
-                           "help-browser", "normal", self.conf)
-            elif act == "askagain":
-                self.cache.drop(key)
-                self.fetch_answer(text)
-            elif act == "reshow":
-                if entry:
-                    notify(f"Hermes · {clip(text, 60)}", entry[1],
-                           "help-browser", "normal", self.conf)
-        elif kind == "error":
-            if act in ("", "askagain"):
-                self.cache.drop(key)
-                self.fetch_answer(text)
-            elif act == "copy":
-                clipboard(text)
-        elif kind == "task":
-            if act in ("", "askagain"):
-                self.fire_task(text)
-            elif act == "copy":
-                clipboard(text)
-        elif kind == "taskrun":
-            info = self.running_tasks.get(key)
-            if act == "" and info:
-                notify("Hermes · still running",
-                       f"{text}\nstarted {age_str(info['start'])} ago\n\n"
-                       f"{clean_tail(info['logf'])}",
-                       "chronometer", "low", self.conf)
-            elif act == "copy":
-                clipboard(text)
-        # help rows: no-op
+        run_dispatch(kind, key, text, act, self)
 
     @dbus.service.method(IFACE, out_signature="a(sss)")
     def Actions(self):

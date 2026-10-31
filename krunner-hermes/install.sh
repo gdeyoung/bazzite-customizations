@@ -5,13 +5,16 @@
 # Usage:
 #   ./install.sh                                  # defaults
 #   ./install.sh --litellm-url http://HOST:4000/v1 --model local-fast \
-#                --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env
+#                --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env \
+#                --web-search-url http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG
 set -euo pipefail
 
 LITELLM_URL="http://localhost:4000/v1"
 MODEL="local-fast"
 API_KEY_ENV="LITELLM_API_KEY"
 API_KEY_FILE=""
+WEB_SEARCH_URL="https://duckduckgo.com/?q=%s"
+WEB_SEARCH_NAME="DUCKDUCKGO"
 FORCE_CONFIG=0
 
 while [[ $# -gt 0 ]]; do
@@ -20,6 +23,8 @@ while [[ $# -gt 0 ]]; do
     --model) MODEL="$2"; shift 2 ;;
     --api-key-env) API_KEY_ENV="$2"; shift 2 ;;
     --api-key-file) API_KEY_FILE="$2"; shift 2 ;;
+    --web-search-url) WEB_SEARCH_URL="$2"; shift 2 ;;
+    --web-search-name) WEB_SEARCH_NAME="$2"; shift 2 ;;
     --force-config) FORCE_CONFIG=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -55,7 +60,9 @@ if [[ ! -f "$CONF" || "$FORCE_CONFIG" -eq 1 ]]; then
   },
   "max_answer_chars": 700,
   "copy_answers": true,
-  "notify_icon": "help-browser"
+  "notify_icon": "help-browser",
+  "web_search_url": "${WEB_SEARCH_URL}",
+  "web_search_name": "${WEB_SEARCH_NAME}"
 }
 EOF
   echo "wrote $CONF"

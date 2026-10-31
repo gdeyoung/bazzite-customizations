@@ -10,5 +10,7 @@
   },
   "max_answer_chars": 700,
   "copy_answers": true,
-  "notify_icon": "help-browser"
+  "notify_icon": "help-browser",
+  "web_search_url": "https://duckduckgo.com/?q=%s",
+  "web_search_name": "DUCKDUCKGO"
 }

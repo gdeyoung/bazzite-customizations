@@ -12,8 +12,12 @@ runner — no C++, no KDE SDK, nothing layered into the image.
 |---|---|
 | `ai <question>` | Enter on the row ASKS: background fetch from the fleet LiteLLM proxy (default `local-fast`). Answer pops as a desktop notification; retype the same query and the answer row appears inline in KRunner — Enter copies it. Match time does NO I/O (no request spam while typing). |
 | `hr <task>` | Enter FIRES one unattended Hermes agent turn (`hermes -z`), notifies "task started", logs to `~/.cache/hermes-runner/task-<ts>.log`, and notifies with the cleaned tail when it ends. A running registry prevents double-fire; while running, the row shows elapsed time and Enter shows the log tail. |
-| `ai` / `hr` (nothing after) | Lane help: what the prefix does. |
-| `hermes` | Both syntax rows. |
+| `ai` / `hr` (nothing after) | Lane help + (for `ai`) the 5 most recent answered questions as `recent:` rows — question as title, "ANSWER CACHED n AGO · ENTER COPIES" subtext. Enter copies the cached answer; the ↻ action re-asks. |
+| `hermes` | All three syntax rows, including the dictation row. |
+
+**Dictation (v0.2.2):** `ask hermes about X`, `tell hermes to Y` (also "the assistant", `ai:`/`hr:`/`question:`/`task:` prefixes) normalize into the lanes inside `route()` — what you see in the box is what was claimed. Purely local regex, idempotent, 26 fixture-tested. Ported from Omarchy Foyer's VoiceModel.
+
+**Web fallback (v0.2.2):** every inline answer row is paired with a `Web search: <question>` sibling — Enter opens your default browser at `web_search_url` (default DuckDuckGo) with the original-case question. Fleet SearXNG works too: `--web-search-url http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG`. No sibling while fetching or on errors.
 
 Errors are their own state: a failed ask shows a red row with a one-line humanized reason ("LiteLLM unreachable at …") and Enter retries it. Errors are never cached as answers.
 
@@ -47,7 +51,9 @@ KRunner ──org.kde.krunner1──▶ hermes_runner.py (systemd user service)
 Copy `config.json.example`. Fields: `answer_prefix`/`task_prefix`, `litellm.base_url`,
 `litellm.model`, `litellm.timeout_s`, `api_key_env` / `api_key_file` (parsed
 at runtime; never hardcoded — see below), `max_answer_chars`, `copy_answers`,
-`notify` (set false for headless testing).
+`notify` (set false for headless testing), `web_search_url` (must contain
+exactly one `%s`; default DuckDuckGo), `web_search_name` (≤12 chars, shown in
+the sibling row subtext).
 Reload without restarting: `systemctl --user kill -s HUP hermes-runner`.
 
 ## Install (when at the tower)
