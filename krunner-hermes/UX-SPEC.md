@@ -362,3 +362,109 @@ help row instead of the generic pair — the prefix teaches its lane.
    order; state-2 row props include `actions: []`.
 8. Signatures: full introspection of the object matches krunner1
    (Match/Run/Actions + optional SetActivationToken).
+
+---
+
+## F. v2 additions — foyer-informed improvements (2026-10-31, Phase 0 draft)
+
+Source review: `omarchy-foyer` (Omarchy original, full clone audited). Admission
+bar held: nothing KRunner already owns natively. Baseline measured same day:
+5 real `ai` questions via local-fast → **min 0.25s · median 0.63s · max 0.79s**
+(well inside the 8s p95 target). Known non-goal: model answered one
+fleet-specific question wrong (`o1` for `local-heavy`) — knowledge quality is a
+model/prompt issue, not a runner mechanic; revisit only if counters show it bites.
+
+### F-1. Dictation normalization (Phase 1a) — voice-native lanes
+
+VoxType dictation lands whole phrases in the box; today they miss the lanes.
+`normalize(query)` runs at the top of `route()` AND in `Run()` before id lookup
+(the id embeds the normalized key). Semantics ported from foyer VoiceModel,
+lane-adapted:
+
+- `^(?:ask|question)\s+(?:the\s+)?(?:ai|assistant|hermes|computer)\s+(?:about\s+|to\s+)?` → `ai `
+  ("ask the assistant about tailscale" → `ai tailscale`)
+- `^(?:tell|have)\s+(?:the\s+)?(?:ai|assistant|hermes|computer)\s+(?:to\s+)?` → `hr `
+  ("tell hermes to check the backups" → `hr check the backups`)
+  — ASK phrasing → answer lane; TELL/HAVE phrasing → task lane.
+- Dictated colons: `(ai|hr)\s*:\s*` (case-insensitive) → `"$1 "` — the router
+  matches on first word only, so colon forms must fold.
+- Early-rewrite filler: `(ai|hr)\s+(?:about|to)\s+` → `"$1 "` (idempotent while
+  typing one character at a time).
+- Hard rules: idempotent (`normalize(normalize(x)) == normalize(x)`); any query
+  that doesn't match a rule passes through byte-identical — never invent a
+  prefix ("why is dns slow" stays unprefixed; "ask a friend" untouched).
+- Fixtures: `test/fixtures_normalize.py` (ported from foyer's voice-model
+  tests + our no-false-claim cases: "2048 game", "2+2", "hermesy").
+
+### F-2. Web-fallback sibling row (Phase 1b)
+
+Every cached **answer** row gains a sibling directly below it:
+
+| field | value |
+|---|---|
+| id | `web:{key}` |
+| title | `web: {question}` |
+| subtext | `OPEN BROWSER SEARCH · ENTER OPENS` |
+| icon | `web-browser` (verify exists in Breeze; fallback `internet-web-browser`) |
+| catrel / rel | Moderate / 0.9 (answer row stays 0.95 above it) |
+
+- Enter → `xdg-open` of `web_search_url` with `{q}` replaced by
+  URL-encoded question. Config field `web_search_url`, default
+  `https://duckduckgo.com/?q={q}` (works off-LAN; fleet SearXNG URL is a
+  one-line config override — OPEN QUESTION for UX review).
+- Error rows get NO web sibling (Enter retries — one verb per row).
+- The `asking:` in-flight row gets no sibling either (no answer to fall back
+  from yet).
+
+### F-3. Bare-`ai` recents (Phase 1c)
+
+`ai` with no query → help row (unchanged, id `ai-help` keeps muscle memory)
+followed by up to **5** most-recent **answer** cache entries, newest first:
+
+| field | value |
+|---|---|
+| id | `recent:{key}` |
+| title | clipped answer (same clip as answer rows) |
+| subtext | `Q: {question} · {age} AGO · ENTER COPIES` |
+| icon / catrel / rel | `help-browser` / High / 0.8 (below help 0.6? — OPEN QUESTION) |
+| actions | `["copy", "askagain", "reshow"]` (same set as answer rows) |
+
+- Privacy scoping (foyer discipline): only ai-lane Q&A. Never `hr` task text
+  (agent work, often sensitive), never error rows (they'd be noise).
+- Cache already stores ts; recents = sort by ts, filter type==answer, cap 5.
+
+### F-4. Help extension (Phase 1d)
+
+`hermes` / `hermes help` gains one row per new behavior, and in Phase 2 one
+row per configured handoff prefix (dynamic: title `Hermes: hand off with
+'{prefix} <query>'`, subtext `OPENS {label}`). Help rows stay Moderate/≤0.55
+so real matches outrank them.
+
+### F-5. Handoffs lane (Phase 2) — new lane, new config
+
+Config: `"handoffs": [{"prefix": "gh", "label": "GitHub", "url": "https://github.com/search?q=%s"}]`
+Example-config defaults: `gh` GitHub · `el` Elastic docs · `map` Maps ·
+`sea` fleet SearXNG · `jf` Jellyfin search · `gal` Galaxy portal.
+
+Sanitize rules (foyer-identical): prefix `/^[a-z]{2,6}$/`; label ≤24 chars;
+url `https?://` **with `%s`**; no dupes; **RESERVED = [`ai`, `hr`, `hermes`]
+may not be shadowed**. Malformed entry → skipped + ONE journal WARN line
+(count, not per-entry spam); the runner keeps serving every other lane.
+
+Rows: `<prefix> <q>` → id `handoff:{prefix}:{q}`, title `{label}: {q}`,
+subtext `OPENS {url host} · ENTER OPENS BROWSER`, icon `web-browser`,
+Highest/1.0. Bare `<prefix>` → its own help row ("type the query after '{prefix}'").
+Enter → `xdg-open(url.replace("%s", urlencode(q)))`. Claim is exact-first-word
+match on a SANITIZED prefix — never substring, so "gh" can't eat "ghost".
+
+### F-6. Phase acceptance gates (extends §E)
+
+- Phase 1: all `NORMALIZE_FIXTURES` pass + idempotence loop; route() returns
+  answer+web sibling with correct URL template; bare-`ai` returns help+≤5
+  recents newest-first, errors/hr excluded; zero row changes for non-lane
+  queries (golden-set diff against v0.2 route() output).
+- Phase 2: sanitize table (reserved shadow / dupe / http / missing %s /
+  long label / bad prefix all rejected); malformed-config fixture leaves both
+  v0.2 lanes green; handoff row Enter opens correct URL (mocked xdg-open).
+- Live (both phases): one real dictated phrase claimed+answered; one web row
+  opened; harness kr-driver screenshots; journal clean.
