@@ -9,7 +9,7 @@ steps live at the bottom as a punch list.
 | Omarchy source | KDE target here | State | Notes |
 |---|---|---|---|
 | omarchy-sysmon | `plasma-sysmon/` | **SHIPPED** (master) | v0.6.0, installed + verified |
-| omarchy-foyer (AI lanes) | `krunner-hermes/` | **BUILT + live-bus-verified** (ade218d) | DBus runner: `ai <q>` → LiteLLM one-row answer; `hr <task>` → hermes -z turn + notification. Verified on the live session bus without installing. |
+| omarchy-foyer (AI lanes) | `krunner-hermes/` | **SHIPPED v0.2** (`8ea2503`, `8672556`) | DBus runner: `ai <q>` → LiteLLM answer (Enter asks; cached inline; error rows retry), `hr <task>` → hermes -z turn with running-state rows + double-fire guard. UX-agent spec'd (UX-SPEC.md), 26 unit tests, harness-gated (kr8), installed + live-verified both lanes. |
 | omarchy-weather | `plasma-weatherx/` | **BUILT** (2538283) | keyless Open-Meteo + Esri/RainViewer radar, pinned places; checker 0/0; live API e2e passed (placeholder coords only in repo) |
 | omarchy-timepiece | `plasma-timepiece/` | **SHIPPED** (2026-10-30) | Installed live, center slot (applet 68, replaced stock clock 22 — config kept for rollback). v0.1.1: popup width-authority fix (binding loop expanded popup to full panel width), default world clocks NY/London/Tokyo. Harness-verified scale 1 + 2. |
 | omarchy-tailfin | `plasma-tailfin/` | **BUILT** (2009575) | Model verbatim; 22/22 tests; read-only status view |
