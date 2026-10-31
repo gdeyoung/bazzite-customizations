@@ -83,8 +83,19 @@ Item {
 
     // Self-sizing popup: height tracks the content column; a plain fixed
     // height would under-fit the moment content or font scale changes.
-    Layout.preferredWidth: Math.max(gridColumn.width, timerSection.implicitWidth)
+    //
+    // WIDTH AUTHORITY (v0.1 bug: popup expanded to ~full panel width): the
+    // month grid defines the natural width; the popup adopts it via
+    // preferred+maximum, and only THEN do contentColumn/timerSection and
+    // every `width: parent.width` child inherit it. Never size the popup
+    // from timerSection.implicitWidth — timerSection itself is
+    // width: parent.width, so its implicitWidth feeds back on itself and
+    // the dialog grows to whatever the panel offers.
+    readonly property int contentWidth:
+        Math.max(gridColumn.implicitWidth, Kirigami.Units.gridUnit * 24)
         + Kirigami.Units.largeSpacing * 4
+    Layout.preferredWidth: contentWidth
+    Layout.maximumWidth: contentWidth
     Layout.preferredHeight: contentColumn.implicitHeight + Kirigami.Units.largeSpacing * 2
     Layout.minimumHeight: contentColumn.implicitHeight + Kirigami.Units.largeSpacing * 2
 

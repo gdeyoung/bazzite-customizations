@@ -11,7 +11,7 @@ steps live at the bottom as a punch list.
 | omarchy-sysmon | `plasma-sysmon/` | **SHIPPED** (master) | v0.6.0, installed + verified |
 | omarchy-foyer (AI lanes) | `krunner-hermes/` | **BUILT + live-bus-verified** (ade218d) | DBus runner: `ai <q>` → LiteLLM one-row answer; `hr <task>` → hermes -z turn + notification. Verified on the live session bus without installing. |
 | omarchy-weather | `plasma-weatherx/` | **BUILT** (2538283) | keyless Open-Meteo + Esri/RainViewer radar, pinned places; checker 0/0; live API e2e passed (placeholder coords only in repo) |
-| omarchy-timepiece | `plasma-timepiece/` | **BUILT** (7c8d515) | Model/zones sha-identical; 37/37 JS tests; timer persists via KConfig |
+| omarchy-timepiece | `plasma-timepiece/` | **SHIPPED** (2026-10-30) | Installed live, center slot (applet 68, replaced stock clock 22 — config kept for rollback). v0.1.1: popup width-authority fix (binding loop expanded popup to full panel width), default world clocks NY/London/Tokyo. Harness-verified scale 1 + 2. |
 | omarchy-tailfin | `plasma-tailfin/` | **BUILT** (2009575) | Model verbatim; 22/22 tests; read-only status view |
 | omarchy-driveway | `plasma-driveway/` | **BUILT** (d002ff5) | engine byte-identical (sha256), py_compile OK; poll-only v0.1, wizards→config |
 | omarchy-timemachine | `plasma-timemachine/` | **BUILT** (76dbee3) | engine sha256-ledgered, 24/24 tests; 5-tab popup |
@@ -31,7 +31,8 @@ steps live at the bottom as a punch list.
 
 | Target | Scope | State |
 |---|---|---|
-| `plasma-sysmon` v0.7 | **Full audit + UX review + redesign** (assigned 2026-10-30): wasted space in popup layout, process manager ("can be improved a lot"), section rhythm. Flow per the standing gate: harness screenshots + source audit → UX-agent redesign → harness validation at scale 1 + host DPR → present. | OPEN — kanban |
+| `plasma-sysmon` v0.7/v0.8 | **Full audit + UX review + redesign** (assigned 2026-10-30): fixed 960×640 frame, real process manager (search/sort/kill + footer action bar), neofetch Hardware table, unified type scale. Harness-gated at scale 1 + DPR 2 both versions; shipped v0.8 (`5210b4f`, installed 2026-10-30 15:31). | **DONE** |
+| `plasma-stocktick` polish (banked from UX review) | QML Text axis labels outside Canvas, runtime axisW via FontMetrics, tile strip 62→64, chart padT 8/padB 20 | backlog (optional) |
 
 Meta sources: `omarchy-recipes` (discipline) and `omarchy-skills` (agent
 skills) have no KDE artifact — their KDE equivalents are this repo + the
