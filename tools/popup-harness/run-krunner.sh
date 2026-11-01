@@ -198,6 +198,14 @@ grep -q "handoff:gh:" "$ROOT/kr-handoff-$TAG.txt" && echo "CKPT-HANDOFF-ROW=OK" 
 sleep 1
 spectacle -b -n -o "$OUT/kr-handoff-$TAG.png" 2>/dev/null && echo "SHOT-kr-handoff"
 
+# Phase 3: model subcommand — bare list with CURRENT marked
+$B call org.kde.krunner /App org.kde.krunner.App query s "ai model" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "ai model" \
+    > "$ROOT/kr-model-$TAG.txt" 2>&1 && echo "CKPT-MODEL-QUERY=OK" || echo "CKPT-MODEL-QUERY=FAIL"
+grep -q "model-cur:" "$ROOT/kr-model-$TAG.txt" && echo "CKPT-MODEL-CUR=OK" || echo "CKPT-MODEL-CUR=FAIL"
+sleep 1
+spectacle -b -n -o "$OUT/kr-model-$TAG.png" 2>/dev/null && echo "SHOT-kr-model"
+
 kill $RUNNER_PID $KRUNNER_PID $MON_PID $KWIN_PID 2>/dev/null
 sleep 2
 for pid in $(ls /proc | grep -E '^[0-9]+$'); do

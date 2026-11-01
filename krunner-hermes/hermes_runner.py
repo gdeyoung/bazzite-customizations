@@ -68,6 +68,8 @@ DEFAULT_CONF = {
     "copy_answers": True,
     "web_search_url": "https://duckduckgo.com/?q=%s",
     "web_search_name": "DUCKDUCKGO",
+    "models": ["local-fast", "local-heavy", "local-fast-reason",
+               "cloud-dev"],
     "handoffs": [
         {"prefix": "gh", "label": "GitHub",
          "url": "https://github.com/search?q=%s"},
@@ -317,6 +319,43 @@ def route(query, cache, fetching, running, conf):
                     "help-browser", R_MODERATE, round(0.5 - 0.03 * i, 2),
                     {"actions": ["copy", "askagain", "reshow"]})
             return out
+        # F-7 model subcommand — claimed only on exact word matches.
+        model_help = None
+        models = [m for m in conf.get("models", ())
+                  if isinstance(m, str) and m.strip()]
+        if rest.split(" ")[0] == "model" and models:
+            if len(rest.split(" ")) == 1 or \
+                    (len(rest.split(" ")) == 2
+                     and rest.split(" ")[1].lower() == model.lower()):
+                # bare list, or switch-to-self: current pinned above others;
+                # the 0.02 steps count non-current rows only (spec F-7)
+                j = 0
+                for m in models:
+                    if m == model:
+                        row(f"model-cur:{m}", f"Model: {m}",
+                            "CURRENT · ANSWERS USE THIS MODEL",
+                            "cpu", R_MODERATE, 0.55, {"actions": []})
+                    else:
+                        row(f"model:{m}", f"Model: {m}",
+                            f"ENTER SWITCHES · PERSISTS TO CONFIG · "
+                            f"ANSWERS MOVE TO {m}",
+                            "cpu", R_MODERATE, round(0.5 - 0.02 * j, 2),
+                            {"actions": []})
+                        j += 1
+                return out
+            canon = next((m for m in models
+                          if m.lower() == rest.split(" ")[1].lower()), None)
+            if canon:
+                row(f"model:{canon}", f"Switch to {canon}",
+                    "ENTER SWITCHES THE AI LANE · PERSISTS TO CONFIG",
+                    "cpu", R_HIGHEST, 1.0, {"actions": []})
+                return out
+            # unknown: question survives (never-hijack) + one typo-help row
+            shown = ", ".join(models[:3])
+            more = len(models) - 3
+            model_help = ("No such model: " + rest.split(" ")[1],
+                          "VALID · " + shown + (f" +{more} MORE"
+                                                if more > 0 else ""))
         key = rest
         entry = cache.get(key)
         if key in fetching and not entry:
@@ -343,6 +382,10 @@ def route(query, cache, fetching, running, conf):
             row(f"ask:{key}", f"Ask Hermes: {rest}",
                 "ENTER ASKS · ANSWER NOTIFIES · RETYPE TO READ INLINE",
                 "help-browser", R_HIGHEST, 1.0, {"actions": []})
+        if model_help:
+            # F-7 unknown-model help rides under the question rows (0.5).
+            row("model-help", model_help[0], model_help[1],
+                "help-browser", R_MODERATE, 0.5, {"actions": []})
         return out
 
     if first == conf["task_prefix"]:
@@ -414,17 +457,110 @@ def route(query, cache, fetching, running, conf):
 # ctx needs: .conf, .cache, .fetch_answer(text), .running_tasks — side
 # effects go through clipboard()/notify()/Popen, all patchable.
 
+def persist_model(name):
+    """F-7: read-modify-write config.json — only litellm.model changes,
+    unknown keys preserved. Returns (ok, reason)."""
+    try:
+        try:
+            raw = json.loads(CONF_PATH.read_text())
+            if not isinstance(raw, dict):
+                raw = {}
+        except FileNotFoundError:
+            raw = {}
+        lit = raw.get("litellm")
+        if not isinstance(lit, dict):
+            lit = {}
+            raw["litellm"] = lit
+        lit["model"] = name
+        tmp = str(CONF_PATH) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(raw, f, indent=1)
+        os.replace(tmp, str(CONF_PATH))
+        return True, ""
+    except Exception as e:  # never fatal: in-memory switch still sticks
+        return False, str(e)
+
+
 def web_target(conf, text):
     """F-2: substitute the ORIGINAL-CASE question into web_search_url."""
     url = conf.get("web_search_url", "https://duckduckgo.com/?q=%s")
     return url.replace("%s", urllib.parse.quote_plus(text or ""))
 
 
+class Stats:
+    """F-8: adoption counters. Counts ONLY — query text is never stored.
+
+    Written on every event (write-temp + rename, chmod 600) so SIGTERM
+    cannot lose data. Hit from run_dispatch (Run-only — Match fires per
+    keystroke and would inflate everything).
+    """
+
+    KEYS = ("asks", "tasks", "answer_uses", "error_retries", "web_opens",
+            "recents_copies", "model_switches", "dictation_hits")
+
+    def __init__(self, path=None):
+        base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        self.path = path or os.path.join(base, "hermes-runner", "stats.json")
+        self.lock = threading.Lock()
+        self.data: dict = {"days": {}}
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                self.data.update(loaded)
+                self.data.setdefault("days", {})
+        except (OSError, ValueError):
+            pass  # fresh start; never fatal
+        self._write()
+
+    def hit(self, name, prefix=None):
+        if name not in self.KEYS and name != "handoffs":
+            return
+        day = time.strftime("%Y-%m-%d")
+        with self.lock:
+            d = self.data["days"].get(day)
+            if not isinstance(d, dict):
+                d = {}
+                self.data["days"][day] = d
+            if name == "handoffs":
+                h = self.data.get("handoffs")
+                if not isinstance(h, dict):
+                    h = {}
+                    self.data["handoffs"] = h
+                h[prefix] = int(h.get(prefix, 0)) + 1
+                dh = d.get("handoffs")
+                if not isinstance(dh, dict):
+                    dh = {}
+                    d["handoffs"] = dh
+                dh[prefix] = int(dh.get(prefix, 0)) + 1
+            else:
+                self.data[name] = int(self.data.get(name, 0)) + 1
+                d[name] = int(d.get(name, 0)) + 1
+            self._write()
+
+    def _write(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.data, f, indent=1, sort_keys=True)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.path)
+
+    def report(self):
+        totals = {k: self.data.get(k, 0) for k in self.KEYS
+                  if k in self.data}
+        totals["handoffs"] = self.data.get("handoffs", {})
+        return json.dumps({"totals": totals, "days": self.data["days"]},
+                          indent=1, sort_keys=True)
+
+
 def run_dispatch(kind, key, text, act, ctx):
     conf = ctx.conf
+    stats = getattr(ctx, "stats", None)   # F-8; absent in old test ctxs
 
     if kind == "ask":
         if act in ("", "askagain"):
+            if stats: stats.hit("asks")
             ctx.fetch_answer(text)
         elif act == "copy":
             clipboard(text)
@@ -443,6 +579,8 @@ def run_dispatch(kind, key, text, act, ctx):
         # F-3: recent: dispatch identical to answer:.
         entry = ctx.cache.get(key)
         if act in ("", "copy"):
+            if kind == "recent" and stats: stats.hit("recents_copies")
+            elif kind == "answer" and stats: stats.hit("answer_uses")
             if entry and conf.get("copy_answers", True) \
                     and clipboard(entry[1]):
                 notify("Hermes · copied", "Answer is on the clipboard.",
@@ -451,15 +589,18 @@ def run_dispatch(kind, key, text, act, ctx):
                 notify(f"Hermes · {clip(text, 60)}", entry[1],
                        "help-browser", "normal", conf)
         elif act == "askagain":
+            if stats: stats.hit("asks")
             ctx.cache.drop(key)
             ctx.fetch_answer(text)
         elif act == "reshow":
+            if kind == "answer" and stats: stats.hit("answer_uses")
             if entry:
                 notify(f"Hermes · {clip(text, 60)}", entry[1],
                        "help-browser", "normal", conf)
     elif kind == "web":
         # F-2: one verb — Enter opens the browser search; other ids no-op.
         if act == "":
+            if stats: stats.hit("web_opens")
             target = web_target(conf, text)
             try:
                 subprocess.Popen(["xdg-open", target],
@@ -469,6 +610,7 @@ def run_dispatch(kind, key, text, act, ctx):
                 log("xdg-open missing; web search skipped:", target)
     elif kind == "error":
         if act in ("", "askagain"):
+            if stats: stats.hit("error_retries")
             ctx.cache.drop(key)
             ctx.fetch_answer(text)
         elif act == "copy":
@@ -480,13 +622,42 @@ def run_dispatch(kind, key, text, act, ctx):
         h = next((x for x in conf.get("_handoffs", ())
                   if x["prefix"] == p), None)
         if h and act == "":
+            if stats: stats.hit("handoffs", prefix=p)
             subprocess.Popen(
                 ["xdg-open", h["url"].replace(
                     "%s", urllib.parse.quote_plus(text or key.partition(":")[2]))],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    elif kind == "model":
+        # F-7: key is the id tail (canonical alias); re-validate against
+        # the allowlist — never trust the wire.
+        models = [m for m in conf.get("models", ())
+                  if isinstance(m, str) and m.strip()]
+        canon = next((m for m in models if m.lower() == key.lower()), None)
+        if act == "" and canon:
+            conf["litellm"]["model"] = canon
+            ok, _why = persist_model(canon)
+            if stats: stats.hit("model_switches")
+            if ok:
+                notify("Hermes · model switched",
+                       f"{canon} now answers ai questions",
+                       "cpu", "normal", conf)
+            else:
+                notify("Hermes · switch not saved",
+                       f"using {canon} this session · config write failed",
+                       "dialog-error", "low", conf)
+            log(f"model switch -> {canon} (persisted={ok})")
+    elif kind == "model-cur":
+        # No dead ids (spec F-7): re-notify the current model.
+        if act == "":
+            notify("Hermes · model", f"{key} answers ai questions",
+                   "cpu", "low", conf)
+    elif kind == "model-help":
+        pass  # informational row — Run is a no-op by design
+
     elif kind == "task":
         if act in ("", "askagain"):
+            if stats: stats.hit("tasks")
             ctx.fire_task(text)
         elif act == "copy":
             clipboard(text)
@@ -510,6 +681,9 @@ class HermesRunner(dbus.service.Object):
         self.fetching = set()
         self.fetch_lock = threading.Lock()
         self.payload = {}         # row id -> original-case text (B-4)
+        self.folded = {}          # row id -> True when minted from a query
+                                  # normalize() changed (F-8 dictation credit)
+        self.stats = Stats()
         self.running_tasks = {}   # qh -> {"pid","start","logf"} (B-6)
         self.task_lock = threading.Lock()
 
@@ -629,6 +803,10 @@ class HermesRunner(dbus.service.Object):
         q = normalize(query or "", self.conf).strip()
         words = q.split(" ", 1)
         payload_text = words[1].strip() if len(words) > 1 else ""
+        # F-8: tag non-help rows as dictation-folded when normalize() rewrote
+        # the query (compare against the raw query lowercased — case-only
+        # changes are not folds).
+        folded = (q != (query or "").strip().lower())
         for (mid, title, subtext, icon, catrel, rel, props) in rows:
             if payload_text and (mid.startswith("ask:")
                                  or mid.startswith("task:")
@@ -637,6 +815,10 @@ class HermesRunner(dbus.service.Object):
                 self.payload[mid] = payload_text
                 if len(self.payload) > 256:
                     self.payload.pop(next(iter(self.payload)))
+            if folded and not mid.startswith(("help-", "model-")):
+                self.folded[mid] = True
+                if len(self.folded) > 256:
+                    self.folded.pop(next(iter(self.folded)))
             dprops = {}
             if subtext:
                 dprops["subtext"] = dbus.String(subtext)
@@ -658,6 +840,10 @@ class HermesRunner(dbus.service.Object):
         # Original-case text from the payload map; the (lowercased) id tail
         # is the graceful fallback after a daemon restart.
         text = self.payload.get(mid, key)
+        # F-8: dictation credit — consumed once per row (per-keystroke Match
+        # tagging above just sets the flag).
+        if self.folded.pop(mid, None):
+            self.stats.hit("dictation_hits")
         run_dispatch(kind, key, text, act, self)
 
     @dbus.service.method(IFACE, out_signature="a(sss)")
@@ -695,4 +881,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--stats":
+        print(Stats().report())
+    else:
+        main()

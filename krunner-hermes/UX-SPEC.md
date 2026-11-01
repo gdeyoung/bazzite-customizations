@@ -500,3 +500,70 @@ never substring ("gh" can't eat "ghost"; "sea" can't match "seagate").
   opened; harness kr-driver screenshots; journal clean.
 - Zero-row-drift: golden-set diff of route() output for non-lane queries
   against v0.2 (the "2048 game" discipline).
+
+### F-7. Model switch (Phase 3a) — `ai model [<name>]`
+
+Config gains `"models": ["local-fast", "local-heavy", "local-fast-reason",
+"cloud-dev"]` (fleet aliases; user-editable). Behavior change vs v0.3: `ai
+model …` becomes a subcommand of the ai lane instead of being asked as a
+question (documented in README).
+
+- `ai model` (bare): one row per alias in config order, icon `cpu`
+  (icon-lint verified), Moderate(50):
+  - current: id `model-cur:<alias>`, title `Model: <alias>`, subtext
+    `CURRENT · ANSWERS USE THIS MODEL`, rel 0.55, `actions: []`
+  - others: id `model:<alias>`, title `Model: <alias>`, subtext
+    `ENTER SWITCHES · PERSISTS TO CONFIG · ANSWERS MOVE TO <alias>`,
+    rel 0.5 − 0.02·i, `actions: []`
+  - Run on `model-cur:` re-notifies (§B-9): `Hermes · model` /
+    `<alias> answers ai questions` / `cpu` / low — no dead ids in the
+    state matrix.
+- `ai model <name>`: case-insensitive exact match against the allowlist →
+  action row id `model:<name>`, title `Switch to <name>`, subtext
+  `ENTER SWITCHES THE AI LANE · PERSISTS TO CONFIG`, Highest/1.0,
+  `actions: []` (explicit — omitted props show ALL global actions, v0.3
+  ruling). Switch-to-self (name == current) renders the bare list with
+  CURRENT marked — never a "Switch to <current>" row. Unknown name →
+  the STANDARD ask row for the full question (§B-2 state 2,
+  Highest/1.0) with ONE help row below: id `model-help`, title
+  `No such model: <name>`, subtext `VALID · <first three aliases>` or
+  `VALID · <aliases> +n MORE` when capped, Moderate/0.5, `actions: []` —
+  the ai lane stays askable (F-1 never-hijack) while typo feedback
+  survives.
+- Run (`model:` kind): read-modify-write `config.json` preserving unknown
+  keys (`litellm.model` only), update in-memory conf, one journal line,
+  §B-9 notification `Hermes · model switched` / `<name> now answers ai
+  questions` / `cpu` / normal; errors writing config → `Hermes · switch
+  not saved` / `using <name> this session · config write failed` /
+  `dialog-error` / low — model still switched in memory (sticky until
+  restart).
+- Sanitize: allowlist membership only; `models: []` disables the subcommand
+  (falls back to question routing).
+
+### F-8. Adoption counters (Phase 3b) — counts on Run, never query text
+
+File `~/.cache/hermes-runner/stats.json` (chmod 600, write-temp+rename per
+event — SIGTERM-safe by construction). Counted on **Run dispatch only**
+(Match fires per keystroke; counting there inflates everything):
+
+| counter | credited when |
+|---|---|
+| `asks` | ask/askagain fires (incl. dictation-folded) |
+| `tasks` | task fires |
+| `answer_uses` | `answer:` rows: Enter/copy/reshow (consumption, not delivery) |
+| `error_retries` | error-row Enter/askagain (retries, not failures) |
+| `handoffs.<prefix>` | handoff Enter opens URL |
+| `web_opens` | web sibling Enter opens browser |
+| `recents_copies` | `recent:` Enter/copy |
+| `model_switches` | model switch persists |
+| `dictation_hits` | Run on a row whose id was minted from a query that `normalize()` changed (daemon tags fold-events per id at Match time; Run consumes) |
+| `days.<YYYY-MM-DD>.<same keys>` | day-granular rollup for the 2-week cut/keep report |
+
+`answer:` and `recent:` counters are DISJOINT (recent copies credit
+`recents_copies` only — never both). Names describe the counted event, so
+the adoption report reads true: delivery volume is approximated by `asks`.
+
+`python3 hermes_runner.py --stats` prints pretty JSON + totals (no dbus).
+Privacy: counts only — query text is never stored. The two-week adoption
+review (≈2026-11-14) reads this file and lanes that don't earn their keep
+get cut.

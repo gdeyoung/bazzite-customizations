@@ -23,6 +23,10 @@ Errors are their own state: a failed ask shows a red row with a one-line humaniz
 
 **Handoffs (v0.3):** `<prefix> <query>` opens a fleet-scoped search in your browser — `gh` GitHub · `sea` fleet SearXNG · `el` Elastic docs (via site: search). Enter opens the URL with your original-case query. Bare prefix (`gh` alone) shows its help row; `hermes` lists all configured handoffs. Config: `"handoffs": [{prefix, label, url}]` — prefix 2–6 lowercase letters, label ≤24 chars, URL must be http(s) with exactly one `%s`, duplicates and lane prefixes (`ai`/`hr`/`hermes` — whatever yours are renamed to) are rejected at load; malformed entries are skipped with one journal line, never fatal. `map` was cut in UX review: generic web search is the native webshortcuts runner's job — this lane stays fleet-scoped. Jellyfin/Galaxy handoffs: verify the search URL first, then add to config.
 
+**Model switch (v0.4):** `ai model` lists your configured aliases (`models` in config — default local-fast/local-heavy/local-fast-reason/cloud-dev) with the current one marked `CURRENT`; Enter on any other switches the ai lane to it and persists to config.json (unknown keys preserved). Case-insensitive; unknown names keep the ask row and add a `No such model` help row. Config write failure still switches for the session and says so.
+
+**Adoption counters (v0.4):** every Enter-verb counts (asks, tasks, answer uses, error retries, handoff opens per prefix, web opens, recent copies, model switches, dictation folds) into `~/.cache/hermes-runner/stats.json` — counts only, never query text. `/usr/bin/python3 hermes_runner.py --stats` prints totals + per-day rollup (system python — the module imports dbus at top level); the two-week adoption review decides which lanes stay.
+
 KRunner stays KRunner: apps, windows, calculator, unit conversion, timers and
 file search remain native. This runner only adds the two agent lanes — the
 parts of Omarchy's Foyer that have no KDE equivalent.
@@ -70,6 +74,16 @@ systemctl --user restart plasma-krunner.service
 Rollback: `./uninstall.sh` (removes daemon/spec/unit, keeps config+cache).
 
 ## Verified
+
+**2026-10-31 — v0.4.0 phase gates (unit + nested harness kr13 + live):**
+71/71 tests (normalize fixtures, handoff sanitize, model switch incl.
+persist/preserve-unknown-keys, counters incl. day rollup + chmod 600 +
+corrupt-file fresh start, dispatch stats, icon lint incl. `cpu`). Harness
+kr13 on the isolated nested bus: `ai model` Match returns the four model
+rows with `model-cur:` first; vision-confirmed rendering in real krunner.
+Live: `enable`+`restart` install (the `enable --now` stale-process bug is
+fixed — it bit twice on 2026-10-31), all six help rows + model rows on the
+user bus, journal clean.
 
 **2026-10-30 — harness gate (nested Wayland session, krunner 6.31 live):**
 26/26 unit tests (`test/test_runner.py` — routing matrix, humanizer, tail

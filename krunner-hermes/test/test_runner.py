@@ -8,7 +8,9 @@ typed cache, CategoryRelevance enum bounds, and prefix edge cases.
 
 import json
 import os
+import stat
 import sys
+import tempfile
 import time
 import unittest
 import urllib.error
@@ -320,6 +322,7 @@ class Dispatch(unittest.TestCase):
             self.running_tasks = {}
             self.fetched = []
             self.fired = []
+            self.stats: "hr.Stats | None" = None   # optional (F-8)
 
         def fetch_answer(self, text):
             self.fetched.append(text)
@@ -403,6 +406,9 @@ class IconLint(unittest.TestCase):
             hr.route("hr t", c, set(), running, CONF),
             hr.route("hermes", c, set(), {}, CONF),
             hr.route("ask hermes about dns", c, set(), {}, CONF),
+            hr.route("ai model", c, set(), {}, CONF),
+            hr.route("ai model local-heavy", c, set(), {}, CONF),
+            hr.route("ai model bogus", c, set(), {}, CONF),
             hr.route("gh KRunner Hermes", c, set(), {}, self.HANDOFF_CONF),
             hr.route("gh", c, set(), {}, self.HANDOFF_CONF),
         ]
@@ -541,6 +547,248 @@ class Handoffs(unittest.TestCase):
         self.assertEqual(skipped, 0)
         self.assertEqual([h["prefix"] for h in conf["_handoffs"]],
                          ["gh", "sea", "el"])
+
+
+class Stats(unittest.TestCase):
+    """F-8: adoption counters — Run-only counting, day rollup, privacy."""
+
+    def stats_at(self, tmpdir):
+        return hr.Stats(path=os.path.join(tmpdir, "stats.json"))
+
+    def test_hit_counts_and_day_rollup(self):
+        with tempfile.TemporaryDirectory() as td:
+            s = self.stats_at(td)
+            s.hit("asks"); s.hit("asks"); s.hit("asks")
+            s.hit("handoffs", prefix="gh")
+            self.assertEqual(s.data["asks"], 3)
+            day = time.strftime("%Y-%m-%d")
+            self.assertEqual(s.data["days"][day]["asks"], 3)
+            self.assertEqual(s.data["days"][day]["handoffs"]["gh"], 1)
+            self.assertEqual(s.data["handoffs"]["gh"], 1)
+
+    def test_persistence_and_reload(self):
+        with tempfile.TemporaryDirectory() as td:
+            s = self.stats_at(td)
+            s.hit("tasks")
+            mode = stat.S_IMODE(os.stat(s.path).st_mode)
+            self.assertEqual(mode, 0o600)
+            s2 = self.stats_at(td)          # fresh instance, same file
+            self.assertEqual(s2.data["tasks"], 1)
+            s2.hit("tasks")
+            self.assertEqual(s2.data["tasks"], 2)
+
+    def test_unknown_counter_ignored_and_privacy(self):
+        with tempfile.TemporaryDirectory() as td:
+            s = self.stats_at(td)
+            s.hit("bogus")
+            s.hit("handoffs", prefix="gh")
+            self.assertNotIn("bogus", s.data)
+            raw = Path(s.path).read_text()
+            self.assertNotIn("query", raw)   # counts only, never text
+            rep = s.report()
+            self.assertIn('"totals"', rep)
+            self.assertIn('"gh": 1', rep)
+
+    def test_corrupt_file_fresh_start(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "stats.json")
+            with open(p, "w") as f:
+                f.write("{not json")
+            s = self.stats_at(td)            # must not raise
+            s.hit("asks")
+            self.assertEqual(s.data["asks"], 1)
+
+
+class DispatchStats(unittest.TestCase):
+    """F-8: run_dispatch credits the right counters (Run-only)."""
+
+    def ctx_with(self, td, conf=None):
+        from unittest import mock  # noqa: F401 — convention: local import
+        c = Dispatch.Ctx()
+        if conf:
+            c.conf = conf
+        c.stats = hr.Stats(path=os.path.join(td, "stats.json"))
+        return c
+
+    def test_ask_enter_counts_asks(self):
+        with tempfile.TemporaryDirectory() as td:
+            ctx = self.ctx_with(td)
+            ctx.fetch_answer = lambda q: None
+            hr.run_dispatch("ask", "q", "q", "", ctx)
+            self.assertEqual(ctx.stats.data["asks"], 1)
+
+    def test_recent_enter_counts_recents_not_answers(self):
+        with tempfile.TemporaryDirectory() as td:
+            ctx = self.ctx_with(td)
+            ctx.cache.m["q"] = ("answer", "a", time.time())
+            hr.clipboard = lambda t: True
+            hr.run_dispatch("recent", "q", "q", "", ctx)
+            self.assertEqual(ctx.stats.data["recents_copies"], 1)
+            self.assertNotIn("answer_uses", ctx.stats.data)
+
+    def test_handoff_enter_counts_prefix(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td:
+            conf = {"litellm": {"base_url": "http://x/", "model": "m",
+                                "api_key_env": "K", "timeout": 1},
+                    "_handoffs": [{"prefix": "gh", "label": "GitHub",
+                                   "url": "https://github.com/search?q=%s"}]}
+            ctx = self.ctx_with(td, conf=conf)
+            with mock.patch("hermes_runner.subprocess.Popen") as po:
+                hr.run_dispatch("handoff", "gh:x", "X", "", ctx)
+                po.assert_called_once()
+            self.assertEqual(ctx.stats.data["handoffs"]["gh"], 1)
+            self.assertNotIn("web_opens", ctx.stats.data)
+
+    def test_web_enter_counts_web_opens(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td:
+            ctx = self.ctx_with(td)
+            with mock.patch("hermes_runner.subprocess.Popen"):
+                hr.run_dispatch("web", "w", "q", "", ctx)
+            self.assertEqual(ctx.stats.data["web_opens"], 1)
+
+    def test_no_stats_attribute_is_safe(self):
+        # Old test ctxs / pre-upgrade: dispatch still works, nothing counts.
+        ctx = Dispatch.Ctx()
+        hr.run_dispatch("ask", "q", "q", "", ctx)   # must not raise
+
+
+class ModelSwitch(unittest.TestCase):
+    """F-7 — model subcommand rows + dispatch + persistence."""
+
+    def conf(self, **over):
+        c = json.loads(json.dumps(CONF))
+        c["litellm"]["model"] = "local-fast"
+        c.update(over)
+        return c
+
+    def rows(self, q, conf=None):
+        return hr.route(q, FakeCache(), set(), {}, conf or self.conf())
+
+    def ids(self, rows):
+        return [r[0] for r in rows]
+
+    def test_bare_list_marks_current_and_tiers(self):
+        rows = self.rows("ai model")
+        ids = self.ids(rows)
+        self.assertEqual(ids[0], "model-cur:local-fast")
+        self.assertIn("CURRENT · ANSWERS USE THIS MODEL", rows[0][2])
+        self.assertEqual(rows[0][3], "cpu")
+        # others: config order, Moderate, 0.5-0.02i, actions: []
+        others = [r for r in rows if r[0] != "model-cur:local-fast"]
+        self.assertEqual([r[0].split(":")[1] for r in others],
+                         ["local-heavy", "local-fast-reason", "cloud-dev"])
+        self.assertEqual([r[5] for r in others], [0.5, 0.48, 0.46])
+        self.assertTrue(all(r[6].get("actions") == [] for r in rows))
+        self.assertTrue(all(r[4] == 50 for r in rows))
+
+    def test_exact_match_switch_row(self):
+        rows = self.rows("ai model local-heavy")
+        self.assertEqual(len(rows), 1)
+        mid, title, sub, icon, catrel, rel, props = rows[0]
+        self.assertEqual((mid, title, icon, catrel, rel),
+                         ("model:local-heavy", "Switch to local-heavy",
+                          "cpu", 100, 1.0))
+        self.assertIn("PERSISTS TO CONFIG", sub)
+        self.assertEqual(props.get("actions"), [])
+
+    def test_case_insensitive_uses_canonical_alias(self):
+        rows = self.rows("ai model LOCAL-HEAVY")
+        self.assertEqual(self.ids(rows), ["model:local-heavy"])
+        self.assertEqual(rows[0][1], "Switch to local-heavy")
+
+    def test_switch_to_self_renders_bare_list(self):
+        rows = self.rows("ai model local-fast")
+        self.assertIn("model-cur:local-fast", self.ids(rows))
+        self.assertFalse(any("Switch to" in r[1] for r in rows))
+
+    def test_unknown_name_keeps_ask_row_and_adds_help(self):
+        rows = self.rows("ai model turbo-9000")
+        ids = self.ids(rows)
+        self.assertTrue(ids[0].startswith("ask:"))
+        self.assertEqual(rows[0][4], 100)          # ask row stays Highest
+        self.assertIn("model-help", ids)
+        hrow = rows[ids.index("model-help")]
+        self.assertEqual(hrow[1], "No such model: turbo-9000")
+        self.assertEqual(hrow[2],
+                         "VALID · local-fast, local-heavy, "
+                         "local-fast-reason +1 MORE")
+        self.assertEqual(hrow[5], 0.5)
+        # question still askable: title carries the full query
+        self.assertIn("model turbo-9000", rows[0][1])
+
+    def test_models_empty_disables_subcommand(self):
+        rows = self.rows("ai model", conf=self.conf(models=[]))
+        self.assertTrue(all(r[0].startswith("ask:") for r in rows))
+
+    def test_dispatch_switches_persists_counts_notifies(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td:
+            ctx = Dispatch.Ctx()
+            ctx.stats = hr.Stats(path=os.path.join(td, "s.json"))
+            notes = []
+            capture = lambda *a: notes.append(a)
+            with mock.patch.object(hr, "notify", capture), \
+                    mock.patch.object(hr, "persist_model",
+                                      return_value=(True, "")):
+                hr.run_dispatch("model", "local-heavy", "x", "", ctx)
+            self.assertEqual(ctx.conf["litellm"]["model"], "local-heavy")
+            self.assertEqual(ctx.stats.data["model_switches"], 1)
+            self.assertEqual(notes[0][0], "Hermes · model switched")
+            self.assertIn("local-heavy now answers", notes[0][1])
+
+    def test_dispatch_persist_failure_still_switches_in_memory(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as td:
+            ctx = Dispatch.Ctx()
+            ctx.stats = hr.Stats(path=os.path.join(td, "s.json"))
+            notes = []
+            capture = lambda *a: notes.append(a)
+            with mock.patch.object(hr, "notify", capture), \
+                    mock.patch.object(hr, "persist_model",
+                                      return_value=(False, "boom")):
+                hr.run_dispatch("model", "cloud-dev", "x", "", ctx)
+            self.assertEqual(ctx.conf["litellm"]["model"], "cloud-dev")
+            self.assertEqual(notes[0][0], "Hermes · switch not saved")
+
+    def test_dispatch_rejects_wire_alias_not_in_config(self):
+        ctx = Dispatch.Ctx()
+        ctx.conf["models"] = ["local-fast"]
+        hr.run_dispatch("model", "evil-model", "x", "", ctx)  # no-op
+        self.assertEqual(ctx.conf["litellm"]["model"], "local-fast")
+
+    def test_dispatch_model_cur_notifies(self):
+        from unittest import mock
+        ctx = Dispatch.Ctx()
+        notes = []
+        capture = lambda *a: notes.append(a)
+        with mock.patch.object(hr, "notify", capture):
+            hr.run_dispatch("model-cur", "local-fast", "x", "", ctx)
+        self.assertEqual(notes[0][0], "Hermes · model")
+
+    def test_dispatch_model_help_noop(self):
+        ctx = Dispatch.Ctx()
+        hr.run_dispatch("model-help", "", "x", "", ctx)  # must not raise
+
+    def test_persist_model_preserves_unknown_keys(self):
+        old = hr.CONF_PATH
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "config.json")
+            with open(p, "w") as f:
+                json.dump({"zeta": {"keep": 1},
+                           "litellm": {"model": "local-fast",
+                                       "timeout_s": 45}}, f)
+            hr.CONF_PATH = Path(p)
+            try:
+                ok, why = hr.persist_model("local-heavy")
+                self.assertTrue(ok, why)
+                raw = json.loads(Path(p).read_text())
+                self.assertEqual(raw["zeta"], {"keep": 1})
+                self.assertEqual(raw["litellm"]["model"], "local-heavy")
+                self.assertEqual(raw["litellm"]["timeout_s"], 45)
+            finally:
+                hr.CONF_PATH = old
 
 
 if __name__ == "__main__":
