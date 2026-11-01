@@ -206,6 +206,57 @@ grep -q "model-cur:" "$ROOT/kr-model-$TAG.txt" && echo "CKPT-MODEL-CUR=OK" || ec
 sleep 1
 spectacle -b -n -o "$OUT/kr-model-$TAG.png" 2>/dev/null && echo "SHOT-kr-model"
 
+# Phase 4 (v0.5): ssh lane + snippets CRUD + layered help index.
+# Synthetic hosts ONLY — never fleet hostnames.
+mkdir -p "$H/.ssh"
+cat > "$H/.ssh/config" <<'EOF'
+# harness synthetic
+Host alpha
+Host beta b2
+  HostName 10.0.0.9
+  Port 2222
+  User root
+Host gamma-*
+EOF
+python3 - "$H/.config/hermes-runner/config.json" <<'PYEOF'
+import json, sys
+p = sys.argv[1]
+c = json.load(open(p))
+c["snippets"] = [
+    {"name": "sig", "text": "Greg DeYoung"},
+    {"name": "hello", "text": "synthetic snippet for kr battery"},
+]
+json.dump(c, open(p, "w"), indent=1)
+PYEOF
+kill -HUP $RUNNER_PID 2>/dev/null; sleep 2
+
+$B call org.kde.krunner /App org.kde.krunner.App query s "ssh b" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "ssh b" \
+    > "$ROOT/kr-ssh-$TAG.txt" 2>&1 && echo "CKPT-SSH-QUERY=OK" || echo "CKPT-SSH-QUERY=FAIL"
+grep -q "ssh:beta" "$ROOT/kr-ssh-$TAG.txt" && grep -q "ssh:b2" "$ROOT/kr-ssh-$TAG.txt" \
+    && echo "CKPT-SSH-ROWS=OK" || echo "CKPT-SSH-ROWS=FAIL"
+grep -q "root@10.0.0.9:2222" "$ROOT/kr-ssh-$TAG.txt" && echo "CKPT-SSH-TARGET=OK" || echo "CKPT-SSH-TARGET=FAIL"
+sleep 1
+spectacle -b -n -o "$OUT/kr-ssh-$TAG.png" 2>/dev/null && echo "SHOT-kr-ssh"
+
+$B call org.kde.krunner /App org.kde.krunner.App query s ";sig New Sig" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s ";sig New Sig" \
+    > "$ROOT/kr-snip-$TAG.txt" 2>&1 && echo "CKPT-SNIP-QUERY=OK" || echo "CKPT-SNIP-QUERY=FAIL"
+grep -q "snippet:sig" "$ROOT/kr-snip-$TAG.txt" && grep -q "snippet-save:sig" "$ROOT/kr-snip-$TAG.txt" \
+    && echo "CKPT-SNIP-OVERWRITE=OK" || echo "CKPT-SNIP-OVERWRITE=FAIL"
+sleep 1
+spectacle -b -n -o "$OUT/kr-snip-$TAG.png" 2>/dev/null && echo "SHOT-kr-snip"
+
+$B call org.kde.krunner /App org.kde.krunner.App query s "hermes" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "hermes" \
+    > "$ROOT/kr-help-$TAG.txt" 2>&1 && echo "CKPT-HELP-QUERY=OK" || echo "CKPT-HELP-QUERY=FAIL"
+for lane in help-ssh help-snippet help-model help-docs help-handoff-gh; do
+    grep -q "$lane" "$ROOT/kr-help-$TAG.txt" || { echo "CKPT-HELP-INDEX=FAIL($lane)"; break; }
+    echo "CKPT-HELP-INDEX=OK"
+done
+sleep 1
+spectacle -b -n -o "$OUT/kr-help-$TAG.png" 2>/dev/null && echo "SHOT-kr-help"
+
 kill $RUNNER_PID $KRUNNER_PID $MON_PID $KWIN_PID 2>/dev/null
 sleep 2
 for pid in $(ls /proc | grep -E '^[0-9]+$'); do

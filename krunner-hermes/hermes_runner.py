@@ -111,7 +111,8 @@ def sanitize_handoffs(conf):
     so renaming a lane can't be silently shadowed. Returns (clean, skipped);
     malformed entries are dropped, never fatal."""
     reserved = {conf.get("answer_prefix", "ai"),
-                conf.get("task_prefix", "hr"), "hermes"}
+                conf.get("task_prefix", "hr"), "hermes",
+                "ssh", "help"}   # F-9/F-11: lane claims, bidirectional
     clean, seen, skipped = [], set(), 0
     for h in (conf.get("handoffs") or []):
         try:
@@ -132,6 +133,70 @@ def sanitize_handoffs(conf):
     return clean, skipped
 
 
+def parse_ssh_config(text, _depth=0):
+    """F-9: foyer-based ~/.ssh/config parser, extended: Host groups share
+    Hostname/Port/User; globs (* ?) and negated (!name) hosts are skipped;
+    Include directives are followed one level (~ + glob, missing skipped).
+    `name` is the lowercase match key, `display` the original case."""
+    hosts, group = [], []
+    for raw in str(text or "").split("\n"):
+        line = re.sub(r"\s+#.*$", "", raw)
+        m = re.match(r"^Host\s+(.+)$", line, re.I)
+        if m:
+            group = []
+            for name in m.group(1).strip().split():
+                if re.search(r"[*?!]", name):
+                    continue
+                entry = {"name": name.lower(), "display": name,
+                         "hostname": "", "port": "", "user": ""}
+                group.append(entry)
+                hosts.append(entry)
+            continue
+        inc = re.match(r"^Include\s+(.+)$", line.strip(), re.I)
+        if inc and _depth < 1:
+            arg = inc.group(1).strip()
+            base = Path(arg).expanduser()
+            paths = sorted(base.parent.glob(base.name)) \
+                if any(c in arg for c in "*?") else [base]
+            for path in paths:
+                try:
+                    hosts += parse_ssh_config(path.read_text(), _depth + 1)
+                except OSError:
+                    pass   # missing include: silently skipped (spec F-9)
+            continue
+        if not group:
+            continue
+        p = re.match(r"^(Hostname|Port|User)\s+(.+)$", line.strip(), re.I)
+        if p:
+            key = p.group(1).lower()
+            for e in group:
+                e[key] = p.group(2).strip()
+    return hosts
+
+
+def sanitize_snippets(raw):
+    """F-10: foyer-identical snippet sanitize. Names ^[a-z0-9][a-z0-9-]{0,15}$,
+    unique, not reserved ('help'); text non-empty single-line <=2000."""
+    out, seen = [], set()
+    for s in raw if isinstance(raw, list) else []:
+        if not isinstance(s, dict):
+            continue
+        name_raw = s.get("name")
+        if not isinstance(name_raw, str):
+            continue                       # numbers/null never become names
+        name = name_raw.strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,15}", name):
+            continue                       # validate RAW: no silent lowering
+        text = str(s.get("text") or "")
+        if name in seen or name == "help":
+            continue
+        if not text.strip() or len(text) > 2000 or "\n" in text:
+            continue
+        seen.add(name)
+        out.append({"name": name, "text": text})
+    return out
+
+
 def load_conf():
     conf = json.loads(json.dumps(DEFAULT_CONF))  # deep copy
     try:
@@ -148,6 +213,23 @@ def load_conf():
     conf["_handoffs"], skipped = sanitize_handoffs(conf)
     if skipped:
         log(f"{skipped} handoff entries skipped (sanitize)")
+    # F-9/F-11 bidirectional lane claims: a configured answer/task prefix
+    # equal to a lane claim would shadow that lane — reset to the default.
+    for pk in ("answer_prefix", "task_prefix"):
+        if conf.get(pk) in ("ssh", "help", "hermes"):
+            log(f"{pk} '{conf[pk]}' collides with a lane claim; "
+                f"reset to default")
+            conf[pk] = "ai" if pk == "answer_prefix" else "hr"
+    conf["_snippets"], sskipped = sanitize_snippets(conf.get("snippets")), 0
+    if len(conf["_snippets"]) != len(conf.get("snippets") or []):
+        sskipped = len(conf.get("snippets") or []) - len(conf["_snippets"])
+    if sskipped:
+        log(f"{sskipped} snippet entries skipped (sanitize)")
+    try:
+        conf["_ssh_hosts"] = parse_ssh_config(
+            Path("~/.ssh/config").expanduser().read_text())
+    except OSError:
+        conf["_ssh_hosts"] = []   # no ssh config: lane shows its help rows
     return conf
 
 
@@ -408,46 +490,242 @@ def route(query, cache, fetching, running, conf):
                 "system-run", R_HIGHEST, 1.0, {"actions": []})
         return out
 
-    if low in ("hermes", "hermes help"):
-        row("help-ai", "Hermes: ask with 'ai <question>'",
-            f"NOTIFIED ANSWER, THEN CACHED INLINE · {model} VIA LITELLM",
-            "help-browser", R_MODERATE, 0.55)
-        row("help-hr", "Hermes: run a task with 'hr <task>'",
-            "UNATTENDED AGENT TURN · NOTIFIED WHEN DONE",
-            "system-run", R_MODERATE, 0.5)
-        row("help-dictation", "Hermes: dictate — 'ask hermes …' answers, "
-            "'tell hermes …' runs",
-            "VOXTYPE PHRASES FOLD INTO THE ai/hr LANES",
-            "help-browser", R_MODERATE, 0.45)
-        for i, h in enumerate(conf.get("_handoffs", ())):
-            # below help-ai 0.55 / help-hr 0.50 / help-dictation 0.45,
-            # config order, deterministic (spec F-4)
-            row(f"help-handoff-{h['prefix']}",
-                f"Hermes: hand off with '{h['prefix']} <query>'",
-                f"SEARCHES {h['host']} · OPENS IN BROWSER",
-                "internet-web-browser", R_MODERATE,
-                round(0.43 - 0.02 * i, 2))
-    else:
-        # F-5 handoff claims: exact FIRST-WORD match on a sanitized prefix —
-        # "gh" can never eat "ghost", "sea" never matches "seagate".
-        for h in conf.get("_handoffs", ()):
-            if first != h["prefix"]:
-                continue
-            # original-case query for the title (id mint lowercases)
-            qw = q.split(" ", 1)
-            orig_rest = qw[1].strip() if len(qw) > 1 else ""
-            if not rest:
-                row(f"handoff:{h['prefix']}",
-                    f"{h['label']} — type the query after '{h['prefix']}'",
+    # F-9 ssh lane: claimed iff the first word is exactly "ssh".
+    if first == "ssh":
+        hosts = conf.get("_ssh_hosts") or []
+
+        def ssh_subtext(h):
+            target = (f"{h['user']}@" if h["user"] else "") + \
+                     (h["hostname"] or h["display"])
+            if h["port"]:
+                target += f":{h['port']}"
+            return f"CONNECT {target} · ENTER OPENS TERMINAL"
+
+        if not rest:
+            row("ssh-help", "SSH — type a host after 'ssh'",
+                "HOSTS COME FROM ~/.ssh/config · "
+                "TYPE 'hermes ssh' FOR DETAILS",
+                "utilities-terminal", R_MODERATE, 0.55, {"actions": []})
+            for i, h in enumerate(sorted(hosts,
+                                         key=lambda x: x["name"])[:5]):
+                row(f"ssh:{h['name']}", f"SSH {h['display']}",
+                    ssh_subtext(h), "utilities-terminal", R_MODERATE,
+                    round(0.5 - 0.02 * i, 2), {"actions": []})
+            return out
+        t = rest.lower()
+
+        def ssh_rank(h):
+            n = h["name"]
+            if n == t:
+                return (0, n)
+            if n.startswith(t):
+                return (1, n)
+            if t in n:
+                return (2, n)
+            return (3, n)
+
+        matches = sorted((h for h in hosts
+                          if h["name"] == t or h["name"].startswith(t)
+                          or t in h["name"]), key=ssh_rank)[:8]
+        if not matches:
+            row("ssh-help", f"No host matches '{rest}'",
+                "HOSTS COME FROM ~/.ssh/config",
+                "utilities-terminal", R_MODERATE, 0.5, {"actions": []})
+        else:
+            for h in matches:
+                row(f"ssh:{h['name']}", f"SSH {h['display']}",
+                    ssh_subtext(h), "utilities-terminal",
+                    R_HIGHEST, 1.0, {"actions": []})
+        return out
+
+    # F-10 snippets lane: claimed on the leading ';'.
+    if q.startswith(";"):
+        body = q[1:].strip()
+        snips = conf.get("_snippets") or []
+        if body in ("", "help"):
+            if not snips:
+                row("snippet-help", "No snippets yet",
+                    "TYPE ;name text… TO SAVE ONE · "
+                    "SNIPPETS LIVE IN config.json",
+                    "text-x-generic", R_MODERATE, 0.5, {"actions": []})
+                return out
+            for i, s in enumerate(snips[:8]):
+                rel = 0.55 if i == 0 else round(0.5 - 0.02 * (i - 1), 2)
+                row(f"snippet:{s['name']}", s["name"],
+                    f"{clip(s['text'], 80)} · ENTER COPIES",
+                    "text-x-generic", R_MODERATE, rel,
+                    {"actions": ["copy", "show", "delete"]})
+            if len(snips) > 8:
+                row("snippet-more", f"+{len(snips) - 8} more snippets",
+                    "ALL IN config.json",
+                    "text-x-generic", R_MODERATE, 0.34, {"actions": []})
+            return out
+        parts = body.split(" ", 1)
+        name = parts[0].lower()
+        text = parts[1].strip() if len(parts) > 1 else ""
+        # validate the RAW token — `;Sig text` is invalid, never silently
+        # lowered to a save row (same rule as sanitize_snippets)
+        valid = bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,15}", parts[0])) \
+            and name != "help"
+        hit = next((s for s in snips if s["name"] == name), None)
+        if hit:
+            row(f"snippet:{name}", name,
+                f"{clip(hit['text'], 80)} · ENTER COPIES",
+                "text-x-generic", R_HIGHEST, 1.0, {"actions": []})
+            if text:
+                row(f"snippet-save:{name}",
+                    f"Overwrite '{name}' with new text",
+                    f"{clip(text, 80)} · ENTER REPLACES THE SNIPPET",
+                    "text-x-generic", R_MODERATE, 0.5, {"actions": []})
+        elif valid and text:
+            row(f"snippet-save:{name}", f"Save snippet '{name}'",
+                f"{clip(text, 80)} · ENTER SAVES · THEN ;{name} COPIES",
+                "text-x-generic", R_HIGHEST, 1.0, {"actions": []})
+        else:
+            title = f"No such snippet: {name}" if valid \
+                else f"Invalid snippet name: {name}"
+            row("snippet-help", title,
+                "VALID NAMES a-z 0-9 - MAX 16 · TYPE ';' TO LIST",
+                "help-browser", R_MODERATE, 0.5, {"actions": []})
+        return out
+
+    # F-11 layered help: `hermes` / `help` index + `hermes <lane>` pages.
+    if first in ("hermes", "help"):
+        handoffs = list(conf.get("_handoffs") or ())
+        lane = rest.lower().strip()
+
+        def help_index():
+            row("help-ai", "Hermes: ask with 'ai <question>'",
+                f"NOTIFIED ANSWER, THEN CACHED INLINE · {model} VIA LITELLM",
+                "help-browser", R_MODERATE, 0.55, {"actions": []})
+            row("help-hr", "Hermes: run a task with 'hr <task>'",
+                "UNATTENDED AGENT TURN · TYPE 'hermes hr' FOR DETAILS",
+                "system-run", R_MODERATE, 0.50, {"actions": []})
+            row("help-dictation",
+                "Hermes: dictate — 'ask hermes …' answers, "
+                "'tell hermes …' runs",
+                "VOXTYPE PHRASES FOLD INTO THE ai/hr LANES",
+                "help-browser", R_MODERATE, 0.45, {"actions": []})
+            row("help-ssh", "Hermes: connect with 'ssh <host>'",
+                "HOSTS FROM ~/.ssh/config · ENTER OPENS TERMINAL",
+                "utilities-terminal", R_MODERATE, 0.43, {"actions": []})
+            row("help-snippet", "Hermes: copy snippets with ';name'",
+                "SAVE WITH ;name text… · TYPE 'hermes snippets' FOR DETAILS",
+                "text-x-generic", R_MODERATE, 0.42, {"actions": []})
+            row("help-model", "Hermes: switch AI model with 'ai model'",
+                f"CURRENT {model} · TYPE 'hermes model' FOR DETAILS",
+                "cpu", R_MODERATE, 0.41, {"actions": []})
+            shown = handoffs[:8]
+            for i, h in enumerate(shown):
+                row(f"help-handoff-{h['prefix']}",
+                    f"Hermes: hand off with '{h['prefix']} <query>'",
                     f"SEARCHES {h['host']} · OPENS IN BROWSER",
-                    "internet-web-browser", R_MODERATE, 0.55)
-            else:
-                row(f"handoff:{h['prefix']}:{rest.lower()}",
-                    f"{h['label']}: {orig_rest}",
-                    f"SEARCH {h['host']} · ENTER OPENS BROWSER",
-                    "internet-web-browser", 100, 1.0,
+                    "internet-web-browser", R_MODERATE,
+                    round(0.40 - 0.01 * i, 2), {"actions": []})
+            if len(handoffs) > 8:
+                row("help-handoff-more",
+                    f"+{len(handoffs) - 8} more handoffs",
+                    "TYPE 'hermes handoffs'",
+                    "internet-web-browser", R_MODERATE, 0.30,
                     {"actions": []})
-            break
+            row("help-docs", "Hermes: open the full manual",
+                "README VIA XDG-OPEN · ALL CONFIG IN config.json",
+                "help-browser", R_MODERATE, 0.30, {"actions": []})
+
+        def helppage(lane_id, n, title, sub, copyable=False):
+            row(f"helppage:{lane_id}:{n}", title, sub, "help-browser",
+                R_MODERATE, round(0.5 - 0.02 * n, 2),
+                {"actions": ["copy"]} if copyable else {"actions": []})
+
+        if lane == "":
+            help_index()
+        elif lane == "ssh":
+            helppage("ssh", 0, "ssh <host>",
+                     "CONNECT FROM ~/.ssh/config · ENTER OPENS TERMINAL",
+                     copyable=True)
+            helppage("ssh", 1, "Short multi-name aliases: Host aic aicube",
+                     "BOTH NAMES SHARE HOSTNAME/USER/PORT · TYPED PREFIX "
+                     "IS THE WHOLE NAME")
+            helppage("ssh", 2, "Include directives are followed",
+                     "ONE LEVEL · MISSING FILES SKIPPED")
+        elif lane == "snippets":
+            helppage("snippets", 0, ";name",
+                     "COPIES THE SNIPPET · SAVE WITH ;name text…",
+                     copyable=True)
+            helppage("snippets", 1, "; sig Greg DeYoung",
+                     "EXAMPLE SAVE — ENTER CREATES, RETYPE OVERWRITES")
+            helppage("snippets", 2, "Row buttons: COPY · SHOW · DELETE",
+                     "DELETE NOTIFICATION CARRIES THE TEXT FOR UNDO")
+            helppage("snippets", 3, "Snippets live in config.json",
+                     "NAMES a-z 0-9 - MAX 16 · SINGLE LINE MAX 2000 CHARS")
+        elif lane == "model":
+            helppage("model", 0, "ai model",
+                     "LISTS ALIASES · CURRENT MARKED · ENTER SWITCHES",
+                     copyable=True)
+            helppage("model", 1, "ai model local-heavy",
+                     "SWITCHES AND PERSISTS · CASE-INSENSITIVE",
+                     copyable=True)
+            helppage("model", 2, "Aliases come from config 'models'",
+                     "EDIT THE LIST · HUP RELOADS")
+        elif lane == "ai":
+            helppage("ai", 0, "ai <question>",
+                     "ONE-SHOT ANSWER · NOTIFIED, THEN CACHED INLINE",
+                     copyable=True)
+            helppage("ai", 1, "ai who runs searxng",
+                     "EXAMPLE ASK · RETYPE TO READ THE CACHED ANSWER INLINE",
+                     copyable=True)
+            helppage("ai", 2, "Answers carry COPY · ASK AGAIN · SHOW AGAIN",
+                     "THE WEB-SEARCH SIBLING ROW OPENS THE BROWSER")
+        elif lane == "hr":
+            helppage("hr", 0, "hr <task>",
+                     "UNATTENDED hermes -z TURN · NOTIFIED WHEN DONE",
+                     copyable=True)
+            helppage("hr", 1, "hr check disk space on aicube",
+                     "EXAMPLE TASK · LOG IN ~/.cache/hermes-runner",
+                     copyable=True)
+        elif lane == "dictation":
+            helppage("dictation", 0, "ask hermes about dns",
+                     "FOLDS INTO ai dns — ANSWER LANE", copyable=True)
+            helppage("dictation", 1, "tell hermes to restart docker",
+                     "FOLDS INTO hr restart docker — TASK LANE",
+                     copyable=True)
+        elif lane == "handoffs":
+            for i, h in enumerate(handoffs[:6]):
+                helppage("handoffs", i, f"{h['prefix']} <query>",
+                         f"{h['label'].upper()} — SEARCHES {h['host']}",
+                         copyable=True)
+            helppage("handoffs", min(len(handoffs), 6),
+                     "Handoffs live in config.json",
+                     "PREFIX 2-6 LETTERS · ONE %s IN URL · HUP RELOADS")
+        elif lane == "docs":
+            row("help-docs", "Hermes: open the full manual",
+                "README VIA XDG-OPEN · ALL CONFIG IN config.json",
+                "help-browser", R_MODERATE, 0.30, {"actions": []})
+        else:
+            help_index()   # unknown lane: the index IS the correction
+        return out
+
+    # F-5 handoff claims: exact FIRST-WORD match on a sanitized prefix —
+    # "gh" can never eat "ghost", "sea" never matches "seagate".
+    for h in conf.get("_handoffs", ()):
+        if first != h["prefix"]:
+            continue
+        # original-case query for the title (id mint lowercases)
+        qw = q.split(" ", 1)
+        orig_rest = qw[1].strip() if len(qw) > 1 else ""
+        if not rest:
+            row(f"handoff:{h['prefix']}",
+                f"{h['label']} — type the query after '{h['prefix']}'",
+                f"SEARCHES {h['host']} · OPENS IN BROWSER",
+                "internet-web-browser", R_MODERATE, 0.55,
+                {"actions": []})
+        else:
+            row(f"handoff:{h['prefix']}:{rest.lower()}",
+                f"{h['label']}: {orig_rest}",
+                f"SEARCH {h['host']} · ENTER OPENS BROWSER",
+                "internet-web-browser", 100, 1.0,
+                {"actions": []})
+        break
     return out
 
 
@@ -481,6 +759,26 @@ def persist_model(name):
         return False, str(e)
 
 
+def persist_snippets(snips):
+    """F-10: read-modify-write config.json — only `snippets` changes,
+    unknown keys preserved (F-7 pattern). Returns (ok, reason)."""
+    try:
+        try:
+            raw = json.loads(CONF_PATH.read_text())
+            if not isinstance(raw, dict):
+                raw = {}
+        except FileNotFoundError:
+            raw = {}
+        raw["snippets"] = snips
+        tmp = str(CONF_PATH) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(raw, f, indent=1)
+        os.replace(tmp, str(CONF_PATH))
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
 def web_target(conf, text):
     """F-2: substitute the ORIGINAL-CASE question into web_search_url."""
     url = conf.get("web_search_url", "https://duckduckgo.com/?q=%s")
@@ -496,7 +794,8 @@ class Stats:
     """
 
     KEYS = ("asks", "tasks", "answer_uses", "error_retries", "web_opens",
-            "recents_copies", "model_switches", "dictation_hits")
+            "recents_copies", "model_switches", "dictation_hits",
+            "ssh_sessions", "snippet_uses", "snippet_edits")
 
     def __init__(self, path=None):
         base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -655,6 +954,82 @@ def run_dispatch(kind, key, text, act, ctx):
     elif kind == "model-help":
         pass  # informational row — Run is a no-op by design
 
+    elif kind == "ssh":
+        # F-9: Enter opens a terminal. key is the host name; re-resolve
+        # from the parsed table — never trust the wire.
+        canon = next((h for h in conf.get("_ssh_hosts", ())
+                      if h["name"] == key.lower()), None)
+        if act == "" and canon:
+            if stats: stats.hit("ssh_sessions")
+            try:
+                subprocess.Popen(
+                    ["konsole", "--hold", "-e", "ssh", canon["name"]],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except FileNotFoundError:
+                log("konsole missing; ssh session skipped:", canon["name"])
+    elif kind == "snippet":
+        # F-10: key is the snippet name; re-resolve from config.
+        name = key.lower()
+        snip = next((s for s in conf.get("_snippets", ())
+                     if s["name"] == name), None)
+        if snip and act in ("", "copy"):
+            if stats: stats.hit("snippet_uses")
+            clipboard(snip["text"])
+            notify("Hermes · snippet copied",
+                   clip(snip["text"], 120), "edit-copy", "low", conf)
+        elif snip and act == "show":
+            if stats: stats.hit("snippet_uses")   # credited like reshow
+            notify(f"Hermes · {name}", snip["text"],
+                   "help-browser", "normal", conf)
+        elif snip and act == "delete":
+            remaining = [s for s in conf.get("_snippets", ())
+                         if s["name"] != name]
+            ok, why = persist_snippets(remaining)
+            if ok:
+                conf["_snippets"] = remaining
+                if stats: stats.hit("snippet_edits")
+                # recoverable: the full text rides in the notification
+                notify("Hermes · snippet deleted",
+                       f"{name}\n{snip['text']}",
+                       "edit-delete", "normal", conf)
+            else:
+                notify("Hermes · delete not saved",
+                       f"config write failed · {clip(why, 80)}",
+                       "dialog-error", "low", conf)
+    elif kind == "snippet-save":
+        # F-10: key is the name; text is the ORIGINAL-CASE new text.
+        # Validate the RAW key — a wire-forged id must not sneak past as a
+        # lowercased name (same rule as sanitize_snippets).
+        name = key.lower()
+        if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,15}", key) and key != "help" \
+                and (text or "").strip():
+            new = {"name": name, "text": text.strip()[:2000]}
+            merged = [s for s in conf.get("_snippets", ())
+                      if s["name"] != name] + [new]
+            ok, why = persist_snippets(merged)
+            if ok:
+                conf["_snippets"] = merged
+                if stats: stats.hit("snippet_edits")
+                notify("Hermes · snippet saved",
+                       f";{name} now copies {clip(new['text'], 60)}",
+                       "text-x-generic", "low", conf)
+            else:
+                notify("Hermes · save not written",
+                       f"snippet kept in memory · {clip(why, 80)}",
+                       "dialog-error", "low", conf)
+    elif kind == "helppage":
+        if act == "copy":
+            clipboard(text)   # payload overridden to the row title
+    elif kind == "help-docs":
+        if act == "":
+            readme = Path(__file__).resolve().parent / "README.md"
+            try:
+                subprocess.Popen(["xdg-open", str(readme)],
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+            except FileNotFoundError:
+                log("xdg-open missing; docs skipped")
+
     elif kind == "task":
         if act in ("", "askagain"):
             if stats: stats.hit("tasks")
@@ -811,11 +1186,18 @@ class HermesRunner(dbus.service.Object):
             if payload_text and (mid.startswith("ask:")
                                  or mid.startswith("task:")
                                  or mid.startswith("web:")
-                                 or mid.startswith("handoff:")):
+                                 or mid.startswith("handoff:")
+                                 or mid.startswith("helppage:")
+                                 or mid.startswith("snippet-save:")):
                 self.payload[mid] = payload_text
                 if len(self.payload) > 256:
                     self.payload.pop(next(iter(self.payload)))
-            if folded and not mid.startswith(("help-", "model-")):
+            if mid.startswith("helppage:"):
+                # F-11: the copy action copies the example title, not the
+                # query that surfaced it.
+                self.payload[mid] = title
+            if folded and not mid.startswith(
+                    ("help-", "model-", "helppage", "snippet", "ssh:")):
                 self.folded[mid] = True
                 if len(self.folded) > 256:
                     self.folded.pop(next(iter(self.folded)))
@@ -852,6 +1234,8 @@ class HermesRunner(dbus.service.Object):
             ("copy", "COPY", "edit-copy"),
             ("askagain", "ASK AGAIN", "view-refresh"),
             ("reshow", "SHOW AGAIN", "help-browser"),
+            ("show", "SHOW", "help-browser"),
+            ("delete", "DELETE", "edit-delete"),
         ]
 
     @dbus.service.method(IFACE, in_signature="s")

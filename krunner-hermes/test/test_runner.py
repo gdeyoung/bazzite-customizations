@@ -15,6 +15,7 @@ import time
 import unittest
 import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -115,9 +116,14 @@ class Routing(unittest.TestCase):
         self.assertIn("ENTER SHOWS TAIL", r[2])
 
     def test_hermes_keyword_help(self):
+        # F-11 index: one row per lane, then docs; literal rels.
         rows = hr.route("hermes", FakeCache(), set(), {}, CONF)
         self.assertEqual([x[0] for x in rows],
-                         ["help-ai", "help-hr", "help-dictation"])
+                         ["help-ai", "help-hr", "help-dictation",
+                          "help-ssh", "help-snippet", "help-model",
+                          "help-docs"])
+        self.assertEqual([x[5] for x in rows],
+                         [0.55, 0.5, 0.45, 0.43, 0.42, 0.41, 0.30])
 
     def test_no_match_outside_prefixes(self):
         self.assertEqual(hr.route("searxng port", FakeCache(), set(),
@@ -395,6 +401,11 @@ class IconLint(unittest.TestCase):
         c.m["boom"] = ("error", "x", time.time())
         c.m["old q"] = ("answer", "y", time.time() - 60)
         running = {"t": {"pid": 1, "start": time.time(), "logf": "/dev/null"}}
+        snip_conf = dict(CONF, _snippets=[{"name": "sig",
+                                           "text": "x"}])
+        ssh_conf = dict(CONF, _ssh_hosts=[
+            {"name": "alpha", "display": "alpha", "hostname": "",
+             "port": "", "user": ""}])
         battery = [
             hr.route("ai", c, set(), {}, CONF),
             hr.route("ai ping", c, set(), {}, CONF),
@@ -411,6 +422,21 @@ class IconLint(unittest.TestCase):
             hr.route("ai model bogus", c, set(), {}, CONF),
             hr.route("gh KRunner Hermes", c, set(), {}, self.HANDOFF_CONF),
             hr.route("gh", c, set(), {}, self.HANDOFF_CONF),
+            # F-9/F-10/F-11 surfaces
+            hr.route("ssh", c, set(), {}, ssh_conf),
+            hr.route("ssh alpha", c, set(), {}, ssh_conf),
+            hr.route("ssh zzz", c, set(), {}, ssh_conf),
+            hr.route(";", c, set(), {}, snip_conf),
+            hr.route(";sig", c, set(), {}, snip_conf),
+            hr.route(";sig new text", c, set(), {}, snip_conf),
+            hr.route(";fresh new text", c, set(), {}, snip_conf),
+            hr.route(";foo", c, set(), {}, snip_conf),
+            hr.route(";", c, set(), {}, dict(CONF)),
+            hr.route("help", c, set(), {}, self.HANDOFF_CONF),
+            hr.route("help bogus", c, set(), {}, self.HANDOFF_CONF),
+            *[hr.route(f"hermes {lane}", c, set(), {}, self.HANDOFF_CONF)
+              for lane in ("ssh", "snippets", "model", "ai", "hr",
+                           "dictation", "handoffs", "docs")],
         ]
         icons = {r[3] for rows in battery for r in rows}
         self.assertGreaterEqual(len(icons), 6, f"battery too thin: {icons}")
@@ -494,13 +520,14 @@ class Handoffs(unittest.TestCase):
         self.assertEqual(b[0], "handoff:gh")
         self.assertIn("type the query after 'gh'", b[1])
         self.assertEqual(b[4], 50)
-        # hermes help gains the handoff row below dictation
+        # hermes index gains the handoff lane rows below the model row
         help_rows = hr.route("hermes", FakeCache(), set(), {}, conf)
         self.assertEqual([x[0] for x in help_rows],
                          ["help-ai", "help-hr", "help-dictation",
-                          "help-handoff-gh"])
-        self.assertEqual(help_rows[3][5], 0.43)
-        self.assertIn("SEARCHES github.com", help_rows[3][2])
+                          "help-ssh", "help-snippet", "help-model",
+                          "help-handoff-gh", "help-docs"])
+        self.assertEqual(help_rows[6][5], 0.40)
+        self.assertIn("SEARCHES github.com", help_rows[6][2])
 
     def test_dispatch_opens_url_original_case(self):
         from unittest import mock
@@ -789,6 +816,393 @@ class ModelSwitch(unittest.TestCase):
                 self.assertEqual(raw["litellm"]["timeout_s"], 45)
             finally:
                 hr.CONF_PATH = old
+
+
+class SshParse(unittest.TestCase):
+    """F-9 fixtures: foyer-identical ~/.ssh/config parsing."""
+
+    def test_fixtures(self):
+        from fixtures_ssh import SSH_CONFIG_FIXTURES
+        for name, text, expected in SSH_CONFIG_FIXTURES:
+            with self.subTest(name):
+                got = hr.parse_ssh_config(text)
+                self.assertEqual([(h["name"], h["hostname"], h["port"],
+                                   h["user"]) for h in got], expected)
+
+    def test_display_keeps_original_case(self):
+        got = hr.parse_ssh_config("Host EPSILON\n")
+        self.assertEqual(got[0]["name"], "epsilon")
+        self.assertEqual(got[0]["display"], "EPSILON")
+
+    def test_include_followed_one_level(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            inc = os.path.join(d, "hosts-a.conf")
+            with open(inc, "w") as f:
+                f.write("Host omicron\n  User inc\n")
+            text = f"Host pi\nInclude {inc}\n"
+            got = hr.parse_ssh_config(text)
+            names = [h["name"] for h in got]
+            self.assertEqual(names, ["pi", "omicron"])
+            self.assertEqual(got[1]["user"], "inc")
+
+    def test_include_missing_and_nested_are_silent(self):
+        # missing file: silently skipped; nested Include inside an include
+        # (depth 1) is NOT followed
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            inner = os.path.join(d, "inner.conf")
+            with open(inner, "w") as f:
+                f.write("Host rho\n")
+            outer = os.path.join(d, "outer.conf")
+            with open(outer, "w") as f:
+                f.write(f"Include {inner}\nHost sigma\n")
+            got = hr.parse_ssh_config(f"Include {outer}\nHost tau\n")
+            names = [h["name"] for h in got]
+            self.assertIn("sigma", names)
+            self.assertIn("tau", names)
+            self.assertNotIn("rho", names)
+
+
+SSH_HOSTS = [
+    {"name": "alpha", "display": "alpha", "hostname": "", "port": "",
+     "user": ""},
+    {"name": "beta", "display": "Beta", "hostname": "10.0.0.9",
+     "port": "2222", "user": "root"},
+    {"name": "beta2", "display": "beta2", "hostname": "", "port": "",
+     "user": ""},
+]
+
+
+class SshLane(unittest.TestCase):
+    """F-9 route: exact-first-word ssh claim, rank, caps, rows."""
+
+    def conf(self):
+        return dict(CONF, _ssh_hosts=[dict(h) for h in SSH_HOSTS])
+
+    def test_claim_and_rank(self):
+        rows = hr.route("ssh beta", FakeCache(), set(), {}, self.conf())
+        # exact > prefix: beta is exact, beta2 prefix
+        self.assertEqual([r[0] for r in rows], ["ssh:beta", "ssh:beta2"])
+        self.assertEqual(rows[0][4], 100)
+        self.assertEqual(rows[0][5], 1.0)
+        self.assertEqual(rows[0][6]["actions"], [])
+        self.assertIn("CONNECT root@10.0.0.9:2222", rows[0][2])
+        self.assertIn("ENTER OPENS TERMINAL", rows[0][2])
+        self.assertEqual(rows[0][1], "SSH Beta")   # original case title
+
+    def test_substring_ranks_last(self):
+        rows = hr.route("ssh eta", FakeCache(), set(), {}, self.conf())
+        # beta, beta2 contain 'eta' as substring
+        self.assertEqual([r[0] for r in rows], ["ssh:beta", "ssh:beta2"])
+
+    def test_bare_ssh_help(self):
+        rows = hr.route("ssh", FakeCache(), set(), {}, self.conf())
+        self.assertEqual(rows[0][0], "ssh-help")
+        self.assertIn("type a host after 'ssh'", rows[0][1])
+        self.assertEqual(rows[0][6]["actions"], [])
+        self.assertEqual([r[0] for r in rows[1:]], ["ssh:alpha", "ssh:beta",
+                                                    "ssh:beta2"])
+        self.assertEqual([r[5] for r in rows[1:]], [0.5, 0.48, 0.46])
+
+    def test_no_match_row_and_word_exactness(self):
+        rows = hr.route("ssh zzz", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows], ["ssh-help"])
+        self.assertIn("No host matches", rows[0][1])
+        # claim needs the exact word: sshconf/sshd unclaimed
+        self.assertEqual(hr.route("sshconf beta", FakeCache(), set(), {},
+                                  self.conf()), [])
+        self.assertEqual(hr.route("sshd", FakeCache(), set(), {},
+                                  self.conf()), [])
+        # "ssh seagate" IS claimed (first word exact) -> no-match row
+        rows = hr.route("ssh seagate", FakeCache(), set(), {}, self.conf())
+        self.assertEqual(rows[0][0], "ssh-help")
+
+    def test_cap_eight(self):
+        conf = self.conf()
+        conf["_ssh_hosts"] = [
+            {"name": f"h{i}", "display": f"h{i}", "hostname": "",
+             "port": "", "user": ""} for i in range(12)]
+        rows = hr.route("ssh h", FakeCache(), set(), {}, conf)
+        self.assertEqual(len(rows), 8)
+
+    def test_empty_host_table_degrades(self):
+        rows = hr.route("ssh alpha", FakeCache(), set(), {}, dict(CONF))
+        self.assertEqual(rows[0][0], "ssh-help")
+        self.assertEqual(hr.route("ssh", FakeCache(), set(), {},
+                                  dict(CONF))[0][0], "ssh-help")
+
+
+SNIPS = [{"name": "sig", "text": "Greg DeYoung"},
+         {"name": "zoom", "text": "https://meet.example.com/x"}]
+
+
+class SnippetsLane(unittest.TestCase):
+    """F-10 route: in-band CRUD rows."""
+
+    def conf(self):
+        return dict(CONF, _snippets=[dict(s) for s in SNIPS])
+
+    def test_bare_semicolon_index(self):
+        rows = hr.route(";", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows], ["snippet:sig", "snippet:zoom"])
+        self.assertEqual([r[5] for r in rows], [0.55, 0.5])
+        for r in rows:
+            self.assertEqual(r[6]["actions"], ["copy", "show", "delete"])
+            self.assertIn("ENTER COPIES", r[2])
+        # ;help is the index too (reserved name wired, verdict change 10)
+        self.assertEqual(hr.route(";help", FakeCache(), set(), {},
+                                  self.conf())[0][0], "snippet:sig")
+
+    def test_bare_empty_state(self):
+        rows = hr.route(";", FakeCache(), set(), {}, dict(CONF))
+        self.assertEqual([r[0] for r in rows], ["snippet-help"])
+        self.assertIn("No snippets yet", rows[0][1])
+
+    def test_exact_copy_row_single_verb(self):
+        rows = hr.route(";sig", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows], ["snippet:sig"])
+        self.assertEqual((rows[0][4], rows[0][5]), (100, 1.0))
+        self.assertEqual(rows[0][6]["actions"], [])   # verdict change 8
+        self.assertEqual(rows[0][1], "sig")
+
+    def test_save_and_overwrite(self):
+        rows = hr.route(";sig New Sig", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows],
+                         ["snippet:sig", "snippet-save:sig"])
+        self.assertEqual(rows[1][5], 0.5)      # overwrite BELOW the copy row
+        self.assertIn("REPLACES", rows[1][2])
+        rows = hr.route(";fresh new text", FakeCache(), set(), {},
+                        self.conf())
+        self.assertEqual([r[0] for r in rows], ["snippet-save:fresh"])
+        self.assertEqual((rows[0][4], rows[0][5]), (100, 1.0))
+        self.assertIn("ENTER SAVES", rows[0][2])
+
+    def test_unknown_and_invalid_names(self):
+        rows = hr.route(";foo", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows], ["snippet-help"])
+        self.assertIn("No such snippet: foo", rows[0][1])
+        rows = hr.route(";UPPER text", FakeCache(), set(), {}, self.conf())
+        self.assertIn("Invalid snippet name", rows[0][1])
+        rows = hr.route(";too-long-a-name-1234 x", FakeCache(), set(), {},
+                        self.conf())
+        self.assertIn("Invalid snippet name", rows[0][1])
+
+    def test_index_cap(self):
+        conf = dict(CONF, _snippets=[
+            {"name": f"s{i}", "text": f"t{i}"} for i in range(10)])
+        rows = hr.route(";", FakeCache(), set(), {}, conf)
+        self.assertEqual(len(rows), 9)   # 8 rows + "+2 more" row
+        self.assertEqual(rows[-1][0], "snippet-more")
+        self.assertIn("2 more", rows[-1][1])
+
+    def test_semicolon_claim_does_not_touch_lanes(self):
+        # `;` claims the whole query — "ai" is just an unknown snippet name
+        # offered as a save; it must NOT route to the ai lane.
+        rows = hr.route(";ai question", FakeCache(), set(), {},
+                        dict(CONF, _snippets=[]))
+        self.assertEqual(rows[0][0], "snippet-save:ai")
+
+
+class HelpPages(unittest.TestCase):
+    """F-11: index + drill pages + fallback."""
+
+    def conf(self):
+        return dict(CONF, _handoffs=[{"prefix": "gh", "label": "GitHub",
+                                      "url": "https://github.com/search?q=%s",
+                                      "host": "github.com"}],
+                    _ssh_hosts=[], _snippets=[])
+
+    def test_bare_help_is_index(self):
+        rows = hr.route("help", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows],
+                         ["help-ai", "help-hr", "help-dictation",
+                          "help-ssh", "help-snippet", "help-model",
+                          "help-handoff-gh", "help-docs"])
+
+    def test_unknown_lane_falls_back_to_index(self):
+        rows = hr.route("hermes bogus", FakeCache(), set(), {}, self.conf())
+        self.assertEqual(rows[0][0], "help-ai")
+        rows = hr.route("help me fix wifi", FakeCache(), set(), {},
+                        self.conf())
+        self.assertEqual(rows[0][0], "help-ai")
+
+    def test_ssh_page(self):
+        rows = hr.route("hermes ssh", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows],
+                         ["helppage:ssh:0", "helppage:ssh:1",
+                          "helppage:ssh:2"])
+        self.assertEqual(rows[0][6]["actions"], ["copy"])
+        self.assertEqual(rows[0][1], "ssh <host>")   # copy payload is title
+        for r in rows[1:]:
+            self.assertEqual(r[6]["actions"], [])
+
+    def test_snippets_page_and_docs(self):
+        rows = hr.route("hermes snippets", FakeCache(), set(), {},
+                        self.conf())
+        self.assertEqual(len(rows), 4)
+        rows = hr.route("hermes docs", FakeCache(), set(), {}, self.conf())
+        self.assertEqual([r[0] for r in rows], ["help-docs"])
+        self.assertEqual(rows[0][6]["actions"], [])
+
+    def test_all_pages_present(self):
+        for lane in ("ai", "hr", "dictation", "model", "handoffs"):
+            rows = hr.route(f"hermes {lane}", FakeCache(), set(), {},
+                            self.conf())
+            self.assertTrue(rows, lane)
+            for r in rows:
+                self.assertTrue(r[0].startswith(f"helppage:{lane}:"))
+                self.assertLessEqual(len(rows), 6)
+
+    def test_handoff_page_capped_six(self):
+        conf = self.conf()
+        conf["_handoffs"] = [
+            {"prefix": f"p{i}", "label": f"L{i}",
+             "url": f"https://h{i}.example/?q=%s", "host": f"h{i}.example"}
+            for i in range(8)]
+        rows = hr.route("hermes handoffs", FakeCache(), set(), {}, conf)
+        self.assertLessEqual(len(rows), 7)   # 6 examples + config pointer
+
+
+class SnippetsDispatch(unittest.TestCase):
+    """F-10 Run-side: copy/show/delete/save with RMW persistence."""
+
+    class Ctx:
+        def __init__(self, conf):
+            self.conf = conf
+            self.cache = FakeCache()
+            self._tmp = tempfile.mkdtemp()
+            self.stats = hr.Stats(
+                path=os.path.join(self._tmp, "stats.json"))
+
+        def fetch_answer(self, text):
+            pass
+
+        def close(self):
+            import shutil
+            shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def setUp(self):
+        self.notes = []
+        self.clips = []
+        self.conf = dict(CONF, _snippets=[dict(s) for s in SNIPS])
+        ctx = self.Ctx(self.conf)
+        p = lambda *a: self.notes.append(a)
+        self.patchers = [
+            mock.patch.object(hr, "notify", p),
+            mock.patch.object(hr, "clipboard", lambda t: self.clips.append(t)
+                              or True),
+            mock.patch.object(hr, "persist_snippets",
+                              lambda s: (True, "")),
+        ]
+        for x in self.patchers:
+            x.start()
+        self.addCleanup(lambda: [x.stop() for x in self.patchers])
+        self.addCleanup(ctx.close)
+        self.ctx = ctx
+
+    def hit(self, key):
+        return self.ctx.stats.data.get(key, 0)
+
+    def test_copy_and_show_credit_snippet_uses(self):
+        hr.run_dispatch("snippet", "sig", "sig", "", self.ctx)
+        self.assertEqual(self.clips, ["Greg DeYoung"])
+        self.assertEqual(self.hit("snippet_uses"), 1)
+        hr.run_dispatch("snippet", "sig", "sig", "show", self.ctx)
+        self.assertEqual(self.hit("snippet_uses"), 2)
+        self.assertEqual(self.notes[-1][1], "Greg DeYoung")
+
+    def test_delete_is_recoverable(self):
+        hr.run_dispatch("snippet", "sig", "sig", "delete", self.ctx)
+        self.assertEqual([s["name"] for s in self.conf["_snippets"]],
+                         ["zoom"])
+        self.assertEqual(self.hit("snippet_edits"), 1)
+        body = self.notes[-1][1]
+        self.assertIn("sig", body)
+        self.assertIn("Greg DeYoung", body)   # full text rides along
+
+    def test_delete_failure_keeps_state(self):
+        with mock.patch.object(hr, "persist_snippets",
+                               lambda s: (False, "disk full")):
+            hr.run_dispatch("snippet", "sig", "sig", "delete", self.ctx)
+        self.assertEqual([s["name"] for s in self.conf["_snippets"]],
+                         ["sig", "zoom"])
+        self.assertIn("not saved", self.notes[-1][0])
+
+    def test_save_new_and_overwrite(self):
+        hr.run_dispatch("snippet-save", "fresh", "Hello World", "", self.ctx)
+        names = [s["name"] for s in self.conf["_snippets"]]
+        self.assertEqual(names, ["sig", "zoom", "fresh"])
+        self.assertEqual(self.conf["_snippets"][2]["text"], "Hello World")
+        self.assertEqual(self.hit("snippet_edits"), 1)
+        hr.run_dispatch("snippet-save", "sig", "New Sig", "", self.ctx)
+        texts = {s["name"]: s["text"] for s in self.conf["_snippets"]}
+        self.assertEqual(texts["sig"], "New Sig")
+        self.assertEqual(len(self.conf["_snippets"]), 3)
+
+    def test_save_rejects_wire_garbage(self):
+        hr.run_dispatch("snippet-save", "UPPER", "x", "", self.ctx)
+        hr.run_dispatch("snippet-save", "help", "x", "", self.ctx)
+        hr.run_dispatch("snippet-save", "ok", "", "", self.ctx)
+        self.assertEqual(len(self.conf["_snippets"]), 2)
+
+    def test_ssh_dispatch_counts_and_ignores_unknown(self):
+        with mock.patch.object(hr.subprocess, "Popen") as pop:
+            self.conf["_ssh_hosts"] = [dict(SSH_HOSTS[1])]
+            hr.run_dispatch("ssh", "Beta", "", "", self.ctx)
+            pop.assert_called_once()
+            self.assertEqual(pop.call_args[0][0][:4],
+                             ["konsole", "--hold", "-e", "ssh"])
+            self.assertEqual(self.hit("ssh_sessions"), 1)
+        hr.run_dispatch("ssh", "nope", "", "", self.ctx)   # unknown: no-op
+
+    def test_helppage_copy_uses_title_and_docs_opens(self):
+        with mock.patch.object(hr.subprocess, "Popen") as pop:
+            hr.run_dispatch("helppage", "ssh:0", "ssh <host>", "copy",
+                            self.ctx)
+            self.assertEqual(self.clips, ["ssh <host>"])
+            hr.run_dispatch("help-docs", "", "", "", self.ctx)
+            self.assertTrue(pop.call_args[0][0][0] == "xdg-open")
+
+
+class ReservedRegistry(unittest.TestCase):
+    """Verdict change 3: lane claims are reserved bidirectionally."""
+
+    def test_handoff_prefix_colliding_rejected(self):
+        for bad in ("ssh", "help", "hermes"):
+            conf = {"answer_prefix": "ai", "task_prefix": "hr",
+                    "handoffs": [{"prefix": bad, "label": "X",
+                                  "url": "https://x.example/?q=%s"}]}
+            clean, skipped = hr.sanitize_handoffs(conf)
+            self.assertEqual((clean, skipped), ([], 1), bad)
+
+    def test_answer_prefix_colliding_reset(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "config.json")
+            with open(path, "w") as f:
+                json.dump({"answer_prefix": "ssh",
+                           "task_prefix": "help"}, f)
+            with mock.patch.object(hr, "CONF_PATH", path):
+                conf = hr.load_conf()
+            self.assertEqual(conf["answer_prefix"], "ai")
+            self.assertEqual(conf["task_prefix"], "hr")
+
+
+class SnippetSanitize(unittest.TestCase):
+    """F-10 fixtures: foyer-identical snippet sanitizing."""
+
+    def test_fixtures(self):
+        from fixtures_snippets import SNIPPET_SANITIZE_FIXTURES
+        for name, entries, expected in SNIPPET_SANITIZE_FIXTURES:
+            with self.subTest(name):
+                got = hr.sanitize_snippets(entries)
+                self.assertEqual([(s["name"], s["text"]) for s in got],
+                                 expected)
+
+    def test_none_and_string_input_safe(self):
+        self.assertEqual(hr.sanitize_snippets(None), [])
+        self.assertEqual(hr.sanitize_snippets("not-a-list"), [])
 
 
 if __name__ == "__main__":

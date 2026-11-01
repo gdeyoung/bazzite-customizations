@@ -567,3 +567,115 @@ the adoption report reads true: delivery volume is approximated by `asks`.
 Privacy: counts only — query text is never stored. The two-week adoption
 review (≈2026-11-14) reads this file and lanes that don't earn their keep
 get cut.
+
+### F-9. SSH lane (Phase 4) — `ssh <host>`
+
+Source of truth: `~/.ssh/config`, parsed at load + HUP reload (same
+lifecycle as handoffs). Parser (foyer-based, extended): `Host` lines may
+name several hosts per group; `Hostname`/`Port`/`User` apply to the whole
+group; glob names (`*` `?`) and NEGATED names (`!foo`) are skipped;
+trailing `# comments` stripped; names lowercased for matching, original
+case kept for titles. `Include` directives are FOLLOWED (one level of
+`~` expansion + glob, missing files silently skipped — a host hidden in
+an Include is this lane's likeliest real-world miss).
+
+- Claim: the query is claimed iff its FIRST WORD is exactly `ssh`
+  (`sshconf`/`sshd` are unclaimed); the remaining terms then match hosts
+  exact > name-prefix > substring, cap 8. `ssh seagate` IS claimed and
+  yields the no-match row.
+- `ssh <terms>`: rows id `ssh:<name>`, title `SSH <name>` (original
+  case), subtext `CONNECT <user@>host[:port] · ENTER OPENS TERMINAL`
+  (only present parts), icon `utilities-terminal`, Highest/1.0,
+  `actions: []`.
+- `ssh` bare: help row title `SSH — type a host after 'ssh'` (subtext
+  `HOSTS COME FROM ~/.ssh/config · TYPE 'hermes ssh' FOR DETAILS`,
+  Moderate/0.55, `actions: []`) + first 5 hosts alphabetically at
+  Moderate 0.5−0.02i as connect rows.
+- No matches: one row `No host matches '<terms>'`, subtext `HOSTS COME
+  FROM ~/.ssh/config`, id `ssh-help`, Moderate/0.5, `actions: []`.
+- Run (`ssh:` kind): spawn `konsole --hold -e ssh <name>` (name
+  re-validated against the parsed table — never trust the wire id);
+  counts `ssh_sessions`. `--hold` keeps the window up after disconnect.
+- No config duplication: hosts are NEVER copied into config.json. README
+  recommends short multi-name aliases (`Host aic aicube`) — keystroke
+  filtering is the completion; there is none (and foyer has none either).
+
+### F-10. Snippets (Phase 4) — `;name [text]`
+
+Config: `snippets: [{name, text}]`, sanitized at load: name
+`^[a-z0-9][a-z0-9-]{0,15}$` (validated RAW — no silent lowering; unique;
+`help` is reserved FOR the `;help` alias below), text non-empty,
+single-line, ≤2000 chars. Malformed entries skipped + one journal line,
+never fatal.
+
+- Claim: query starts with `;`.
+- `;` bare (or `;help`): the INDEX — every snippet in config order, cap
+  8 rows then a `+N MORE · ALL IN config.json` pointer row. Row: id
+  `snippet:<name>`, title `<name>`, subtext `clip(text, 80) · ENTER
+  COPIES`, icon `text-x-generic`, Moderate — first row 0.55, then
+  0.5−0.02i, actions `[copy, show, delete]`. Zero snippets configured →
+  ONE save-syntax help row: `No snippets yet` / `TYPE ;name text… TO
+  SAVE ONE · SNIPPETS LIVE IN config.json`, Moderate/0.5, `actions: []`.
+- `;name` exact match: ONE row, Highest/1.0, `actions: []` — Enter
+  copies (single-verb pattern, like ask/task/handoff). Title `<name>`,
+  subtext `clip(text, 80) · ENTER COPIES`.
+- `;name <terms>` where name EXISTS: row 1 the copy row as above
+  (Highest/1.0, `actions: []`); row 2 `Overwrite '<name>' with new
+  text`, Moderate/0.5, subtext `clip(terms, 80) · ENTER REPLACES THE
+  SNIPPET`, id `snippet-save:<name>`, `actions: []`.
+- `;<valid-new-name> <text>` where name is UNKNOWN: single row `Save
+  snippet '<name>'`, subtext `clip(text, 80) · ENTER SAVES · THEN
+  ;<name> COPIES`, id `snippet-save:<name>`, Highest/1.0, `actions: []`.
+- `;<anything>` that is a VALID name with NO text and no match (e.g.
+  `;foo`), or an INVALID name (regex fail / reserved): ONE help row `No
+  such snippet: <name>` / `Invalid snippet name: <name>`, subtext
+  `VALID NAMES a-z 0-9 - MAX 16 · TYPE ';' TO LIST`, id `snippet-help`,
+  Moderate/0.5, `actions: []`.
+- Run kinds: `snippet:` act ""→ clipboard + `snippet_uses` + notify
+  `Hermes · snippet copied` (low); act `copy` same; act `show` → notify
+  `Hermes · <name>` body full text + `snippet_uses` (like reshow credits
+  answer_uses); act `delete` → remove + persist + `snippet_edits` +
+  notify `Hermes · snippet deleted` whose BODY CARRIES THE FULL TEXT
+  (undo-by-copy — delete is the runner's only destructive verb, one
+  misclick from COPY). `snippet-save:` → upsert + persist +
+  `snippet_edits` + notify `Hermes · snippet saved`. Persist is
+  read-modify-write of config.json preserving unknown keys.
+- Actions() constants gain: `("show", "SHOW", "help-browser")` and
+  `("delete", "DELETE", "edit-delete")` (B-8 CAPS grammar; both
+  Breeze-verified on this host) alongside copy/askagain/reshow.
+- Privacy: snippet TEXT never in titles; previews clip to 80 chars.
+
+### F-11. Layered help (Phase 4) — the query line is the navigation
+
+SUPERSEDES §B-2 states 9–10 (the old two-row `hermes` pair) and §F-4's
+`hermes`-query handoff help rows — all `hermes`/`help` traffic now gets
+the index below.
+
+- `hermes` AND bare `help` claim the INDEX — one row per lane with
+  FIXED rels (deterministic, independent of configured handoff count):
+  help-ai .55 · help-hr .50 · help-dictation .45 · help-ssh .43 ·
+  help-snippet .42 · help-model .41 · help-handoff-<p> .40−0.01i (cap 8
+  handoff rows, then `+N MORE · TYPE 'hermes handoffs'`) · help-docs
+  .30. Every subtext ends with its drill hint (`TYPE 'hermes ssh' FOR
+  DETAILS` style).
+- `hermes <unknown>` / `help <unknown>` fall back to the INDEX (no typo
+  row — the index IS the correction).
+- `hermes <lane>` detail pages: cap 6 rows each at Moderate 0.5−0.02i,
+  ids `helppage:<lane>:<n>`, icon `help-browser`, `actions: []` (inert)
+  except example rows which carry a `copy` action (clipboard-ready
+  example). One syntax row, 2–3 examples, one management/config row per
+  lane; handoffs page lists every configured prefix when the index had
+  to cap. Pages appear ONLY under `hermes`/`help` queries — they can
+  never crowd a live lane.
+- `hermes docs` row: id `help-docs`, Moderate/0.30, icon `help-browser`,
+  `actions: []`; Run opens the README via xdg-open (kind `docs`).
+  README stays the full manual.
+- Counter additions: `ssh_sessions`, `snippet_uses` (copy + show),
+  `snippet_edits` (create+overwrite+delete) — Run-only, same rules as
+  §F-8.
+- Reserved registry becomes BIDIRECTIONAL at load: handoff prefixes
+  reject `ssh` and `help` in addition to existing rules; and
+  `answer_prefix`/`task_prefix` values equal to any lane claim
+  (`ssh`, `help`, `hermes`) are rejected with a journal warning — the
+  config default applies until fixed. Renames can no longer shadow a
+  lane in either direction.

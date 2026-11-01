@@ -1,0 +1,38 @@
+# F-9 fixtures: ssh_config parse table. SYNTHETIC hosts only — no real
+# fleet hostnames/IPs in this repo. Port of foyer SshModel.parseConfig.
+
+SSH_CONFIG_FIXTURES = [
+    # (name, config_text, expected [(name, hostname, port, user), ...])
+    ("plain host",
+     "Host alpha\n",
+     [("alpha", "", "", "")]),
+    ("multi-name group shares settings",
+     "Host beta b2\n  HostName 10.0.0.9\n  Port 2222\n  User root\n",
+     [("beta", "10.0.0.9", "2222", "root"),
+      ("b2", "10.0.0.9", "2222", "root")]),
+    ("globs skipped",
+     "Host gamma-* delta\n  User admin\n",
+     [("delta", "", "", "admin")]),
+    ("case-insensitive directives, mixed-case names lowercased",
+     "Host EPSILON\n  HOSTNAME eps.local\n  PORT 22\n  USER deploy\n",
+     [("epsilon", "eps.local", "22", "deploy")]),
+    ("trailing comments stripped, inline kept",
+     "Host zeta  # prod box\n  Hostname z.local  # vpn\n",
+     [("zeta", "z.local", "", "")]),
+    ("settings do not leak backwards to previous group",
+     "Host eta\n  User first\nHost theta\n",
+     [("eta", "", "", "first"),
+      ("theta", "", "", "")]),
+    ("empty text",
+     "",
+     []),
+    ("garbage lines ignored",
+     "ProxyJump jump\nCompression yes\nHost iota\n",
+     [("iota", "", "", "")]),
+    ("negated names skipped",
+     "Host !kappa lambda\n  User ops\n",
+     [("lambda", "", "", "ops")]),
+    ("negation token in group",
+     "Host mu !nu-xi\n  Port 2200\n",
+     [("mu", "", "2200", "")]),
+]

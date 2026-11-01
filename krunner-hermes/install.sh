@@ -38,6 +38,7 @@ mkdir -p "$SHARE" "$HOME/.local/share/krunner/dbusplugins" "$HOME/.config/system
 
 # 1. daemon + desktop spec + unit
 install -m 0755 "$SRC/hermes_runner.py" "$SHARE/hermes_runner.py"
+install -m 0644 "$SRC/README.md" "$SHARE/README.md"   # `hermes docs` opens it
 install -m 0644 "$SRC/org.kde.runners.hermes.desktop" \
         "$HOME/.local/share/krunner/dbusplugins/org.kde.runners.hermes.desktop"
 install -m 0644 "$SRC/hermes-runner.service" \

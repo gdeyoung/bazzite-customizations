@@ -1,14 +1,14 @@
 # Hermes KRunner Runner — `ai <question>` / `hr <task>`
 
-The Omarchy "front door" feeling, KDE-native: Alt+Space, ask a question or
+The Omarchy "front door" feeling, KDE-native: Super+Space, ask a question or
 fire an agent task, no terminal, no browser. Zero-compile Plasma 6 DBus
 runner — no C++, no KDE SDK, nothing layered into the image.
 
-**Status: v0.2 — UX-reviewed (UX-SPEC.md), harness-gated, unit-tested.**
+**Status: v0.5 — UX-reviewed (UX-SPEC.md), harness-gated, unit-tested.**
 
 ## What the two prefixes do
 
-| You type (Alt+Space) | What happens |
+| You type (Super+Space) | What happens |
 |---|---|
 | `ai <question>` | Enter on the row ASKS: background fetch from the fleet LiteLLM proxy (default `local-fast`). Answer pops as a desktop notification; retype the same query and the answer row appears inline in KRunner — Enter copies it. Match time does NO I/O (no request spam while typing). |
 | `hr <task>` | Enter FIRES one unattended Hermes agent turn (`hermes -z`), notifies "task started", logs to `~/.cache/hermes-runner/task-<ts>.log`, and notifies with the cleaned tail when it ends. A running registry prevents double-fire; while running, the row shows elapsed time and Enter shows the log tail. |
@@ -27,8 +27,14 @@ Errors are their own state: a failed ask shows a red row with a one-line humaniz
 
 **Adoption counters (v0.4):** every Enter-verb counts (asks, tasks, answer uses, error retries, handoff opens per prefix, web opens, recent copies, model switches, dictation folds) into `~/.cache/hermes-runner/stats.json` — counts only, never query text. `/usr/bin/python3 hermes_runner.py --stats` prints totals + per-day rollup (system python — the module imports dbus at top level); the two-week adoption review decides which lanes stay.
 
+**SSH lane (v0.5):** `ssh <host>` connects straight from `~/.ssh/config` — Enter opens `konsole --hold -e ssh <name>` (window stays up after disconnect). Hosts are parsed at load (HUP reloads, like handoffs): `Host` groups share Hostname/Port/User, globs and `!negated` names are skipped, `Include` is followed one level (missing files silently skipped). Matching is typed-prefix filtering — exact > prefix > substring, cap 8 rows; `sshconf`/`sshd` are NOT claimed (first word must be exactly `ssh`). Subtext shows the real target `CONNECT root@10.0.0.9:2222 · ENTER OPENS TERMINAL`; original-case names keep their case in titles. Bare `ssh` shows a help row + the first 5 hosts; no match shows one `No host matches` row. Hosts are never copied into config.json. No tab completion exists in KRunner (runners can't rewrite the query box) — short multi-name aliases in `~/.ssh/config` (`Host aic aicube`) are the compensation.
+
+**Snippets (v0.5):** `;` is an in-band snippet CRUD. `;sig` Enter copies snippet `sig`; row buttons COPY · SHOW · DELETE. `;sig Greg DeYoung` Enter saves it (retyping an existing name shows the copy row plus an `Overwrite` row below it — save-if-new is Highest, overwrite is deliberately lower). `;` alone lists all snippets (name in title, 80-char preview in subtext, cap 8 + a `+N more` pointer). Names: `a-z 0-9 -`, max 16, unique, validated as typed (`;Sig` is invalid, never silently lowered); `help` is reserved (`;help` = the index). Text: single line, ≤2000 chars — multi-line snippets stay config.json-only by design (`"snippets": [{name, text}]`). Delete is recoverable: the `snippet deleted` notification carries the full text for undo-by-copy. Saves/deletes persist via read-modify-write of config.json (unknown keys preserved) — on write failure the change stays in memory and the notification says so.
+
+**Layered help (v0.5):** `hermes` (or bare `help`) is the index — one row per lane (ai · hr · dictation · ssh · snippets · model · each handoff · docs) with a drill hint in every subtext. `hermes ssh`, `hermes snippets`, `hermes model`, `hermes ai`, `hermes hr`, `hermes dictation`, `hermes handoffs` open short detail pages (≤6 rows): a syntax row, copy-action example rows (the COPY button puts the example on your clipboard), and a config pointer. `hermes docs` opens this README. Unknown lanes fall back to the index — the index IS the correction. Help rows are inert (`actions: []`) except the copy examples; help describes config, never edits it.
+
 KRunner stays KRunner: apps, windows, calculator, unit conversion, timers and
-file search remain native. This runner only adds the two agent lanes — the
+file search remain native. This runner only adds the agent lanes — the
 parts of Omarchy's Foyer that have no KDE equivalent.
 
 ## How it works
@@ -68,12 +74,26 @@ Reload without restarting: `systemctl --user kill -s HUP hermes-runner`.
 ./install.sh --litellm-url http://192.168.1.243:4000/v1 --model local-fast \
              --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env
 systemctl --user restart plasma-krunner.service
-# Alt+Space → "ai ping"
+# Super+Space → "ai ping"
 ```
 
 Rollback: `./uninstall.sh` (removes daemon/spec/unit, keeps config+cache).
 
 ## Verified
+
+**2026-11-01 — v0.5.0 phase gates (unit + nested harness kr14 + live):**
+105/105 tests (ssh parser incl. negation + one-level Include fixtures, ssh
+lane ranking/claims/caps, snippets CRUD matrix incl. `;foo` unknown and
+zero-snippet states, dispatch persistence incl. recoverable delete +
+wire-garbage rejection, layered-help index/pages/fallback, bidirectional
+reserved registry). Harness kr14 (nested Wayland, KRunner 6.31): wire
+assertions for `ssh:` rows (group-shared `CONNECT root@10.0.0.9:2222`
+subtext, exact-first-word claim), `;sig New Sig` copy+overwrite row pair,
+9-row help index at literal rels .55→.30, double HUP reload confirmed in the
+runner log; pixels confirmed for the SSH row and the full index (vision
+lane rerouted to `local-agent` — MediaServer `local-vision` backend was
+down at gate time). Live install: index/ssh/snippet/docs rows on the user
+bus, journal clean.
 
 **2026-10-31 — v0.4.0 phase gates (unit + nested harness kr13 + live):**
 71/71 tests (normalize fixtures, handoff sanitize, model switch incl.
