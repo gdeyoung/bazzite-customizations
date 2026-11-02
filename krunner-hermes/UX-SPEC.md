@@ -888,3 +888,53 @@ Mullvad-style categories-as-tabs chrome, grid views, .desktop file
 editing, per-app "open file…" handlers, Wayland window activation.
 Any of those would mean fighting KRunner's window instead of feeding
 it rows.
+
+## §L revision r3 — v0.7: the real KDE menu (2026-11-02)
+
+User directive: the launcher must mirror Kickoff — favorites are THE
+KDE menu favorites, groupings are THE KDE menu tree. Sources of truth
+replace heuristics; nothing writes to KDE's data.
+
+### L-11 Kickoff favorites (read-only mirror)
+
+- Source: kactivitymanagerd SQLite
+  (`~/.local/share/kactivitymanagerd/resources/database`), table
+  `ResourceLink`, rows `initiatingAgent =
+  org.kde.plasma.favorites.applications` AND `usedActivity =
+  ':global'`, ORDER BY rowid → the user's Kickoff order.
+- 5 s TTL inside AppStore — cheap re-read, favorites edits show up
+  without a daemon restart.
+- Root view order: anchor → kickoff favorites → hermes pins →
+  frequency → category rows. `apps pins` shows the same two blocks.
+- Favorite rows are LAUNCH-ONLY (`actions: ["launch"]`) — you cannot
+  unpin KDE's favorites from the runner (no writes to KDE data, ever).
+  Hermes pins keep launch/unpin.
+- Dead favorite ids (app uninstalled — 9 of 35 on this host today)
+  are skipped silently, exactly as Kickoff skips them.
+
+### L-12 Menu-tree groupings (the actual XDG menu)
+
+- Source: `/etc/xdg/menus/applications.menu` (+ user
+  `~/.config/menus/applications.menu` if present, merged by slug) —
+  `<Menu>` children of the Applications root, in file order; skip
+  `deleted`/`hidden`; Include rules (Category, And-combos) collected,
+  Exclude categories honored; labels from the `<Directory>` file when
+  resolvable else the `<Name>` element.
+- App → group = FIRST matching menu in file order (And-rule must
+  fully match; exclude beats include). Live host: 9 groups,
+  Accessories 59 / Games 73 / Internet 32 / System Tools 24 /
+  Multimedia 16 / Office 15 / Development 11 / Graphics 8 /
+  Education 1, unfiled 11.
+- Bazzite ships no plain `.directory` files (Utility.directory etc.
+  unresolved) → icons fall back to the same breeze `applications-*`
+  names Kickoff uses (ICON_FALLBACKS).
+- Curated CATEGORY_PRECEDENCE/FALLBACK_LABELS demoted to fallback
+  when the menu tree fails to parse entirely.
+- Grammar r3: multi-word labels parse (`apps system tools`), cat
+  drill + fuzzy filter unchanged.
+
+### L-13 Cache/compat notes
+
+- apps.json cache version 2 → 3 (invalidates v0.6 caches once).
+- Kickoff DB opened `mode=ro` URI; any error → [] (never fatal,
+  never a write).

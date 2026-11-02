@@ -508,7 +508,10 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
             snap = []
         for r in apps_model.build_rows(
                 snap, conf.get("_app_pins") or [], freq,
-                conf.get("_app_cats") or {}, rest, dead_pin_logger=dead_pin):
+                conf.get("_app_cats") or {}, rest,
+                menu=appstore.menu or None,
+                kickoff=appstore.kickoff_favorites(),
+                dead_pin_logger=dead_pin):
             tier = {"HIGHEST": R_HIGHEST, "HIGH": R_HIGH,
                     "MODERATE": R_MODERATE}[r["tier"]]
             row(r["id"], r["title"], r["sub"], r["icon"], tier, r["rel"],
@@ -1220,7 +1223,10 @@ def run_dispatch(kind, key, text, act, ctx):
     elif kind == "appcat":
         # §L-6: drill = re-drive the KRunner query via /App. Async + delayed
         # — a synchronous call back into krunner mid-Run would deadlock.
-        if key in apps_model.SLUGS:
+        slugs = ({m["slug"] for m in ctx.appstore.menu}
+                 if getattr(ctx, "appstore", None) and ctx.appstore.menu
+                 else {s for s, _ in apps_model.FALLBACK_LABELS})
+        if key in slugs:
             if stats:
                 stats.hit("app_browses")
             log(f"HARNESS-APPCAT apps {key}")

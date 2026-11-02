@@ -115,6 +115,22 @@ Name=HiddenApp
 Exec=hxhidden
 NoDisplay=true
 EOF
+# v0.7 kickoff-favorites fixture: kactivitymanagerd-shaped SQLite under the
+# harness HOME — AppStore reads it read-only; favorites must lead the root view
+mkdir -p "$H/.local/share/kactivitymanagerd/resources"
+/usr/bin/python3 - "$H/.local/share/kactivitymanagerd/resources/database" <<'EOF'
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+c.execute("CREATE TABLE ResourceLink (usedActivity TEXT, "
+          "initiatingAgent TEXT, targettedResource TEXT)")
+c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
+          (":global", "org.kde.plasma.favorites.applications",
+           "applications:hxmine.desktop"))
+c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",   # noise: other agent
+          (":global", "org.kde.plasma.favorites.contacts",
+           "applications:hxfire.desktop"))
+c.commit(); c.close()
+EOF
 cat > "$H/stub-bin/kioclient" <<'EOF'
 #!/usr/bin/env bash
 echo "STUB-KIOCLIENT $*" >> "$HOME/stub-kioclient.log"
@@ -316,8 +332,18 @@ grep -q "app:hxfire.desktop" "$ROOT/kr-appsfz-$TAG.txt" \
 
 $B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps pins" \
     > "$ROOT/kr-appspins-$TAG.txt" 2>&1
-grep -q "No pins yet" "$ROOT/kr-appspins-$TAG.txt" \
-    && echo "CKPT-APPS-PINS-EMPTY=OK" || echo "CKPT-APPS-PINS-EMPTY=FAIL"
+# v0.7: with a kickoff favorite present, pins view shows the kickoff block
+# (empty-state row only when favorites AND pins are both empty — unit-tested)
+# note: busctl escapes UTF-8 — '·' appears as \302\267 in Match output
+grep -q 'kickoff \\302\\267 games' "$ROOT/kr-appspins-$TAG.txt" \
+    && echo "CKPT-APPS-PINS-KICKOFF=OK" || echo "CKPT-APPS-PINS-KICKOFF=FAIL"
+
+# v0.7: kickoff favorite leads the root view, launch-only (kickoff · group)
+grep -q 'kickoff \\302\\267 games' "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-KICKOFF=OK" || echo "CKPT-APPS-KICKOFF=FAIL"
+# noise row (other favorites agent) must NOT leak in as a favorite
+grep -q 'kickoff \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-KICKOFF-FILTER=FAIL" || echo "CKPT-APPS-KICKOFF-FILTER=OK"
 
 $B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1
 sleep 1

@@ -43,18 +43,105 @@ APPS = {
     "kate.desktop": desktop("Kate", "Utility;TextEditor", "Text Editor",
                             "text"),
     "org.flatpak.app.desktop": desktop("FlatApp", "Network", "", "flat"),
+    "kdenlive.desktop": desktop("Kdenlive", "AudioVideo;Video",
+                                "Video Editor", "video"),
+    "missioncenter.desktop": desktop("Mission Center", "System",
+                                     "System Monitor", "monitor"),
 }
 
+MENU_XML = """<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+ "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
+<Menu>
+  <Name>Applications</Name>
+  <Menu><Name>Internet</Name><Directory>Internet.directory</Directory>
+    <Include><Category>Network</Category></Include></Menu>
+  <Menu><Name>Games</Name><Directory>Game.directory</Directory>
+    <Include><Category>Game</Category></Include></Menu>
+  <Menu><Name>System Tools</Name><Directory>System-Tools.directory</Directory>
+    <Include><Category>System</Category></Include>
+    <Exclude><Category>X-Blocked</Category></Exclude></Menu>
+  <Menu><Name>Multimedia</Name><Directory>Multimedia.directory</Directory>
+    <Include><And><Category>AudioVideo</Category>
+      <Category>Video</Category></And></Include></Menu>
+  <Menu><Name>Accessories</Name><Directory>Utility.directory</Directory>
+    <Include><Category>Utility</Category></Include></Menu>
+</Menu>
+"""
 
-def fixture_store(tmp, apps=None, which=lambda n: "/usr/bin/" + n):
+DIRECTORIES = {
+    "Internet.directory": "[Desktop Entry]\nType=Directory\n"
+                          "Name=Internet\nIcon=applications-internet\n",
+    "Game.directory": "[Desktop Entry]\nType=Directory\n"
+                      "Name=Games\nIcon=applications-games\n",
+    "System-Tools.directory": "[Desktop Entry]\nType=Directory\n"
+                              "Name=System Tools\n"
+                              "Icon=applications-system\n",
+    "Multimedia.directory": "[Desktop Entry]\nType=Directory\n"
+                            "Name=Multimedia\nIcon=applications-multimedia\n",
+    "Utility.directory": "[Desktop Entry]\nType=Directory\n"
+                         "Name=Accessories\nIcon=applications-utilities\n",
+}
+
+USER_MENU_XML = """<Menu>
+  <Name>Applications</Name>
+  <Menu><Name>Internet</Name>
+    <Include><Category>X-Fido</Category></Include></Menu>
+</Menu>
+"""
+
+
+def write_menu_fixture(tmp):
+    """Fixture menu + .directory files; returns (paths, dir_dirs)."""
+    root = Path(tmp)
+    (root / "menus").mkdir(exist_ok=True)
+    (root / "menus" / "applications.menu").write_text(MENU_XML)
+    dd = root / "desktop-directories"
+    dd.mkdir(exist_ok=True)
+    for fn, text in DIRECTORIES.items():
+        (dd / fn).write_text(text)
+    return ([str(root / "menus" / "applications.menu")], [str(dd)])
+
+
+def write_kickoff_fixture(tmp, ids):
+    """Fixture kactivitymanagerd DB; returns its path."""
+    import sqlite3
+    p = Path(tmp, "kickoff.db")
+    if p.exists():
+        p.unlink()
+    c = sqlite3.connect(str(p))
+    c.execute("CREATE TABLE ResourceLink (usedActivity TEXT, "
+              "initiatingAgent TEXT, targettedResource TEXT)")
+    for i, rid in enumerate(ids):
+        c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
+                  (":global", "org.kde.plasma.favorites.applications",
+                   "applications:" + rid))
+    # noise rows that must be ignored
+    c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
+              (":global", "org.kde.plasma.favorites.applications",
+               "activities:something"))
+    c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
+              (":an-activity", "org.kde.plasma.favorites.applications",
+               "applications:firefox.desktop"))
+    c.commit()
+    c.close()
+    return str(p)
+
+
+def fixture_store(tmp, apps=None, which=lambda n: "/usr/bin/" + n,
+                  kickoff_ids=("firefox.desktop", "mines.desktop")):
     apps = apps if apps is not None else APPS
     d = Path(tmp, "applications")
     d.mkdir(parents=True, exist_ok=True)
     for fn, text in apps.items():
         (d / fn).write_text(text)
+    menu_paths, dir_dirs = write_menu_fixture(tmp)
     return apps_model.AppStore(dirs=[str(d)],
                                cache_path=Path(tmp, "apps.json"),
-                               which=which)
+                               which=which,
+                               menu_paths=menu_paths,
+                               menu_dir_dirs=dir_dirs,
+                               kickoff_db=write_kickoff_fixture(
+                                   tmp, list(kickoff_ids)))
 
 
 def rows_by_id(rows):
@@ -117,13 +204,15 @@ class TestSanitize(unittest.TestCase):
         self.assertEqual(apps_model.sanitize_pins("nope"), ([], 0))
 
     def test_overrides(self):
+        # v0.7: sanitize is shape-only; unknown slugs pass through and are
+        # self-healed at build time (menu lookup wins over the override)
         warned = []
         clean, skipped = apps_model.sanitize_cat_overrides(
             {"a.desktop": "games", "b.desktop": "nope", 7: "media"},
             logger=lambda m: warned.append(m))
-        self.assertEqual(clean, {"a.desktop": "games"})
-        self.assertEqual(skipped, 2)
-        self.assertEqual(len(warned), 2)
+        self.assertEqual(clean, {"a.desktop": "games", "b.desktop": "nope"})
+        self.assertEqual(skipped, 1)
+        self.assertEqual(warned, [])
 
 
 class TestParseQuery(unittest.TestCase):
@@ -166,8 +255,10 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(rows[0]["id"], "apps-root")   # r2.2 anchor
         self.assertEqual((rows[0]["rel"], rows[0]["tier"]), (1.0, "HIGHEST"))
         cats = [r for r in rows if r["id"].startswith("appcat:")]
+        # fallback map order: internet, media, games, system, utilities
+        # (media present since the kdenlive AudioVideo fixture app)
         self.assertEqual([r["id"] for r in cats],
-                         ["appcat:internet", "appcat:games",
+                         ["appcat:internet", "appcat:media", "appcat:games",
                           "appcat:system", "appcat:utilities"])
         self.assertEqual(cats[0]["sub"], "2 apps")
         self.assertEqual(cats[0]["tier"], "HIGH")   # pixel gate: Moderate
@@ -199,7 +290,7 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual([r["id"] for r in rows], ["app:kate.desktop"])
         rows = self.build("pins", pins=[])
         self.assertEqual(rows[0]["id"], "apphelp")
-        self.assertEqual(rows[0]["title"], "No pins yet")
+        self.assertEqual(rows[0]["title"], "No favorites yet")
 
     def test_dead_pin_skipped_logged(self):
         seen = []
@@ -294,7 +385,7 @@ class TestAppStore(unittest.TestCase):
         store = fixture_store(self.tmp.name)
         apps = store.snapshot()
         cache = json.loads(Path(self.tmp.name, "apps.json").read_text())
-        self.assertEqual(cache["v"], 2)
+        self.assertEqual(cache["v"], 3)
         self.assertEqual(cache["apps"], apps)
         # cache hit: fingerprint unchanged → no rescan even if scan breaks
         store._scan = lambda: (_ for _ in ()).throw(AssertionError("rescan"))
@@ -362,19 +453,139 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertIn("WARMING", rows[0][2])
 
     def test_root_order_and_freq(self):
+        # kickoff favorites lead, then config pins, then frequency;
+        # kickoff members never double-render in the freq section
         self.conf["_app_pins"] = ["konsole.desktop"]
         fake = SimpleNamespace(data={"app_launches":
-                                     {"firefox.desktop": 2}})
+                                     {"firefox.desktop": 2,
+                                      "kate.desktop": 1}})
         rows = self.route("apps", stats=fake)
         ids = [r[0] for r in rows]
         self.assertEqual(ids[0], "apps-root")
-        self.assertEqual(ids[1], "app:konsole.desktop")
-        self.assertIn("app:firefox.desktop", ids)
+        self.assertEqual(ids[1], "app:firefox.desktop")   # kickoff 1st
+        self.assertEqual(ids[2], "app:mines.desktop")     # kickoff 2nd
+        self.assertEqual(ids[3], "app:konsole.desktop")   # pin after
+        self.assertIn("app:kate.desktop", ids)            # freq fills in
+        by = {r[0]: r for r in rows}         # route rows are tuples
+        self.assertEqual(by["app:firefox.desktop"][2],
+                         "kickoff · internet")
+        self.assertEqual(by["app:firefox.desktop"][6]["actions"],
+                         ["launch"])
+        self.assertEqual(by["app:konsole.desktop"][2], "pinned · more")
+        self.assertEqual(by["app:konsole.desktop"][6]["actions"],
+                         ["launch", "unpin"])
+        # category rows come from the real menu tree, in menu order
+        cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")]
+        self.assertEqual(cat_ids, ["appcat:internet", "appcat:games",
+                                   "appcat:system-tools",
+                                   "appcat:multimedia",
+                                   "appcat:accessories"])
+        self.assertEqual(by["appcat:system-tools"][1], "System Tools")
+        self.assertEqual(by["appcat:system-tools"][3],
+                         "applications-system")
+
+    def test_multiword_category(self):
+        rows = self.route("apps system tools")
+        self.assertEqual(rows[0][0], "app:missioncenter.desktop")
+        rows = self.route("apps system tools monitor")
+        self.assertEqual(rows[0][0], "app:missioncenter.desktop")
+
+    def test_pins_view_has_kickoff_block(self):
+        self.conf["_app_pins"] = ["kate.desktop"]
+        rows = self.route("apps pins")
+        self.assertEqual([r[0] for r in rows],
+                         ["app:firefox.desktop", "app:mines.desktop",
+                          "app:kate.desktop"])
 
     def test_actions_list(self):
         ids = [a[0] for a in hermes_runner.ACTIONS_LIST]
         for want in ("launch", "pin", "unpin", "apps", "fav"):
             self.assertIn(want, ids)
+
+
+class TestMenuTree(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_parse_fixture_tree(self):
+        paths, dd = write_menu_fixture(self.tmp.name)
+        menu = apps_model.parse_menu_tree(paths, dd)
+        self.assertEqual([m["slug"] for m in menu],
+                         ["internet", "games", "system-tools",
+                          "multimedia", "accessories"])
+        self.assertEqual([m["label"] for m in menu],
+                         ["Internet", "Games", "System Tools",
+                          "Multimedia", "Accessories"])
+        self.assertEqual(menu[0]["icon"], "applications-internet")
+
+    def test_rule_matching_and_exclude(self):
+        paths, dd = write_menu_fixture(self.tmp.name)
+        menu = apps_model.parse_menu_tree(paths, dd)
+        # And-rule: AudioVideo alone is NOT multimedia ("" → "more" upstream)
+        self.assertEqual(apps_model.menu_slug_for(
+            {"categories": ["AudioVideo"]}, menu), "")
+        self.assertEqual(apps_model.menu_slug_for(
+            {"categories": ["AudioVideo", "Video"]}, menu), "multimedia")
+        # include+exclude: System matches, X-Blocked excluded
+        self.assertEqual(apps_model.menu_slug_for(
+            {"categories": ["System"]}, menu), "system-tools")
+        self.assertEqual(apps_model.menu_slug_for(
+            {"categories": ["System", "X-Blocked"]}, menu), "")
+        # first-match precedence: Utility+Network → internet wins (menu order)
+        self.assertEqual(apps_model.menu_slug_for(
+            {"categories": ["Utility", "Network"]}, menu), "internet")
+
+    def test_missing_menu_falls_back_cleanly(self):
+        self.assertEqual(apps_model.parse_menu_tree(["/nonexistent"]), [])
+
+    def test_user_menu_merges_over_system(self):
+        paths, dd = write_menu_fixture(self.tmp.name)
+        user = Path(self.tmp.name, "menus", "user.menu")
+        user.write_text(USER_MENU_XML)
+        merged = apps_model.parse_menu_tree(paths + [str(user)], dd)
+        inet = [m for m in merged if m["slug"] == "internet"][0]
+        self.assertTrue(any(kind == "any" and "X-Fido" in need
+                            for kind, need in inet["rules"]))
+
+    def test_directory_file_missing_is_tolerated(self):
+        # Menu referencing a .directory that doesn't exist: label from Name
+        p = Path(self.tmp.name, "menus"); p.mkdir()
+        (p / "m.menu").write_text(
+            "<Menu><Name>Applications</Name>"
+            '<Menu><Name>Weird</Name><Directory>Nope.directory</Directory>'
+            "<Include><Category>X</Category></Include></Menu></Menu>")
+        menu = apps_model.parse_menu_tree([str(p / "m.menu")])
+        self.assertEqual(menu[0]["label"], "Weird")
+        self.assertEqual(menu[0]["icon"], "")
+
+
+class TestKickoffFavorites(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.log = []
+
+    def test_order_and_filtering(self):
+        db = write_kickoff_fixture(self.tmp.name,
+                                   ["firefox.desktop", "mines.desktop"])
+        favs = apps_model.read_kickoff_favorites(db, self.log.append)
+        self.assertEqual(favs, ["firefox.desktop", "mines.desktop"])
+
+    def test_missing_db(self):
+        self.assertEqual(apps_model.read_kickoff_favorites(
+            "/nonexistent.db", self.log.append), [])
+
+    def test_ttl_refresh(self):
+        db = write_kickoff_fixture(self.tmp.name, ["kate.desktop"])
+        store = fixture_store(self.tmp.name, kickoff_ids=[])
+        store.kickoff_db = db
+        self.assertEqual(store.kickoff_favorites(), [])
+        write_kickoff_fixture(self.tmp.name, ["firefox.desktop",
+                                              "kate.desktop"])
+        store._kickoff = None                       # force re-read
+        self.assertEqual(store.kickoff_favorites(),
+                         ["firefox.desktop", "kate.desktop"])
 
 
 class TestRunDispatch(unittest.TestCase):

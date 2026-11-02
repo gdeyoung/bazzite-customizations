@@ -10,14 +10,23 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import threading
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 CACHE_NAME = "apps.json"
 
-# L-3: precedence-ordered main-category map (first match wins).
+SYSTEM_MENU = "/etc/xdg/menus/applications.menu"
+USER_MENU = "~/.config/menus/applications.menu"
+DIRECTORY_DIRS = ("/usr/share/desktop-directories",
+                  "~/.local/share/desktop-directories")
+KICKOFF_DB = ("~/.local/share/kactivitymanagerd/resources/database")
+KICKOFF_AGENT = "org.kde.plasma.favorites.applications"
+
+# Fallback only (menu file missing/unparseable) — v0.6 behavior.
 CATEGORY_PRECEDENCE = [
     ("Settings", "settings"), ("System", "system"),
     ("TerminalEmulator", "system"), ("Game", "games"),
@@ -27,17 +36,39 @@ CATEGORY_PRECEDENCE = [
     ("TextEditor", "utilities"), ("Education", "learning"),
     ("Science", "learning"),
 ]
-
-# L-3: slugs in fixed display order.
-CATEGORY_LABELS = [
+FALLBACK_LABELS = [
     ("internet", "Internet"), ("media", "Media"), ("games", "Games"),
     ("system", "System"), ("settings", "Settings"),
     ("development", "Development"), ("graphics", "Graphics"),
     ("office", "Office"), ("utilities", "Utilities"),
     ("learning", "Learning"), ("more", "More"),
 ]
-SLUGS = [s for s, _ in CATEGORY_LABELS]
-_LABEL_LOOKUP = {label.lower(): s for s, label in CATEGORY_LABELS}
+# Bazzita/Fedora KDE ships no plain Utility.directory/.  files — the menu's
+# <Directory> references go unresolved, so icon= falls back here. These are
+# the same breeze applications-* names Kickoff uses for these groups.
+ICON_FALLBACKS = {
+    "accessories": "applications-accessories",
+    "development": "applications-development",
+    "education": "applications-education",
+    "games": "applications-games",
+    "graphics": "applications-graphics",
+    "internet": "applications-internet",
+    "multimedia": "applications-multimedia",
+    "office": "applications-office",
+    "system-tools": "applications-system",
+    "system": "applications-system",
+    "settings": "preferences-system",
+    "media": "applications-multimedia",
+    "utilities": "applications-utilities",
+    "learning": "applications-education",
+    "other": "applications-other",
+    "more": "applications-other",
+}
+
+
+def icon_for_slug(slug, menu_icon=""):
+    """Menu icon if resolved, else the breeze applications-* fallback."""
+    return menu_icon or ICON_FALLBACKS.get(slug, "folder")
 
 _PLACEHOLDER_RE = re.compile(r"%[a-zA-Z]")
 
@@ -117,8 +148,145 @@ def exec_display(exec_str):
     return os.path.basename(tok) if "/" in tok else tok
 
 
-def slug_for(categories):
-    """L-3 precedence mapping; no match → 'more'."""
+def _slugify(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _read_directory_file(name, dir_dirs):
+    """Name/Icon from a .directory file, or ('', '') if unresolvable."""
+    if not name:
+        return "", ""
+    for base in dir_dirs:
+        p = os.path.join(os.path.expanduser(base), name)
+        try:
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            cp.read_string(Path(p).read_text(encoding="utf-8",
+                                             errors="replace"))
+            sec = cp["Desktop Entry"] if cp.has_section("Desktop Entry") \
+                else None
+            if sec:
+                return (sec.get("Name", "").strip(),
+                        sec.get("Icon", "").strip())
+        except (OSError, configparser.Error):
+            continue
+    return "", ""
+
+
+def _collect_rules(include_el):
+    """Include block → list of rules; a rule = (kind, categories).
+
+    kind 'any' (bare Category / Or) or 'all' (And).
+    """
+    rules = []
+    for el in include_el:
+        if el.tag == "Category" and el.text:
+            rules.append(("any", {el.text.strip()}))
+        elif el.tag == "Or":
+            cats = {c.text.strip() for c in el.findall("Category") if c.text}
+            if cats:
+                rules.append(("any", cats))
+        elif el.tag == "And":
+            cats = {c.text.strip() for c in el.findall("Category") if c.text}
+            if cats:
+                rules.append(("all", cats))
+    return rules
+
+
+def parse_menu_tree(menu_paths, dir_dirs=None):
+    """applications.menu (system + optional user) → ordered menu list.
+
+    Each entry: {slug, label, icon, rules, excludes}. Menus merge by
+    slug across files (user Include rules extend, Excludes append).
+    Returns [] when nothing parses → caller uses the fallback map.
+    """
+    dir_dirs = dir_dirs or DIRECTORY_DIRS
+    menus = {}
+
+    def add_or_merge(slug, label, icon, rules, excludes):
+        if slug in menus:
+            menus[slug]["rules"].extend(rules)
+            menus[slug]["excludes"].update(excludes)
+        else:
+            menus[slug] = {"slug": slug, "label": label or slug.title(),
+                           "icon": icon, "rules": rules,
+                           "excludes": set(excludes)}
+
+    for path in menu_paths:
+        try:
+            root = ET.parse(os.path.expanduser(path)).getroot()
+        except (OSError, ET.ParseError):
+            continue
+        # XDG menu files: the ROOT element is <Menu><Name>Applications…>.
+        # Tolerate (non-spec) wrappers that bury it one level down.
+        tops = [root] if root.tag == "Menu" else root.findall("Menu")
+        for top in tops:
+            if (top.findtext("Name") or "").strip() != "Applications":
+                # only the Applications tree is Kickoff's app section
+                continue
+            for m in top.findall("Menu"):
+                if m.get("deleted") == "true" or m.get("hidden") == "true":
+                    continue
+                label, icon = _read_directory_file(
+                    m.findtext("Directory"), dir_dirs)
+                name = (m.findtext("Name") or "").strip()
+                if not label and name:
+                    label = name
+                rules = []
+                for inc in m.findall("Include"):
+                    rules.extend(_collect_rules(inc))
+                excludes = {c.text.strip() for c in m.findall(
+                    "Exclude/Category") if c.text}
+                if not rules and not excludes:
+                    continue
+                add_or_merge(_slugify(name or label), label, icon,
+                             rules, excludes)
+    return list(menus.values())
+
+
+def menu_slug_for(app, menu):
+    """App → first matching menu slug (XML order), or '' if none."""
+    cats = set(app.get("categories") or [])
+    for m in menu:
+        if cats & m["excludes"]:
+            continue
+        for kind, need in m["rules"]:
+            if kind == "any" and cats & need:
+                return m["slug"]
+            if kind == "all" and need <= cats:
+                return m["slug"]
+    return ""
+
+
+def read_kickoff_favorites(db_path=None, logger=None):
+    """Kickoff favorites (kactivitymanagerd SQLite), read-only, ordered.
+
+    Returns [] on any error — never fatal, never a write.
+    """
+    p = os.path.expanduser(db_path or KICKOFF_DB)
+    try:
+        c = sqlite3.connect(f"file:{p}?mode=ro", uri=True, timeout=2.0)
+        try:
+            rows = c.execute(
+                "SELECT targettedResource FROM ResourceLink "
+                "WHERE initiatingAgent = ? AND usedActivity = ':global' "
+                "ORDER BY rowid", (KICKOFF_AGENT,)).fetchall()
+        finally:
+            c.close()
+        out = []
+        for (r,) in rows:
+            if r and r.startswith("applications:"):
+                out.append(r[len("applications:"):])
+        return out
+    except (sqlite3.Error, OSError) as e:
+        if logger:
+            logger(f"kickoff favorites unreadable: {e}")
+        return []
+
+
+def slug_for(categories, menu=None):
+    """Menu-aware slug; fallback precedence map when no menu tree."""
+    if menu:
+        return menu_slug_for({"categories": categories or []}, menu) or "more"
     have = {c for c in (categories or [])}
     for main, slug in CATEGORY_PRECEDENCE:
         if main in have:
@@ -143,23 +311,33 @@ def sanitize_pins(raw, logger=None):
 
 
 def sanitize_cat_overrides(raw, logger=None):
-    """L-8 load-time: {desktop-id: slug}; unknown slug → skipped + WARN."""
+    """L-8 load-time: {desktop-id: slug}; strings only — unknown slugs
+    are self-healing at build time (menu lookup wins)."""
     out, skipped = {}, 0
     for k, v in (raw.items() if isinstance(raw, dict) else []):
-        if not isinstance(k, str) or not isinstance(v, str) or v not in SLUGS:
+        if not isinstance(k, str) or not isinstance(v, str) or not v.strip():
             skipped += 1
-            if logger:
-                logger(f"app_categories entry skipped: {k!r}={v!r}")
             continue
-        out[k] = v
+        out[k] = v.strip()
     return out, skipped
 
 
-def parse_query(rest):
-    """L-4 token grammar (r2). Returns a tagged dict:
-    {"mode": "root"|"pins"|"cat"|"catlist"|"fuzzy",
+def _norm_word(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def parse_query(rest, menu=None):
+    """L-4 token grammar (r3: menu-driven labels, multi-word names).
+    Returns {"mode": "root"|"pins"|"cat"|"catlist"|"fuzzy",
      "slug": str, "filter": str, "slugs": [str], "tokens": [str]}
     """
+    entries = ([(m["slug"], m["label"]) for m in menu]
+               if menu else FALLBACK_LABELS)
+    lookup = {}
+    for slug, label in entries:
+        lookup[_norm_word(slug)] = slug
+        lookup[_norm_word(label)] = slug
+
     tokens = (rest or "").split()
     out = {"mode": "fuzzy", "slug": "", "filter": "",
            "slugs": [], "tokens": tokens}
@@ -170,14 +348,25 @@ def parse_query(rest):
     if low == "pins":
         out["mode"] = "pins"
         return out
-    if low in _LABEL_LOOKUP or low in SLUGS:
+    # multi-word first: "system tools" / "system-tools"
+    if len(tokens) >= 2:
+        two = _norm_word(" ".join(tokens[:2]))
+        if two in lookup:
+            out["mode"] = "cat"
+            out["slug"] = lookup[two]
+            out["filter"] = " ".join(tokens[2:])
+            return out
+    if _norm_word(low) in lookup:
         out["mode"] = "cat"
-        out["slug"] = _LABEL_LOOKUP.get(low, low)
+        out["slug"] = lookup[_norm_word(low)]
         out["filter"] = " ".join(tokens[1:])
         return out
     if len(tokens) == 1:
-        hits = [s for s, label in CATEGORY_LABELS
-                if s.startswith(low) or label.lower().startswith(low)]
+        hits = [m["slug"] for m in (menu if menu else
+                                    [{"slug": s, "label": l}
+                                     for s, l in FALLBACK_LABELS])
+                if _norm_word(m["slug"]).startswith(_norm_word(low))
+                or _norm_word(m["label"]).startswith(_norm_word(low))]
         if hits:
             out["mode"] = "catlist"
             out["slugs"] = hits
@@ -223,22 +412,48 @@ def app_row(app, slug, pinned, rel, tier):
     }
 
 
-def build_rows(apps, pins, freq, overrides, rest, dead_pin_logger=None):
-    """L-4/L-5 row list. apps: parsed + cached entries with id/path set.
-    pins: ordered ids; freq: {id: n}; overrides: {id: slug}.
+def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
+               dead_pin_logger=None):
+    """L-4/L-5 row list (r3: menu tree + kickoff favorites).
+
+    apps: parsed + cached entries with id/path set. pins: ordered ids
+    (hermes config). kickoff: ordered ids (Kickoff favorites, read-only).
+    freq: {id: n}; overrides: {id: slug}; menu: menu-tree list or None.
     Returns dicts: id/title/sub/icon/tier/rel/actions/slug.
     Tiers: HIGHEST / HIGH / MODERATE (mapped to ints in hermes_runner).
     """
     by_id = {a["id"]: a for a in apps}
+    kickoff = kickoff or []
+    menu_slugs = {m["slug"] for m in menu} if menu else set()
 
     def slug_of(app):
-        return overrides.get(app["id"]) or slug_for(app["categories"])
+        ov = overrides.get(app["id"])
+        if ov and (not menu or ov in menu_slugs):
+            return ov
+        if menu:
+            return menu_slug_for(app, menu) or "more"
+        return slug_for(app["categories"])
 
-    for pid in pins:
+    def cat_row(m, n):
+        return {"id": f"appcat:{m['slug']}", "title": m["label"],
+                "sub": f"{n} apps",
+                "icon": icon_for_slug(m["slug"], m["icon"]),
+                "tier": "HIGH", "rel": 0.85, "actions": [],
+                "slug": m["slug"]}
+
+    def label_for(slug):
+        if menu:
+            for m in menu:
+                if m["slug"] == slug:
+                    return m["label"]
+            return slug.title()
+        return dict(FALLBACK_LABELS).get(slug, slug.title())
+
+    for pid in kickoff + pins:
         if pid not in by_id and dead_pin_logger:
             dead_pin_logger(pid)
 
-    parsed = parse_query(rest)
+    parsed = parse_query(rest, menu)
     mode = parsed["mode"]
     if mode in ("root", "pins"):
         rows = []
@@ -251,22 +466,32 @@ def build_rows(apps, pins, freq, overrides, rest, dead_pin_logger=None):
                                 "ENTER DRILLS",
                          "icon": "start-here-kde", "tier": "HIGHEST",
                          "rel": 1.0, "actions": [], "slug": ""})
+        # Kickoff favorites first — KDE's list, read-only (launch only)
+        for kid in kickoff:
+            app = by_id.get(kid)
+            if app:
+                r = app_row(app, slug_of(app), False, 0.95, "HIGH")
+                r["sub"] = f"kickoff · {slug_of(app)}"
+                r["actions"] = ["launch"]
+                rows.append(r)
+        # then hermes pins (config)
         for pid in pins:
             app = by_id.get(pid)
             if app:
                 rows.append(app_row(app, slug_of(app), True, 0.95, "HIGH"))
-                rows[-1]["sub"] = f"pinned · {slug_of(app)}"   # §L-4
+                rows[-1]["sub"] = f"pinned · {slug_of(app)}"
         if mode == "pins" and not rows:
-            return [{"id": "apphelp", "title": "No pins yet",
-                     "sub": "select an app → PIN action",
+            return [{"id": "apphelp", "title": "No favorites yet",
+                     "sub": "add in the KDE menu, or select an app → PIN",
                      "icon": "help-browser", "tier": "MODERATE",
                      "rel": 0.5, "actions": [], "slug": ""}]
         if mode == "pins":
             return rows
-        # root: pins done; frequency (count ≥1, excluding pins, top 6)
+        all_favs = set(kickoff) | set(pins)
+        # frequency (count ≥1, excluding favorites, top 6)
         counts = [(a["id"], freq.get(a["id"], 0)) for a in apps]
         ranked = sorted((t for t in counts if t[1] >= 1
-                         and t[0] not in pins and t[0] in by_id),
+                         and t[0] not in all_favs and t[0] in by_id),
                         key=lambda t: (-t[1], by_id[t[0]]["name"].lower(),
                                        t[0]))[:6]
         for i, (aid, n) in enumerate(ranked):
@@ -274,26 +499,40 @@ def build_rows(apps, pins, freq, overrides, rest, dead_pin_logger=None):
             rows.append(app_row(app, slug_of(app), False,
                                 max(0.80, 0.90 - 0.02 * i), "HIGH"))
             rows[-1]["sub"] = f"{n}× · {slug_of(app)}"
-        # category rows in display order (High band: pixel gate apps1 —
-        # Moderate sank our rows below native matches for the word "apps")
-        for slug, label in CATEGORY_LABELS:
-            n = sum(1 for a in apps if slug_of(a) == slug)
-            if n:
-                rows.append({"id": f"appcat:{slug}", "title": label,
-                             "sub": f"{n} apps", "icon": "folder",
-                             "tier": "HIGH", "rel": 0.85,
-                             "actions": [], "slug": slug})
+        # category rows in menu order (High band: pixel gate apps1)
+        if menu:
+            for m in menu:
+                n = sum(1 for a in apps if slug_of(a) == m["slug"])
+                if n:
+                    rows.append(cat_row(m, n))
+        else:
+            for slug, label in FALLBACK_LABELS:
+                n = sum(1 for a in apps if slug_of(a) == slug)
+                if n:
+                    rows.append({"id": f"appcat:{slug}", "title": label,
+                                 "sub": f"{n} apps",
+                                 "icon": icon_for_slug(slug),
+                                 "tier": "HIGH", "rel": 0.85,
+                                 "actions": [], "slug": slug})
         return rows
 
     if mode == "catlist":
         rows = []
-        for slug in parsed["slugs"]:
-            label = dict(CATEGORY_LABELS).get(slug, slug)
-            n = sum(1 for a in apps if slug_of(a) == slug)
-            rows.append({"id": f"appcat:{slug}", "title": label,
-                         "sub": f"{n} apps", "icon": "folder",
-                         "tier": "HIGH", "rel": 0.85, "actions": [],
-                         "slug": slug})
+        wanted = parsed["slugs"]
+        if menu:
+            for m in menu:
+                if m["slug"] in wanted:
+                    n = sum(1 for a in apps if slug_of(a) == m["slug"])
+                    rows.append(cat_row(m, n))
+        else:
+            for slug in wanted:
+                n = sum(1 for a in apps if slug_of(a) == slug)
+                rows.append({"id": f"appcat:{slug}",
+                             "title": label_for(slug),
+                             "sub": f"{n} apps",
+                             "icon": icon_for_slug(slug),
+                             "tier": "HIGH", "rel": 0.85, "actions": [],
+                             "slug": slug})
         return rows
 
     # cat view or fuzzy: filter apps, quality ladder + deterministic order
@@ -328,7 +567,8 @@ def build_rows(apps, pins, freq, overrides, rest, dead_pin_logger=None):
 class AppStore:
     """L-2 enumeration + cache. Thread-safe; mtime+set gated; never fatal."""
 
-    def __init__(self, dirs=None, cache_path=None, which=None, logger=None):
+    def __init__(self, dirs=None, cache_path=None, which=None, logger=None,
+                 menu_paths=None, menu_dir_dirs=None, kickoff_db=None):
         self.dirs = [os.path.realpath(os.path.expanduser(d))
                      for d in (dirs if dirs is not None else default_dirs())]
         base = os.environ.get("XDG_CACHE_HOME",
@@ -341,6 +581,27 @@ class AppStore:
         self.lock = threading.Lock()
         self._apps = None
         self._fingerprint = None
+        # v0.7: the real Kickoff tree + favorites (both read-only sources)
+        paths = menu_paths if menu_paths is not None else (
+            [SYSTEM_MENU] +
+            ([os.path.expanduser(USER_MENU)]
+             if os.path.exists(os.path.expanduser(USER_MENU)) else []))
+        self.menu = parse_menu_tree(paths, menu_dir_dirs)
+        if not self.menu:
+            self.logger("menu tree unparsed — falling back to "
+                        "category heuristics")
+        self.kickoff_db = kickoff_db
+        self._kickoff = None
+        self._kickoff_ts = 0.0
+
+    def kickoff_favorites(self):
+        """Kickoff favorites with a 5 s TTL (cheap, refresh-correct)."""
+        now = time.time()
+        if self._kickoff is None or now - self._kickoff_ts > 5.0:
+            self._kickoff = read_kickoff_favorites(self.kickoff_db,
+                                                   self.logger)
+            self._kickoff_ts = now
+        return self._kickoff
 
     def fingerprint(self):
         out = {}
