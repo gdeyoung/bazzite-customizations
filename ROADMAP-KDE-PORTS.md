@@ -17,7 +17,7 @@ steps live at the bottom as a punch list.
 | omarchy-timemachine | `plasma-timemachine/` | **BUILT** (76dbee3) | engine sha256-ledgered, 24/24 tests; 5-tab popup |
 | omarchy-ready-room | `plasma-readyroom/` | **BUILT** (83f441c) | gc-* sha-identical; read-only probes live-run OK; needs gpu-screen-recorder (absent) for replay |
 | **plasma-stocktick** (new — no Omarchy source) | `plasma-stocktick/` | **BUILT** (2fdbac3) | First KDE-native plugin: Yahoo keyless quotes chip + watchlist + portfolio; checker 0/0, 5/5 tests, live-API verified. (No stock plugin existed on any Omarchy — checked.) |
-| — (new, no Omarchy source) | `keyboard-shortcuts/` | **BUILT** (e783bb7) | hermes-keys.sh: Meta+Space/Return/H/Shift+H via kglobalaccel; no remapper needed |
+| — (new, no Omarchy source) | `keyboard-shortcuts/` | **BUILT v2** (e783bb7, reconciled 2026-11-01) | hermes-keys.sh: Meta+Space/Return/H/Shift+H; [services] groups, /App-query preloads; no remapper needed |
 | omarchy-game-center | — | skip | subsumed by plasma-sysmon (GPU VRAM/GTT already there) |
 | omarchy-appdock | — | skip | reverse port; it *is* the KDE task manager on Hyprland |
 | omarchy-ultrawide-bar | — | skip | KDE panel does partial-width/auto-hide/floating natively |
