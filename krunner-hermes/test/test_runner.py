@@ -121,9 +121,9 @@ class Routing(unittest.TestCase):
         self.assertEqual([x[0] for x in rows],
                          ["help-ai", "help-hr", "help-dictation",
                           "help-ssh", "help-snippet", "help-model",
-                          "help-docs"])
+                          "help-docs", "help-apps"])
         self.assertEqual([x[5] for x in rows],
-                         [0.55, 0.5, 0.45, 0.43, 0.42, 0.41, 0.30])
+                         [0.55, 0.5, 0.45, 0.43, 0.42, 0.41, 0.30, 0.29])
 
     def test_no_match_outside_prefixes(self):
         self.assertEqual(hr.route("searxng port", FakeCache(), set(),
@@ -525,7 +525,7 @@ class Handoffs(unittest.TestCase):
         self.assertEqual([x[0] for x in help_rows],
                          ["help-ai", "help-hr", "help-dictation",
                           "help-ssh", "help-snippet", "help-model",
-                          "help-handoff-gh", "help-docs"])
+                          "help-handoff-gh", "help-docs", "help-apps"])
         self.assertEqual(help_rows[6][5], 0.40)
         self.assertIn("SEARCHES github.com", help_rows[6][2])
 
@@ -1018,7 +1018,7 @@ class HelpPages(unittest.TestCase):
         self.assertEqual([r[0] for r in rows],
                          ["help-ai", "help-hr", "help-dictation",
                           "help-ssh", "help-snippet", "help-model",
-                          "help-handoff-gh", "help-docs"])
+                          "help-handoff-gh", "help-docs", "help-apps"])
 
     def test_unknown_lane_falls_back_to_index(self):
         rows = hr.route("hermes bogus", FakeCache(), set(), {}, self.conf())
