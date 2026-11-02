@@ -343,6 +343,21 @@ def cmd_copy(env, raw):
         return 1
 
 
+def _heartbeat(command):
+    """Liveness marker for the popup harness: written on every successful
+    engine command. The UI only reaches success paths by invoking this CLI,
+    so a fresh file proves the widget pulled data. Disable via MOSAIC_HB=0;
+    relocate via MOSAIC_HB_PATH."""
+    if os.environ.get("MOSAIC_HB", "1") == "0":
+        return
+    path = os.environ.get("MOSAIC_HB_PATH", "/tmp/plasma-mosaic-hb.json")
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": int(time.time() * 1000), "cmd": command}))
+    except OSError:
+        pass
+
+
 def main():
     env = dict(os.environ)
     args = sys.argv[1:]
@@ -350,24 +365,28 @@ def main():
         out({"error": "usage: mosaic scan|deep <id>|snapshot|status|progress|workspace <json>|open <path>|copy <path>"})
         return 2
     command = args[0]
+    rc = 2
     if command == "scan":
-        return run_scan(env, "overview")
-    if command == "deep" and len(args) == 2:
-        return run_scan(env, "deep", args[1])
-    if command == "snapshot":
-        return cmd_snapshot(env)
-    if command == "status":
-        return cmd_status(env)
-    if command == "progress":
-        return cmd_progress(env)
-    if command == "workspace" and len(args) == 2:
-        return cmd_workspace(env, args[1])
-    if command == "open" and len(args) == 2:
-        return cmd_open(env, args[1])
-    if command == "copy" and len(args) == 2:
-        return cmd_copy(env, args[1])
-    out({"error": "unknown command or wrong argument count"})
-    return 2
+        rc = run_scan(env, "overview")
+    elif command == "deep" and len(args) == 2:
+        rc = run_scan(env, "deep", args[1])
+    elif command == "snapshot":
+        rc = cmd_snapshot(env)
+    elif command == "status":
+        rc = cmd_status(env)
+    elif command == "progress":
+        rc = cmd_progress(env)
+    elif command == "workspace" and len(args) == 2:
+        rc = cmd_workspace(env, args[1])
+    elif command == "open" and len(args) == 2:
+        rc = cmd_open(env, args[1])
+    elif command == "copy" and len(args) == 2:
+        rc = cmd_copy(env, args[1])
+    else:
+        out({"error": "unknown command or wrong argument count"})
+    if rc == 0:
+        _heartbeat(command)
+    return rc
 
 
 if __name__ == "__main__":

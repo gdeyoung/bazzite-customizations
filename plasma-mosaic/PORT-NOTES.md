@@ -78,3 +78,36 @@ Re-verify after any engine refresh: `sha256sum` both sides.
   present on host); live firing deferred to install day (user-visible side
   effects).
 - QML: pending UX spec (docs/mosaic-v01-popup-spec.md) → harness gates.
+
+## QML lane + harness (2026-11-02)
+
+- UX spec gate satisfied: docs/mosaic-v01-popup-spec.md (delegated designer pass).
+- QML lane: 11 UI files + config (main.xml + config.qml) per spec — single-page
+  drill-down Overview → App detail → Category, shared header/breadcrumb, no
+  top-level tab bar; donut annular R74/r48 via vendored DonutGeometry; MosaicStore
+  singleton carries all harness-drivable state (incl. expandedPath).
+- check_qml.py: 0 errors (66 warnings = known checker false-positive class,
+  identical to plasma-driveway's shipped files). qmllint: clean.
+- Node: 7/7 (ViewModel semantics). Python: 145/145.
+- Harness (tools/popup-harness/run-mosaic.sh, private XDG_RUNTIME_DIR isolation):
+  SCALE=1 PASS — all 8 HARNESS probes, 6/6 distinct screenshots (chip, overview,
+  search, app, expanded, category), journal clean, heartbeat alive
+  (engine-side: mosaic_cli.py `_heartbeat` writes /tmp/plasma-mosaic-hb.json on
+  every successful engine command; QML sync-XHR file writes are unreliable on
+  Qt 6, so the store no longer writes it).
+- SCALE=2: QML transitions PROVEN via injected probes (StackLayout index 2,
+  CategoryPage visible, store consistent, no errors) but the harness rig stops
+  submitting popup frames at 5120×2880 under llvmpipe — plasma-tailfin
+  reproduces identically on the same rig, so this is an environment limitation,
+  not a widget defect. Donut frame did render at 2× (overview paint present in
+  both s2 runs before the stall). Host DPR is 1; per harness doctrine the gate
+  is SCALE=1 + host DPR.
+- QML defects found and fixed by the harness: bare `ScrollBar.vertical`/
+  `ScrollBar.AsNeeded` attached usage (must be `PC3.`-qualified; kills applet
+  load), `PC3.ButtonGroup.buttons` cannot take a Repeater's children (journal
+  error storm + main-thread lag; exclusivity now derived from store state),
+  PathCard undefined→bool visible bindings.
+- Harness driver lessons: emit evidence before teardown (dbus-run-session
+  teardown can wedge the driver tree); every blocking call (busctl/spectacle)
+  needs its own timeout; QML console lands in the journal, not plasmashell
+  stderr.
