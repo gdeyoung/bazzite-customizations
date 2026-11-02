@@ -333,6 +333,9 @@ def parse_query(rest, menu=None):
     """
     entries = ([(m["slug"], m["label"]) for m in menu]
                if menu else FALLBACK_LABELS)
+    # r3.1: synthetic 'more' group = apps no menu rule claims (L-12)
+    if menu:
+        entries = entries + [("more", "More")]
     lookup = {}
     for slug, label in entries:
         lookup[_norm_word(slug)] = slug
@@ -466,14 +469,23 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
                                 "ENTER DRILLS",
                          "icon": "start-here-kde", "tier": "HIGHEST",
                          "rel": 1.0, "actions": [], "slug": ""})
-        # Kickoff favorites first — KDE's list, read-only (launch only)
-        for kid in kickoff:
-            app = by_id.get(kid)
-            if app:
-                r = app_row(app, slug_of(app), False, 0.95, "HIGH")
-                r["sub"] = f"kickoff · {slug_of(app)}"
-                r["actions"] = ["launch"]
-                rows.append(r)
+        # Kickoff favorites first — KDE's list, read-only (launch-only).
+        # r3.1: root view caps at 10 resolvable favorites (viewport
+        # discipline, F-3) + pointer row; `apps pins` shows the full list.
+        resolvable = [k for k in kickoff if k in by_id]
+        shown = resolvable if mode == "pins" else resolvable[:10]
+        for kid in shown:
+            app = by_id[kid]
+            r = app_row(app, slug_of(app), False, 0.95, "HIGH")
+            r["sub"] = f"favorite · {slug_of(app)}"
+            r["actions"] = ["launch"]
+            rows.append(r)
+        if mode == "root" and len(resolvable) > 10:
+            rows.append({"id": "appcat:pins",
+                         "title": f"+{len(resolvable) - 10} MORE FAVORITES",
+                         "sub": "ENTER FOR ALL · MANAGED IN THE KDE MENU",
+                         "icon": "bookmarks", "tier": "HIGH", "rel": 0.86,
+                         "actions": [], "slug": "pins"})
         # then hermes pins (config)
         for pid in pins:
             app = by_id.get(pid)
@@ -505,6 +517,14 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
                 n = sum(1 for a in apps if slug_of(a) == m["slug"])
                 if n:
                     rows.append(cat_row(m, n))
+            # r3.1: synthetic catch-all so unfiled apps stay browsable
+            n_more = sum(1 for a in apps if slug_of(a) == "more")
+            if n_more:
+                rows.append({"id": "appcat:more", "title": "More",
+                             "sub": f"{n_more} apps",
+                             "icon": icon_for_slug("more"),
+                             "tier": "HIGH", "rel": 0.85, "actions": [],
+                             "slug": "more"})
         else:
             for slug, label in FALLBACK_LABELS:
                 n = sum(1 for a in apps if slug_of(a) == slug)
@@ -524,6 +544,14 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
                 if m["slug"] in wanted:
                     n = sum(1 for a in apps if slug_of(a) == m["slug"])
                     rows.append(cat_row(m, n))
+            if "more" in wanted:
+                n = sum(1 for a in apps if slug_of(a) == "more")
+                if n:
+                    rows.append({"id": "appcat:more", "title": "More",
+                                 "sub": f"{n} apps",
+                                 "icon": icon_for_slug("more"),
+                                 "tier": "HIGH", "rel": 0.85,
+                                 "actions": [], "slug": "more"})
         else:
             for slug in wanted:
                 n = sum(1 for a in apps if slug_of(a) == slug)

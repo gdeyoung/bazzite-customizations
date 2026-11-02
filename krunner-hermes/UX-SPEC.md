@@ -938,3 +938,25 @@ replace heuristics; nothing writes to KDE's data.
 - apps.json cache version 2 → 3 (invalidates v0.6 caches once).
 - Kickoff DB opened `mode=ro` URI; any error → [] (never fatal,
   never a write).
+
+### L-14 r3.1 amendments (UX verdict deleg_ba7c9f3b, all six folded)
+
+1. **Root favorites capped at 10** (viewport discipline, F-3): first
+   10 resolvable favorites, then a pointer row `appcat:pins`
+   "+N MORE FAVORITES · ENTER FOR ALL · MANAGED IN THE KDE MENU"
+   (HIGH/0.86, drillable — Enter re-drives `apps pins`). The
+   `apps pins` view stays the full uncapped two-block list.
+2. **Frequency rows exclude kickoff favorites AND hermes pins** —
+   one row per app in the root view (amends r2's "excluding pins";
+   code and tests already enforced this).
+3. **Synthetic `more` group**: when the parsed menu leaves apps
+   unfiled, root/catlist append `appcat:more` ("More", N apps,
+   icon applications-other) and the grammar accepts `apps more` —
+   full browse coverage restored, no dead drill targets.
+4. **Help** (`hermes apps`): favorites-mirror-the-KDE-menu row —
+   manage there; PIN/UNPIN only affects Hermes pins beneath them;
+   `apps pins` lists both.
+5. **Subtext provenance**: `favorite · <group>` (was `kickoff ·`) —
+   self-describing, parallel to `pinned ·`.
+6. **Dead favorite ids** are skipped at render with one journal line
+   per id per daemon lifetime (L-5 convention; code conforms).

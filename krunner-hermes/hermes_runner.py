@@ -745,17 +745,21 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
         elif lane == "apps":
             # §L-8: launcher-lane help block (foyer-browse grammar)
             helppage("apps", 0, "apps",
-                     "PINS FIRST, THEN MOST-USED, THEN CATEGORIES",
+                     "FAVORITES FIRST, THEN PINS, MOST-USED, CATEGORIES",
                      copyable=True)
             helppage("apps", 1, "apps games · apps internet fire…",
-                     "CATEGORY VIEW · REMAINING WORDS FILTER BY NAME",
+                     "CATEGORY VIEW · REMAINING WORDS FILTER BY NAME · "
+                     "'more' = UNFILED APPS",
                      copyable=True)
             helppage("apps", 2, "apps pins",
-                     "PINS-ONLY VIEW · PIN FROM ANY APP ROW BUTTON",
+                     "ALL FAVORITES + YOUR PINS TOGETHER",
                      copyable=True)
-            helppage("apps", 3, "App rows: ENTER launches · PIN pins",
+            helppage("apps", 3, "Favorites mirror the KDE menu",
+                     "MANAGE THEM THERE (DRAG IN MENU) — PIN/UNPIN ONLY "
+                     "AFFECTS HERMES PINS SHOWN BENEATH")
+            helppage("apps", 4, "App rows: ENTER launches · PIN pins",
                      "UNPIN REMOVES · PINS SURVIVE REBOOT (config.json)")
-            helppage("apps", 4, "Plain app names stay native",
+            helppage("apps", 5, "Plain app names stay native",
                      "'firef' HITS KRUNNER'S OWN APP SEARCH — NO TWINS")
         elif lane == "handoffs":
             for i, h in enumerate(handoffs[:6]):
@@ -1224,6 +1228,7 @@ def run_dispatch(kind, key, text, act, ctx):
         # §L-6: drill = re-drive the KRunner query via /App. Async + delayed
         # — a synchronous call back into krunner mid-Run would deadlock.
         slugs = ({m["slug"] for m in ctx.appstore.menu}
+                 | {"more", "pins"}          # r3.1 synthetic drill targets
                  if getattr(ctx, "appstore", None) and ctx.appstore.menu
                  else {s for s, _ in apps_model.FALLBACK_LABELS})
         if key in slugs:

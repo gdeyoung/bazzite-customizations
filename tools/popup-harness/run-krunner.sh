@@ -335,14 +335,14 @@ $B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps pins" \
 # v0.7: with a kickoff favorite present, pins view shows the kickoff block
 # (empty-state row only when favorites AND pins are both empty — unit-tested)
 # note: busctl escapes UTF-8 — '·' appears as \302\267 in Match output
-grep -q 'kickoff \\302\\267 games' "$ROOT/kr-appspins-$TAG.txt" \
+grep -q 'favorite \\302\\267 games' "$ROOT/kr-appspins-$TAG.txt" \
     && echo "CKPT-APPS-PINS-KICKOFF=OK" || echo "CKPT-APPS-PINS-KICKOFF=FAIL"
 
 # v0.7: kickoff favorite leads the root view, launch-only (kickoff · group)
-grep -q 'kickoff \\302\\267 games' "$ROOT/kr-apps-$TAG.txt" \
+grep -q 'favorite \\302\\267 games' "$ROOT/kr-apps-$TAG.txt" \
     && echo "CKPT-APPS-KICKOFF=OK" || echo "CKPT-APPS-KICKOFF=FAIL"
 # noise row (other favorites agent) must NOT leak in as a favorite
-grep -q 'kickoff \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
+grep -q 'favorite \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
     && echo "CKPT-APPS-KICKOFF-FILTER=FAIL" || echo "CKPT-APPS-KICKOFF-FILTER=OK"
 
 $B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1

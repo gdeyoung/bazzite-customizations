@@ -468,18 +468,19 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertIn("app:kate.desktop", ids)            # freq fills in
         by = {r[0]: r for r in rows}         # route rows are tuples
         self.assertEqual(by["app:firefox.desktop"][2],
-                         "kickoff · internet")
+                         "favorite · internet")
         self.assertEqual(by["app:firefox.desktop"][6]["actions"],
                          ["launch"])
         self.assertEqual(by["app:konsole.desktop"][2], "pinned · more")
         self.assertEqual(by["app:konsole.desktop"][6]["actions"],
                          ["launch", "unpin"])
-        # category rows come from the real menu tree, in menu order
+        # category rows come from the real menu tree, in menu order,
+        # + synthetic 'more' (konsole's TerminalEmulator is unfiled)
         cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")]
         self.assertEqual(cat_ids, ["appcat:internet", "appcat:games",
                                    "appcat:system-tools",
                                    "appcat:multimedia",
-                                   "appcat:accessories"])
+                                   "appcat:accessories", "appcat:more"])
         self.assertEqual(by["appcat:system-tools"][1], "System Tools")
         self.assertEqual(by["appcat:system-tools"][3],
                          "applications-system")
@@ -496,6 +497,52 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertEqual([r[0] for r in rows],
                          ["app:firefox.desktop", "app:mines.desktop",
                           "app:kate.desktop"])
+
+    def test_root_caps_favorites_with_pointer(self):
+        # r3.1: >10 resolvable favorites → 10 rows + appcat:pins pointer;
+        # apps pins stays uncapped. Write 11 extra fixture apps first so
+        # the kickoff list has 12 resolvable ids (empty Categories → all
+        # land in the synthetic 'more' group, exercising finding 3 too).
+        d = Path(self.tmp.name, "applications")
+        for i in range(11):
+            (d / "hxf{}.desktop".format(i)).write_text(
+                "[Desktop Entry]\nType=Application\nName=HX Fav {}\n"
+                "Exec=hxf{}\n".format(i, i))
+        apps = self.store.snapshot()          # dir mtime changed → rescan
+        kickoff = ["hxf{}.desktop".format(i) for i in range(11)] + \
+                  ["firefox.desktop"]
+        rows = apps_model.build_rows(
+            apps, [], {}, {}, "", menu=self.store.menu, kickoff=kickoff)
+        ids = [r["id"] for r in rows]
+        favs = [i for i in ids if i.startswith("app:")]
+        self.assertEqual(len(favs), 10)
+        self.assertIn("appcat:pins", ids)
+        ptr = [r for r in rows if r["id"] == "appcat:pins"][0]
+        self.assertEqual(ptr["title"], "+2 MORE FAVORITES")
+        # dead ids don't inflate the count
+        rows2 = apps_model.build_rows(
+            apps, [], {}, {}, "",
+            menu=self.store.menu,
+            kickoff=kickoff[:11] + ["ghost.desktop"])
+        ptr2 = [r for r in rows2 if r["id"] == "appcat:pins"][0]
+        self.assertEqual(ptr2["title"], "+1 MORE FAVORITES")
+        # synthetic 'more' group renders (11 unfiled fixture apps)
+        self.assertIn("appcat:more", ids)
+        more = [r for r in rows if r["id"] == "appcat:more"][0]
+        self.assertEqual(more["icon"], "applications-other")
+        self.assertEqual(more["sub"], "12 apps")   # 11 fixture + konsole
+        # pins view stays uncapped
+        allrows = apps_model.build_rows(
+            apps, [], {}, {}, "pins", menu=self.store.menu,
+            kickoff=kickoff)
+        favs_all = [r for r in allrows if r["id"].startswith("app:")]
+        self.assertEqual(len(favs_all), 12)
+
+    def test_apps_more_grammar(self):
+        rows = self.route("apps more")
+        self.assertTrue(all(r[0].startswith("app:")
+                            for r in rows if r[0] != "apphelp"),
+                        rows[:3])
 
     def test_actions_list(self):
         ids = [a[0] for a in hermes_runner.ACTIONS_LIST]
