@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# com.gdeyoung.plasma.mosaic backend launcher (executable dataengine entry).
+# Each invocation is one process, one strict JSON line out (see mosaic_host/mosaic_cli.py).
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec /usr/bin/python3 -B "$DIR/lib/mosaic_host/mosaic_cli.py" "$@"

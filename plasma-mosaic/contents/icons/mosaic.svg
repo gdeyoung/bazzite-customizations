@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 160 160" width="1024" height="1024">
+  <title>Mosaic — Reveal</title>
+  <g fill="#7AA2F7">
+    <path d="M0 0H42V20H20V42H0Z"/>
+    <path d="M78 0H120V42H100V20H78Z" opacity=".8"/>
+    <path d="M0 78H20V100H42V120H0Z" opacity=".8"/>
+    <path d="M100 78H120V120H78V100H100Z"/>
+  </g>
+  <path d="M60 37L83 60L60 83L37 60Z" fill="#C0CAF5"/>
+</svg>
