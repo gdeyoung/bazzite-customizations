@@ -682,24 +682,29 @@ the index below.
 
 ---
 
-## L. Launcher lane — app browsing, categories, favorites (2026-11-02, spec r1)
+## L. Launcher lane — app browsing, categories, favorites (2026-11-02, spec r2)
 
 Goal: foyer-style start-menu browsing inside the native KRunner window —
 search box on top, browsable rows below, arrow keys + Enter. Apps live
 under one prefix; the native application runner stays untouched (no twin
 rows for a plain `firefox` query). Reference: `omarchy-foyer`
 AppModel.js/RunnerModel.js (desktop-entry rows, alias search, hides,
-categories) — reimplemented for KDE, not ported.
+categories) — reimplemented for KDE, not ported. r2 folds UX verdict
+deleg_23359d89 (14 changes).
 
 ### L-1 Scope and admission
 
 - Lane claim regex: `^apps(\s|$)` case-insensitive. Bare `apps` = browse
   root. Anything else (including bare app names) is NOT claimed — native
   KRunner application search keeps that surface (no-duplication rule).
-- Row kinds minted: `app:<desktop-id>` (launch), `apppin:<desktop-id>`
-  (pin/unpin toggle), `appcat:<slug>` (category drill).
-- Excluded: recents-from-xbel, menu JSONC trees, .desktop editing,
-  window management, anything KRunner lanes already own.
+- Row kinds minted: `app:<desktop-id>` (launch / pin-unpin via action
+  id), `appcat:<slug>` (category drill), `apphelp` (info row).
+  No `apppin:` kind — the toggle is an ACTION on `app:` rows, never a
+  row id (r2: dead grammar removed).
+- `apps` joins both reserved registries: the F-5 handoff-prefix RESERVED
+  list (a handoff cannot claim it) and the F-11 bidirectional check
+  (`answer_prefix`/`task_prefix` == "apps" → journal warning + default
+  applies). Renames cannot shadow the lane (r2).
 
 ### L-2 Enumeration and cache
 
@@ -707,23 +712,25 @@ categories) — reimplemented for KDE, not ported.
   `~/.local/share/applications`, `/usr/local/share/applications`,
   `/usr/share/applications`, `~/.local/share/flatpak/exports/share/applications`,
   `/var/lib/flatpak/exports/share/applications` (+ any `applications/`
-  dir under `$XDG_DATA_DIRS` at load time). Symlinks followed once.
-- Per file (plain INI, `[Desktop Entry]` group; a file with no parseable
-  group is skipped silently): keep `Type` (must be `Application`),
-  `Name`, `GenericName`, `Comment`, `Icon`, `Exec`, `Categories`,
-  `TryExec`. Skip when: `NoDisplay=true`, `Hidden=true`, `OnlyShowIn`
-  present and not containing `KDE`/`GNOME`-generic (skip unless the list
-  is empty or contains `KDE`), `NotShowIn` contains `KDE`, `TryExec` set
-  and not resolvable via `PATH`. `id` = basename with `.desktop` kept —
-  `launchCommand`-style id preservation matters for flatpak ids
-  (`org.telegram.desktop` will not resolve stripped).
+  dir under `$XDG_DATA_DIRS` captured at load; SIGHUP recomputes).
+- Per file (plain INI, `[Desktop Entry]` group; no parseable group →
+  skipped silently): keep `Type` (must be `Application`), `Name`,
+  `GenericName`, `Comment`, `Icon`, `Exec`, `Keywords`, `Categories`,
+  `TryExec`. Skip when: `NoDisplay=true`, `Hidden=true`, `NotShowIn`
+  contains `KDE`, `OnlyShowIn` present AND (split on `;`, trimmed,
+  non-empty) and does NOT contain `KDE` — so `OnlyShowIn=GNOME` skips,
+  `OnlyShowIn=KDE;GNOME;` stays (r2 unambiguous rule); `TryExec` set
+  and not resolvable via `PATH`. `id` = basename, `.desktop` kept
+  (flatpak ids like `org.telegram.desktop` resolve only with it).
 - Cache: `~/.cache/hermes-runner/apps.json`
-  `{"v":1,"dirs":{path:mtime_ns},"apps":[…]}`. A Match call checks dir
-  `stat().st_mtime_ns` (plus flatpak dirs) — all unchanged → cache hit,
-  zero parsing. Any change or version mismatch → one full rescan,
-  rewrite cache atomically (tmp + rename). Rescans are capped to one
-  per Match call. Cache errors are never fatal: fall back to direct
-  scan and log once to stderr (journal).
+  `{"v":2,"dirs":{path:mtime_ns},"apps":[…]}`. Cache HIT requires the
+  dir SET identical AND every mtime unchanged (r2: set change alone —
+  new XDG dir after SIGHUP — forces rescan). Any change or version
+  mismatch → one full rescan, rewrite atomically (tmp+rename). The
+  cache is WARMED at daemon start (idle callback after first GLib
+  tick) so the first `apps` keystroke never pays the scan; Match on a
+  still-cold cache scans inline but logs the latency. Cache errors are
+  never fatal: fall back to direct scan, one journal line.
 
 ### L-3 Category model
 
@@ -733,112 +740,136 @@ categories) — reimplemented for KDE, not ported.
   Video→Media, Graphics→Graphics, Office→Office,
   Development→Development, Utility→Utilities, TextEditor→Utilities,
   Education→Learning, Science→Learning. No match → `More`.
-- Category slugs and labels: internet=Internet, games=Games,
-  settings=Settings, system=System, media=Media, graphics=Graphics,
-  office=Office, development=Development, utilities=Utilities,
-  learning=Learning, more=More. Fixed display order: Internet, Media,
-  Games, System, Settings, Development, Graphics, Office, Utilities,
-  Learning, More.
+- Slugs/labels: internet=Internet, games=Games, settings=Settings,
+  system=System, media=Media, graphics=Graphics, office=Office,
+  development=Development, utilities=Utilities, learning=Learning,
+  more=More. Display order: Internet, Media, Games, System, Settings,
+  Development, Graphics, Office, Utilities, Learning, More.
 - User overrides: config `app_categories` —
-  `{"<desktop-id>": "<slug>"}` wins over the file's Categories. Unknown
-  slug in config = journal warning, entry falls back to file mapping.
+  `{"<desktop-id>": "<slug>"}` wins over the file. Unknown slug →
+  journal WARN, entry falls back to file mapping.
 
 ### L-4 Query grammar and rows
 
+- Token grammar (r2 rewrite, evaluated in order):
+  (a) FIRST token equals (case-insensitive) a category name or slug →
+  drill into that category; remaining tokens filter inside it.
+  (b) ELSE if the query has EXACTLY ONE token that prefix-matches ≥1
+  categories → render those category rows only (no drill).
+  (c) ELSE all tokens are AND-fuzzy across all apps.
+  Special case: `apps pins` → pins-only view (r2): pinned rows in
+  config order, subtext `pinned · <slug>`; if no pins, info row
+  `No pins yet` subtext `select an app → PIN action`.
 - `apps` (root): pinned rows (config order, subtext `pinned · <slug>`),
-  then frequency rows (top 6 by launch count, desc, excluding pinned,
-  subtext `<count>× · <slug>`), then one row per non-empty category in
-  L-3 display order (label `Category — N apps`, kind `appcat`).
-- `apps <tok>` where `<tok>` (case-insensitive) prefix-matches exactly
-  one category name or slug, or the query has exactly one token that
-  prefix-matches several (e.g. `s` → settings/system): render those
-  category rows only. Remaining tokens filter inside.
-- `apps <slug> [text]`: rows = that category's apps, alphabetical by
-  Name (Name as tiebreak id). Subtext = GenericName else Exec basename
-  (args after the executable stripped; `%f/%u/%U/%F` placeholders cut).
-  `text` filters as below.
-- `apps <text>` (no category hit): fuzzy filter across ALL apps:
-  case-insensitive; multi-token queries are AND (every token must match
-  somewhere in name+genericName+comment+exec-basename); substring, not
-  levenshtein. Empty result set → single info row (`No apps match`,
-  subtext `try a category, e.g. apps games`).
+  then frequency rows — top 6 by launch count DESC, count ≥ 1 required,
+  excluding pins (fresh install renders NO freq section, never `0×`
+  rows; r2) — subtext `<n>× · <slug>`; then one `appcat` row per
+  non-empty category in L-3 order, label = category label, subtext
+  `N apps` (r2 named).
+- Category view rows: that category's apps, Name asc; subtext =
+  GenericName else Exec basename (args + `%f/%u/%U/%F` stripped).
+- Fuzzy corpus (r2): name + genericName + comment + keywords +
+  exec-basename; case-insensitive substring; multi-token = AND.
+  Empty set → single info row id `apphelp`, label `No apps match`,
+  subtext `try a category, e.g. apps games`; Run on `apphelp` is a
+  no-op (r2 named, ssh-help convention).
 - App row: label = Name, icon = Icon (theme name or absolute path;
-  empty → `application-x-executable`), actions `["launch","pin"]` or
-  `["launch","unpin"]` when already pinned.
-- Relevance ladder: exact Name match 1.0, name-prefix 0.9, other hits
-  0.55; category rows 0.9; root pinned/frequency rows 0.95/0.85.
+  empty → `application-x-executable`), actions `["launch","pin"]` /
+  `["launch","unpin"]` when pinned.
+- Relevance (r2, order-consistent + tiered): pins 0.95, freq rows
+  0.90−0.02·rank (floor 0.80), category rows 0.85, exact Name 1.0,
+  name-prefix 0.9, other hits 0.55. Deterministic sort: relevance
+  DESC, then Name asc, then id asc. Tiers: pins/freq = runner's
+  R_HIGH band, category = R_MODERATE band, exact/prefix = R_HIGHEST.
 
 ### L-5 Favorites
 
-- Pins: config `app_pins` — ordered array of desktop-ids. Dead id
-  (app no longer enumerated) → row skipped at render, no warning spam
-  (one journal line per daemon lifetime per id).
-- Toggle: action 2 on any app row (`apppin` kind) flips membership and
-  writes config.json atomically (tmp+rename, load-conf schema
-  validated); the write goes through the existing sanitize path so a
-  corrupt list can never take the runner down. Response row: `Pinned
-  <Name>` / `Unpinned <Name>`, subtext shows remaining pin count.
-- Frequency: stats counter `app_launches` — a per-day map is NOT
-  needed; a lifetime count map `{desktop-id: n}` in the stats file.
-  Incremented only on real launch dispatch, never on pin toggles or
-  info rows.
+- Pins: config `app_pins` — ordered array of desktop-ids. Dead id →
+  row skipped at render; one journal line per id per daemon lifetime.
+- Toggle: action ids `pin` / `unpin` on `app:` rows (r2: dispatch by
+  action id, no `apppin:` row kind, no "action 2" phrasing). Enter
+  (act "") launches; `act == "pin"`/`"unpin"` toggles. Flip writes
+  config.json atomically (tmp+rename) through the sanitize path.
+- Feedback = §B-9 notification (r2: rows cannot be minted from Run —
+  KRunner closes on Enter): title `Hermes · pinned` / `Hermes ·
+  unpinned`, body `<Name> · <N> pins` — same channel as model-switch
+  and snippet-saved.
+- Frequency: stats `app_launches` — lifetime map `{desktop-id: n}`,
+  incremented ONLY on real launch dispatch.
 
 ### L-6 Launching (safety rules)
 
 - Launch = `subprocess.Popen(["kioclient","exec",<absolute .desktop
-  path>], start_new_session=True, close_fds=True, cwd="/")` — the
-  desktop file's own Exec runs through KDE's launcher (Terminal=true,
-  StartupWMClass, activation tokens all handled there).
-  `kioclient` absent from PATH → fallback argv
-  `["gtk-launch", id]`. If both missing: error row `Cannot launch
-  (no kioclient/gtk-launch)`.
-- NEVER build a command from the `Exec=` string; NEVER `shell=True`;
-  the id→path mapping comes only from the enumeration cache (an id in a
-  Run payload that is not in the cache → error row, no filesystem
-  guessing). Run() must return in <100 ms — Popen is fire-and-forget.
-- Launch also bumps `app_launches` and (per F-5 recents pattern) mints
-  nothing else — no answer feed, no clipboard.
+  path>], start_new_session=True, close_fds=True, cwd="/")`.
+  `kioclient` absent → `["gtk-launch", id]`; both absent → §B-9
+  notification `Cannot launch (no kioclient/gtk-launch)`.
+- NEVER build a command from `Exec=`; NEVER `shell=True`; id→path
+  comes only from the enumeration cache — unknown id in a Run payload
+  → journal WARN + notification, no filesystem guessing. Run()
+  returns <100 ms (fire-and-forget Popen).
+- `appcat:<slug>` Run (r2 defined): re-drive the KRunner query to
+  `apps <slug>` via the proven `/App query` preload — then KRunner
+  closes (native Enter behavior; documented, not fought). This is
+  what makes arrow-to-category + Enter work. `app_browses` credits
+  here (Run-time, F-8-clean).
 
 ### L-7 Empty-state Actions() (ambition, verified in harness)
 
-- `Actions()` gains `("apps", "APPS", "start-here-kde")` and
-  `("fav", "FAVORITES", "bookmarks")` buttons. In the nested-session
-  harness, verify whether plasma-krunner renders runner actions at
-  empty query. If yes: button click routes to Run with that actionId →
-  handler re-drives the UI via the proven `/App query` preload
-  (`apps` / pins-only query `apps ★` — final char in build). If plasma
-  ignores them, the fallback is documented in help: type `apps`+Enter.
-  The fallback ships regardless; the buttons are pure upside.
+- `Actions()` gains `("apps","APPS","start-here-kde")`,
+  `("fav","FAVORITES","bookmarks")`, `("pin","PIN","bookmark-new")`,
+  `("unpin","UNPIN","list-remove")` (r2: pin/unpin added — row action
+  buttons render only for ids Actions() declares). Icons are
+  freedesktop-standard names present in Breeze.
+- Harness verifies whether plasma-krunner renders runner actions at
+  empty query. If yes: button click → Run(actionId) → `/App query`
+  preload `apps` / `apps pins`. If ignored, documented fallback:
+  type `apps` + Enter. Buttons ship regardless (pure upside).
 
 ### L-8 Config, stats, help
 
 - Config keys (additive): `app_pins` (array), `app_categories` (map).
-  Both optional; absence = defaults. `hermes config` / SIGHUP reload
-  picks them up live like every other key.
-- Stats keys: `app_launches` (map), `app_pins_set`,
-  `app_pins_removed`, `app_browses` (root renders) — surfaced in the
-  existing Stats help view.
-- Help (§F-11 model) gains a Launcher block: `apps` root, category
-  drill, text filter, pin/unpin action, empty-state note.
+  LOAD-TIME sanitize per F-5/F-10 convention (r2): pins = array of
+  strings, deduped preserving first occurrence; categories = str→slug
+  map; malformed entries skipped + one journal WARN each, never fatal.
+  Write path sanitize unchanged. SIGHUP reload applies both live.
+- Stats keys (all Run-time credits, r2): `app_launches` (map),
+  `app_pins_set`, `app_pins_removed`, `app_browses` (appcat Run).
+  Surfaced in the Stats help view.
+- Help (§F-11): Launcher block — root, category drill, pins view,
+  pin/unpin action, empty-state note. New row id `help-apps`,
+  appended AFTER the last existing help row in the fixed-rel ladder
+  (rel 0.5, help-browser icon) (r2: ladder amended, not just prose).
 
 ### L-9 Tests (admission gates)
 
-- Unit (fixtures: normal, NoDisplay, Hidden, OnlyShowIn=GNOME,
-  NotShowIn=KDE, TryExec missing, Terminal=true, flatpak id, dup id in
-  two dirs, bad INI, unicode Name): parser skips, id precedence,
-  category precedence + overrides, claims regex (bare `firefox` NOT
-  claimed; `apps`, `apps games`, `APPs` claimed), root ordering
-  (pins→freq→categories), frequency exclusion of pins, category
-  filter + AND-token fuzzy, dead-pin skip, pin toggle roundtrip on a
-  temp config, cache mtime rescan (stale→rescan, fresh→hit),
-  `launch` argv (mock Popen: exactly kioclient+abs path, no shell, no
-  Exec-derived argv), stats increments, error rows for unknown id /
-  missing launchers, Actions() contains the two buttons.
+- Unit (fixtures: normal, NoDisplay, Hidden, OnlyShowIn=GNOME [skip],
+  OnlyShowIn=KDE;GNOME; [keep], NotShowIn=KDE, TryExec missing,
+  Terminal=true, flatpak id, dup id in two dirs, bad INI, unicode
+  Name, Keywords-only match): parser skips, id precedence, category
+  precedence + overrides + unknown-slug fallback, claims regex (bare
+  `firefox` NOT claimed; `apps`/`apps games`/`APPs` claimed),
+  reserved registries reject `apps` as handoff + as ai/hr prefix,
+  root ordering (pins→freq→categories, freq ≥1 only, pins excluded),
+  grammar branches (a/b/c incl. `apps se fire` → fuzzy, `apps s` →
+  settings+system rows, `apps pins` view, dead-pin skip, empty-pins
+  info), AND-token fuzzy incl. Keywords-only hit (r2), pin toggle
+  roundtrip on temp config (atomic write, sanitize survives malformed
+  load: non-array pins, non-str entries, dup ids, non-map categories),
+  cache: fresh-mtime hit, mtime-change rescan, dir-SET-change rescan
+  (r2), warm-at-start flag, `launch` argv (mock Popen: exactly
+  kioclient+abs path, no shell, no Exec-derived argv; gtk-launch
+  fallback when kioclient absent; notification when both absent),
+  unknown-id Run → WARN + notification, stats increments
+  (app_launches on launch only; pins_set/removed on toggle only;
+  app_browses on appcat Run only), relevance + deterministic sort,
+  Actions() contains the four entries, apphelp Run no-op.
 - Harness (`run-krunner.sh` extended): stubbed `kioclient` first in
-  nested PATH (tailfin stub pattern) — drive Match over DBus for root/
-  category/fuzzy/pin-toggle; stub log must show exactly one exec with
-  the fixture .desktop's absolute path; journal checkpoints; pixels at
-  both scales (root rows render, icons present).
+  nested PATH (tailfin stub pattern) — drive Match over DBus for
+  root/category/fuzzy/pins-view; Run an appcat row → assert the /App
+  query preload argv; Run an app row → stub log shows exactly one
+  exec with the fixture .desktop's absolute path; journal
+  checkpoints; pixels at both scales (root rows render, icons
+  present).
 
 ### L-10 Explicitly out of scope
 
