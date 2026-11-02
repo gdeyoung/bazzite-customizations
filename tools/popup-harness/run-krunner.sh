@@ -42,6 +42,7 @@ export WAYLAND_DISPLAY="$SOCK"
 mkdir -p "$XDG_DATA_HOME/krunner/dbusplugins" "$XDG_DATA_HOME/hermes-runner" \
          "$H/.config/hermes-runner"
 install -m 0755 "$PKG_SRC/hermes_runner.py" "$XDG_DATA_HOME/hermes-runner/hermes_runner.py"
+install -m 0755 "$PKG_SRC/apps_model.py" "$XDG_DATA_HOME/hermes-runner/apps_model.py"
 
 # --- single .desktop: the repo form (variants proved equivalent in kr2-kr4)
 DBP="$XDG_DATA_HOME/krunner/dbusplugins"
@@ -85,6 +86,41 @@ PY
 sed 's#http://192.168.1.243:4000/v1#http://127.0.0.1:9/v1#' \
     "$H/.config/hermes-runner/config.json" \
     > "$H/.config/hermes-runner/config-dead.json"
+
+# --- §L launcher lane (v0.6): fixture apps + stub kioclient BEFORE the
+# daemon starts (which() resolves from the daemon's inherited PATH; the
+# stub guarantees the harness never performs a real launch)
+mkdir -p "$H/.local/share/applications" "$H/stub-bin"
+cat > "$H/.local/share/applications/hxfire.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=HermesFire
+GenericName=Harness Browser
+Exec=hxfire %u
+Categories=Network;
+Keywords=harness;web;
+EOF
+cat > "$H/.local/share/applications/hxmine.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=HermesMine
+GenericName=Harness Game
+Exec=hxmine
+Categories=Game;
+EOF
+cat > "$H/.local/share/applications/hxhidden.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=HiddenApp
+Exec=hxhidden
+NoDisplay=true
+EOF
+cat > "$H/stub-bin/kioclient" <<'EOF'
+#!/usr/bin/env bash
+echo "STUB-KIOCLIENT $*" >> "$HOME/stub-kioclient.log"
+EOF
+chmod +x "$H/stub-bin/kioclient"
+export PATH="$H/stub-bin:$PATH"
 
 start_daemon() {  # $1 = extra env (HERMES_RUNNER_CONF)
   /usr/bin/python3 "$XDG_DATA_HOME/hermes-runner/hermes_runner.py" \
@@ -256,6 +292,76 @@ for lane in help-ssh help-snippet help-model help-docs help-handoff-gh; do
 done
 sleep 1
 spectacle -b -n -o "$OUT/kr-help-$TAG.png" 2>/dev/null && echo "SHOT-kr-help"
+
+# --- §L launcher lane probes (v0.6): Match rows, drill, launch, pin ------
+echo "--- §L apps lane ---"
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps" \
+    > "$ROOT/kr-apps-$TAG.txt" 2>&1 && echo "CKPT-APPS-ROOT-QUERY=OK" || echo "CKPT-APPS-ROOT-QUERY=FAIL"
+grep -q "apps-root" "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-ANCHOR=OK" || echo "CKPT-APPS-ANCHOR=FAIL"
+grep -q "appcat:internet" "$ROOT/kr-apps-$TAG.txt" && grep -q "appcat:games" "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-CATS=OK" || echo "CKPT-APPS-CATS=FAIL"
+grep -q "app:hxhidden.desktop" "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-NODISPLAY=FAIL" || echo "CKPT-APPS-NODISPLAY=OK"
+
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps games" \
+    > "$ROOT/kr-appsgames-$TAG.txt" 2>&1
+grep -q "app:hxmine.desktop" "$ROOT/kr-appsgames-$TAG.txt" \
+    && echo "CKPT-APPS-CATVIEW=OK" || echo "CKPT-APPS-CATVIEW=FAIL"
+
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps harness" \
+    > "$ROOT/kr-appsfz-$TAG.txt" 2>&1
+grep -q "app:hxfire.desktop" "$ROOT/kr-appsfz-$TAG.txt" \
+    && echo "CKPT-APPS-FUZZY=OK" || echo "CKPT-APPS-FUZZY=FAIL"
+
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps pins" \
+    > "$ROOT/kr-appspins-$TAG.txt" 2>&1
+grep -q "No pins yet" "$ROOT/kr-appspins-$TAG.txt" \
+    && echo "CKPT-APPS-PINS-EMPTY=OK" || echo "CKPT-APPS-PINS-EMPTY=FAIL"
+
+$B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1
+sleep 1
+spectacle -b -n -o "$OUT/kr-apps-$TAG.png" 2>/dev/null && echo "SHOT-kr-apps"
+# empty-query state: does plasma render runner actions? (§L-7 verdict input)
+$B call org.kde.krunner /App org.kde.krunner.App query s "" >/dev/null 2>&1
+sleep 1.5
+spectacle -b -n -o "$OUT/kr-empty-$TAG.png" 2>/dev/null && echo "SHOT-kr-empty"
+
+# drill: Run on a category row re-drives the query via /App (async thread)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "appcat:games" "" >/dev/null 2>&1
+sleep 1.5
+grep -q "HARNESS-APPCAT apps games" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-APPCAT-RUN=OK" || echo "CKPT-APPCAT-RUN=FAIL"
+spectacle -b -n -o "$OUT/kr-appcat-$TAG.png" 2>/dev/null && echo "SHOT-kr-appcat"
+
+# launch: exactly one stub exec with the fixture's absolute path
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "app:hxmine.desktop" "" >/dev/null 2>&1
+sleep 1
+N=$(grep -c "STUB-KIOCLIENT exec" "$H/stub-kioclient.log" 2>/dev/null || echo 0)
+[ "$N" = "1" ] && grep -q "$H/.local/share/applications/hxmine.desktop" "$H/stub-kioclient.log" \
+    && echo "CKPT-APP-LAUNCH=OK" || echo "CKPT-APP-LAUNCH=FAIL(n=$N)"
+
+# pin roundtrip: config write + pinned row first on the next root Match
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "app:hxmine.desktop" "pin" >/dev/null 2>&1
+sleep 1
+/usr/bin/python3 -c "import json,sys;sys.exit(0 if json.load(open('$H/.config/hermes-runner/config.json')).get('app_pins')==['hxmine.desktop'] else 1)" \
+    && echo "CKPT-APP-PIN-CONF=OK" || echo "CKPT-APP-PIN-CONF=FAIL"
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps" \
+    > "$ROOT/kr-apps2-$TAG.txt" 2>&1
+head -30 "$ROOT/kr-apps2-$TAG.txt" | grep -q "app:hxmine.desktop" \
+    && echo "CKPT-APP-PIN-ROW=OK" || echo "CKPT-APP-PIN-ROW=FAIL"
+
+# empty-state action buttons exist on the wire
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Actions \
+    > "$ROOT/kr-actions-$TAG.txt" 2>&1
+for a in launch pin unpin apps fav; do
+    grep -q "\"$a\"" "$ROOT/kr-actions-$TAG.txt" || { echo "CKPT-ACTIONS=FAIL($a)"; break; }
+    echo "CKPT-ACTIONS=OK"
+done
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "" "apps" >/dev/null 2>&1
+sleep 1
+grep -q "HARNESS-APPACTION apps" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-APPACTION-RUN=OK" || echo "CKPT-APPACTION-RUN=FAIL"
 
 kill $RUNNER_PID $KRUNNER_PID $MON_PID $KWIN_PID 2>/dev/null
 sleep 2

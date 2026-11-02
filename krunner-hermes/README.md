@@ -4,9 +4,9 @@ The Omarchy "front door" feeling, KDE-native: Super+Space, ask a question or
 fire an agent task, no terminal, no browser. Zero-compile Plasma 6 DBus
 runner — no C++, no KDE SDK, nothing layered into the image.
 
-**Status: v0.5 — UX-reviewed (UX-SPEC.md), harness-gated, unit-tested.**
+**Status: v0.6 — UX-reviewed (UX-SPEC.md §L r2.2), harness-gated, unit-tested.**
 
-## What the two prefixes do
+## What the prefixes do
 
 | You type (Super+Space) | What happens |
 |---|---|
@@ -32,6 +32,8 @@ Errors are their own state: a failed ask shows a red row with a one-line humaniz
 **Snippets (v0.5):** `;` is an in-band snippet CRUD. `;sig` Enter copies snippet `sig`; row buttons COPY · SHOW · DELETE. `;sig Greg DeYoung` Enter saves it (retyping an existing name shows the copy row plus an `Overwrite` row below it — save-if-new is Highest, overwrite is deliberately lower). `;` alone lists all snippets (name in title, 80-char preview in subtext, cap 8 + a `+N more` pointer). Names: `a-z 0-9 -`, max 16, unique, validated as typed (`;Sig` is invalid, never silently lowered); `help` is reserved (`;help` = the index). Text: single line, ≤2000 chars — multi-line snippets stay config.json-only by design (`"snippets": [{name, text}]`). Delete is recoverable: the `snippet deleted` notification carries the full text for undo-by-copy. Saves/deletes persist via read-modify-write of config.json (unknown keys preserved) — on write failure the change stays in memory and the notification says so.
 
 **Layered help (v0.5):** `hermes` (or bare `help`) is the index — one row per lane (ai · hr · dictation · ssh · snippets · model · each handoff · docs) with a drill hint in every subtext. `hermes ssh`, `hermes snippets`, `hermes model`, `hermes ai`, `hermes hr`, `hermes dictation`, `hermes handoffs` open short detail pages (≤6 rows): a syntax row, copy-action example rows (the COPY button puts the example on your clipboard), and a config pointer. `hermes docs` opens this README. Unknown lanes fall back to the index — the index IS the correction. Help rows are inert (`actions: []`) except the copy examples; help describes config, never edits it.
+
+**App launcher (v0.6):** `apps` is a start-menu-style browse lane — the foyer/Kickoff experience without leaving KRunner. Bare `apps`: an anchor row, then your pinned apps (config order), then most-used (launch counts, ≥1), then category rows (internet · media · games · system · settings …). ↓ + Enter on a category row re-drives the query into that category (`apps games`); `apps <words>` is an AND-token fuzzy search over name + generic name + keywords + comment + exec basename; `apps pins` is the favorites-only view. Launch is by desktop-id via `kioclient exec` (flatpaks fall back to `gtk-launch`) — never Exec parsing, no shell. PIN/UNPIN row buttons keep favorites in `~/.config/hermes-runner/config.json` (`app_pins`, atomic write); pin feedback is a notification (KRunner closes on Enter — a response row is mechanically impossible). Launches count into `app_launches` for the frequency section. Desktop-entry sources: `~/.local/share/applications`, `/usr/share/applications`, both flatpak export dirs (~253 visible apps here); NoDisplay/Hidden/not-KDE entries are filtered; results cache to `~/.cache/hermes-runner/apps.json` (v2) and warm at daemon start. Bare app names stay with KRunner's native runner (no twin rows — the lane claims only `apps …`). Note: apps literally *named* "apps" (Web Apps…) may render native groups above ours — Plasma's 1.0-tie prerogative; arrow past them or type more letters. KRunner shows no runner buttons on an empty query, so the entry point is simply typing `apps`.
 
 KRunner stays KRunner: apps, windows, calculator, unit conversion, timers and
 file search remain native. This runner only adds the agent lanes — the

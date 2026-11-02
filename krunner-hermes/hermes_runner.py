@@ -46,6 +46,8 @@ import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
+import apps_model
+
 BUS_NAME = "org.kde.runners.hermes"
 OBJ_PATH = "/hermes"
 IFACE = "org.kde.krunner1"
@@ -70,6 +72,8 @@ DEFAULT_CONF = {
     "web_search_name": "DUCKDUCKGO",
     "models": ["local-fast", "local-heavy", "local-fast-reason",
                "cloud-dev"],
+    "app_pins": [],
+    "app_categories": {},
     "handoffs": [
         {"prefix": "gh", "label": "GitHub",
          "url": "https://github.com/search?q=%s"},
@@ -112,7 +116,7 @@ def sanitize_handoffs(conf):
     malformed entries are dropped, never fatal."""
     reserved = {conf.get("answer_prefix", "ai"),
                 conf.get("task_prefix", "hr"), "hermes",
-                "ssh", "help"}   # F-9/F-11: lane claims, bidirectional
+                "ssh", "help", "apps"}   # F-9/F-11 + §L-1: lane claims
     clean, seen, skipped = [], set(), 0
     for h in (conf.get("handoffs") or []):
         try:
@@ -216,7 +220,7 @@ def load_conf():
     # F-9/F-11 bidirectional lane claims: a configured answer/task prefix
     # equal to a lane claim would shadow that lane — reset to the default.
     for pk in ("answer_prefix", "task_prefix"):
-        if conf.get(pk) in ("ssh", "help", "hermes"):
+        if conf.get(pk) in ("ssh", "help", "hermes", "apps"):
             log(f"{pk} '{conf[pk]}' collides with a lane claim; "
                 f"reset to default")
             conf[pk] = "ai" if pk == "answer_prefix" else "hr"
@@ -225,6 +229,14 @@ def load_conf():
         sskipped = len(conf.get("snippets") or []) - len(conf["_snippets"])
     if sskipped:
         log(f"{sskipped} snippet entries skipped (sanitize)")
+    # §L-8: load-time sanitize for launcher config (never fatal)
+    conf["_app_pins"], pskip = apps_model.sanitize_pins(conf.get("app_pins"))
+    if pskip:
+        log(f"{pskip} app_pins entries skipped (sanitize)")
+    conf["_app_cats"], cskip = apps_model.sanitize_cat_overrides(
+        conf.get("app_categories"), logger=lambda m: log("WARN", m))
+    if cskip:
+        log(f"{cskip} app_categories entries skipped (sanitize)")
     try:
         conf["_ssh_hosts"] = parse_ssh_config(
             Path("~/.ssh/config").expanduser().read_text())
@@ -371,7 +383,7 @@ def normalize(query, conf):
         return m.group(1).lower() + " " + text[m.end():]
     return text
 
-def route(query, cache, fetching, running, conf):
+def route(query, cache, fetching, running, conf, stats=None, appstore=None):
     """Rows as (id, title, subtext, icon, catrel, relevance, props-dict)."""
     q = normalize(query, conf).strip()
     low = q.lower()
@@ -468,6 +480,39 @@ def route(query, cache, fetching, running, conf):
             # F-7 unknown-model help rides under the question rows (0.5).
             row("model-help", model_help[0], model_help[1],
                 "help-browser", R_MODERATE, 0.5, {"actions": []})
+        return out
+
+    if first == "apps":
+        # §L launcher lane: favorites, categories, fuzzy — one prefix,
+        # native app search untouched (no-duplication rule).
+        if appstore is None:
+            row("apphelp", "App index not loaded",
+                "DAEMON STILL WARMING · RETRY IN A MOMENT",
+                "help-browser", R_MODERATE, 0.5)
+            return out
+        freq = {}
+        if stats is not None:
+            m = stats.data.get("app_launches")
+            freq = m if isinstance(m, dict) else {}
+        seen_dead = set()
+
+        def dead_pin(pid, _seen=seen_dead):
+            if pid not in _seen:      # one journal line per id per lifetime
+                _seen.add(pid)
+                log(f"dead pin skipped: {pid}")
+
+        try:
+            snap = appstore.snapshot()
+        except Exception as e:
+            log(f"apps snapshot failed: {e}")
+            snap = []
+        for r in apps_model.build_rows(
+                snap, conf.get("_app_pins") or [], freq,
+                conf.get("_app_cats") or {}, rest, dead_pin_logger=dead_pin):
+            tier = {"HIGHEST": R_HIGHEST, "HIGH": R_HIGH,
+                    "MODERATE": R_MODERATE}[r["tier"]]
+            row(r["id"], r["title"], r["sub"], r["icon"], tier, r["rel"],
+                {"actions": r["actions"]})
         return out
 
     if first == conf["task_prefix"]:
@@ -631,6 +676,11 @@ def route(query, cache, fetching, running, conf):
             row("help-docs", "Hermes: open the full manual",
                 "README VIA XDG-OPEN · ALL CONFIG IN config.json",
                 "help-browser", R_MODERATE, 0.30, {"actions": []})
+            # §L-8: launcher lane rides last in the fixed-rel ladder
+            row("help-apps", "Hermes: browse apps with 'apps'",
+                "PINS · CATEGORIES · MOST-USED · TYPE 'hermes apps' "
+                "FOR DETAILS",
+                "start-here-kde", R_MODERATE, 0.29, {"actions": []})
 
         def helppage(lane_id, n, title, sub, copyable=False):
             row(f"helppage:{lane_id}:{n}", title, sub, "help-browser",
@@ -689,6 +739,21 @@ def route(query, cache, fetching, running, conf):
             helppage("dictation", 1, "tell hermes to restart docker",
                      "FOLDS INTO hr restart docker — TASK LANE",
                      copyable=True)
+        elif lane == "apps":
+            # §L-8: launcher-lane help block (foyer-browse grammar)
+            helppage("apps", 0, "apps",
+                     "PINS FIRST, THEN MOST-USED, THEN CATEGORIES",
+                     copyable=True)
+            helppage("apps", 1, "apps games · apps internet fire…",
+                     "CATEGORY VIEW · REMAINING WORDS FILTER BY NAME",
+                     copyable=True)
+            helppage("apps", 2, "apps pins",
+                     "PINS-ONLY VIEW · PIN FROM ANY APP ROW BUTTON",
+                     copyable=True)
+            helppage("apps", 3, "App rows: ENTER launches · PIN pins",
+                     "UNPIN REMOVES · PINS SURVIVE REBOOT (config.json)")
+            helppage("apps", 4, "Plain app names stay native",
+                     "'firef' HITS KRUNNER'S OWN APP SEARCH — NO TWINS")
         elif lane == "handoffs":
             for i, h in enumerate(handoffs[:6]):
                 helppage("handoffs", i, f"{h['prefix']} <query>",
@@ -779,6 +844,20 @@ def persist_snippets(snips):
         return False, str(e)
 
 
+ACTIONS_LIST = [
+    ("copy", "COPY", "edit-copy"),
+    ("askagain", "ASK AGAIN", "view-refresh"),
+    ("reshow", "SHOW AGAIN", "help-browser"),
+    ("show", "SHOW", "help-browser"),
+    ("delete", "DELETE", "edit-delete"),
+    ("launch", "LAUNCH", "system-run"),          # §L-5 app rows
+    ("pin", "PIN", "bookmark-new"),
+    ("unpin", "UNPIN", "list-remove"),
+    ("apps", "APPS", "start-here-kde"),          # §L-7 empty-state
+    ("fav", "FAVORITES", "bookmarks"),
+]
+
+
 def web_target(conf, text):
     """F-2: substitute the ORIGINAL-CASE question into web_search_url."""
     url = conf.get("web_search_url", "https://duckduckgo.com/?q=%s")
@@ -795,7 +874,8 @@ class Stats:
 
     KEYS = ("asks", "tasks", "answer_uses", "error_retries", "web_opens",
             "recents_copies", "model_switches", "dictation_hits",
-            "ssh_sessions", "snippet_uses", "snippet_edits")
+            "ssh_sessions", "snippet_uses", "snippet_edits",
+            "app_pins_set", "app_pins_removed", "app_browses")
 
     def __init__(self, path=None):
         base = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -813,7 +893,8 @@ class Stats:
         self._write()
 
     def hit(self, name, prefix=None):
-        if name not in self.KEYS and name != "handoffs":
+        maps = ("handoffs", "app_launches")   # app_launches: §L-5 lifetime
+        if name not in self.KEYS and name not in maps:
             return
         day = time.strftime("%Y-%m-%d")
         with self.lock:
@@ -821,17 +902,18 @@ class Stats:
             if not isinstance(d, dict):
                 d = {}
                 self.data["days"][day] = d
-            if name == "handoffs":
-                h = self.data.get("handoffs")
-                if not isinstance(h, dict):
-                    h = {}
-                    self.data["handoffs"] = h
-                h[prefix] = int(h.get(prefix, 0)) + 1
-                dh = d.get("handoffs")
-                if not isinstance(dh, dict):
-                    dh = {}
-                    d["handoffs"] = dh
-                dh[prefix] = int(dh.get(prefix, 0)) + 1
+            if name in maps:
+                m = self.data.get(name)
+                if not isinstance(m, dict):
+                    m = {}
+                    self.data[name] = m
+                m[prefix] = int(m.get(prefix, 0)) + 1
+                if name == "handoffs":   # per-day map for handoffs only
+                    dh = d.get("handoffs")
+                    if not isinstance(dh, dict):
+                        dh = {}
+                        d["handoffs"] = dh
+                    dh[prefix] = int(dh.get(prefix, 0)) + 1
             else:
                 self.data[name] = int(self.data.get(name, 0)) + 1
                 d[name] = int(d.get(name, 0)) + 1
@@ -849,13 +931,100 @@ class Stats:
         totals = {k: self.data.get(k, 0) for k in self.KEYS
                   if k in self.data}
         totals["handoffs"] = self.data.get("handoffs", {})
+        totals["app_launches"] = self.data.get("app_launches", {})
         return json.dumps({"totals": totals, "days": self.data["days"]},
                           indent=1, sort_keys=True)
+
+
+def persist_app_pins(pins):
+    """§L-5: read-modify-write config.json — only `app_pins` changes,
+    unknown keys preserved (persist_snippets pattern). (ok, reason)."""
+    try:
+        try:
+            raw = json.loads(CONF_PATH.read_text())
+            if not isinstance(raw, dict):
+                raw = {}
+        except FileNotFoundError:
+            raw = {}
+        raw["app_pins"] = pins
+        tmp = str(CONF_PATH) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(raw, f, indent=1)
+        os.replace(tmp, str(CONF_PATH))
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def toggle_app_pin(app_id, act, name, conf, stats):
+    """§L-5: flip membership, persist, notify (B-9 channel)."""
+    pins = list(conf.get("_app_pins") or [])
+    if act == "pin":
+        if app_id not in pins:
+            pins.append(app_id)
+        key, title = "app_pins_set", "pinned"
+    else:
+        pins = [p for p in pins if p != app_id]
+        key, title = "app_pins_removed", "unpinned"
+    ok, why = persist_app_pins(pins)
+    if ok:
+        conf["_app_pins"] = pins
+        if stats:
+            stats.hit(key)
+        notify(f"Hermes · {title}",
+               f"{clip(name or app_id, 60)} · {len(pins)} pins",
+               "bookmarks", "low", conf)
+    else:
+        notify("Hermes · pin not written",
+               f"kept in memory · {clip(why, 80)}",
+               "dialog-error", "low", conf)
+
+
+def launch_app(app, conf, stats):
+    """§L-6: launch by id via kioclient (gtk-launch fallback). The Exec=
+    string is NEVER turned into an argv — KDE's launcher owns it."""
+    if shutil.which("kioclient"):
+        argv = ["kioclient", "exec", app["path"]]
+    elif shutil.which("gtk-launch"):
+        argv = ["gtk-launch", app["id"]]
+    else:
+        notify("Hermes · cannot launch",
+               "no kioclient / gtk-launch on PATH",
+               "dialog-error", "low", conf)
+        return False
+    try:
+        subprocess.Popen(argv, start_new_session=True, close_fds=True,
+                         cwd="/", stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    except OSError as e:
+        notify("Hermes · cannot launch", clip(str(e), 80),
+               "dialog-error", "low", conf)
+        return False
+    if stats:
+        stats.hit("app_launches", prefix=app["id"])
+    return True
 
 
 def run_dispatch(kind, key, text, act, ctx):
     conf = ctx.conf
     stats = getattr(ctx, "stats", None)   # F-8; absent in old test ctxs
+
+    if kind == "" and act in ("apps", "fav"):
+        # §L-7 empty-state action buttons (when plasma renders them):
+        # re-drive the KRunner query. Async — see appcat note.
+        target = "apps" if act == "apps" else "apps pins"
+        log(f"HARNESS-APPACTION {act}")
+
+        def _action_preload(q=target):
+            time.sleep(0.25)
+            try:
+                bus = dbus.SessionBus()
+                bus.call_blocking("org.kde.krunner", "/App",
+                                  "org.kde.krunner.App", "query", "s", (q,))
+            except Exception as e:
+                log(f"app action preload failed: {e}")
+        threading.Thread(target=_action_preload, daemon=True).start()
+        return
 
     if kind == "ask":
         if act in ("", "askagain"):
@@ -1030,6 +1199,44 @@ def run_dispatch(kind, key, text, act, ctx):
             except FileNotFoundError:
                 log("xdg-open missing; docs skipped")
 
+    elif kind == "app":
+        # §L-6: launch by id from the enumeration cache only.
+        if act in ("pin", "unpin"):
+            app = None
+            if getattr(ctx, "appstore", None):
+                app = ctx.appstore.lookup(key)
+            toggle_app_pin(key, act, (app or {}).get("name", ""), conf, stats)
+        else:
+            app = None
+            if getattr(ctx, "appstore", None):
+                app = ctx.appstore.lookup(key)
+            if app is None:
+                log(f"WARN app id not in cache: {key}")
+                notify("Hermes · cannot launch",
+                       f"unknown app id · {clip(key, 60)}",
+                       "dialog-error", "low", conf)
+            else:
+                launch_app(app, conf, stats)
+    elif kind == "appcat":
+        # §L-6: drill = re-drive the KRunner query via /App. Async + delayed
+        # — a synchronous call back into krunner mid-Run would deadlock.
+        if key in apps_model.SLUGS:
+            if stats:
+                stats.hit("app_browses")
+            log(f"HARNESS-APPCAT apps {key}")
+
+            def _preload(slug=key):
+                time.sleep(0.25)
+                try:
+                    bus = dbus.SessionBus()
+                    bus.call_blocking("org.kde.krunner", "/App",
+                                      "org.kde.krunner.App", "query", "s",
+                                      (f"apps {slug}",))
+                except Exception as e:
+                    log(f"appcat preload failed: {e}")
+            threading.Thread(target=_preload, daemon=True).start()
+    elif kind in ("apphelp", "apps-root"):
+        pass   # §L-4 info/anchor rows — no-op
     elif kind == "task":
         if act in ("", "askagain"):
             if stats: stats.hit("tasks")
@@ -1059,6 +1266,7 @@ class HermesRunner(dbus.service.Object):
         self.folded = {}          # row id -> True when minted from a query
                                   # normalize() changed (F-8 dictation credit)
         self.stats = Stats()
+        self.appstore = apps_model.AppStore(logger=log)   # §L-2 warm-at-start
         self.running_tasks = {}   # qh -> {"pid","start","logf"} (B-6)
         self.task_lock = threading.Lock()
 
@@ -1170,7 +1378,7 @@ class HermesRunner(dbus.service.Object):
     def Match(self, query):
         # Pure display; I/O happens only in Run() (UX-SPEC P0-2).
         rows = route(query, self.cache, self.fetching, self.running_tasks,
-                     self.conf)
+                     self.conf, self.stats, self.appstore)
         out = []
         # id→payload map: preserve ORIGINAL CASE for ask/task/web/handoff
         # round-trips — derived from the NORMALIZED query (dictated phrases
@@ -1230,13 +1438,7 @@ class HermesRunner(dbus.service.Object):
 
     @dbus.service.method(IFACE, out_signature="a(sss)")
     def Actions(self):
-        return [
-            ("copy", "COPY", "edit-copy"),
-            ("askagain", "ASK AGAIN", "view-refresh"),
-            ("reshow", "SHOW AGAIN", "help-browser"),
-            ("show", "SHOW", "help-browser"),
-            ("delete", "DELETE", "edit-delete"),
-        ]
+        return list(ACTIONS_LIST)
 
     @dbus.service.method(IFACE, in_signature="s")
     def SetActivationToken(self, token):
@@ -1261,6 +1463,7 @@ def main():
 
     bus_name = dbus.service.BusName(BUS_NAME, bus)  # noqa: F841
     log(f"ready on {BUS_NAME}{OBJ_PATH}")
+    GLib.idle_add(runner.appstore.warm)   # §L-2: index ready before 1st key
     loop.run()
 
 

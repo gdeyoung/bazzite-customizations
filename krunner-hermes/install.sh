@@ -38,6 +38,7 @@ mkdir -p "$SHARE" "$HOME/.local/share/krunner/dbusplugins" "$HOME/.config/system
 
 # 1. daemon + desktop spec + unit
 install -m 0755 "$SRC/hermes_runner.py" "$SHARE/hermes_runner.py"
+install -m 0755 "$SRC/apps_model.py" "$SHARE/apps_model.py"   # v0.6 launcher lane
 install -m 0644 "$SRC/README.md" "$SHARE/README.md"   # `hermes docs` opens it
 install -m 0644 "$SRC/org.kde.runners.hermes.desktop" \
         "$HOME/.local/share/krunner/dbusplugins/org.kde.runners.hermes.desktop"
@@ -89,6 +90,9 @@ busctl --user status org.kde.runners.hermes >/dev/null 2>&1 \
 systemctl --user restart plasma-krunner.service
 
 echo
-echo "OK. In KRunner (Alt+Space) try:"
+echo "OK. In KRunner (Alt+Space or Super+Space) try:"
+echo "  apps                  # browse: pins, most-used, categories (↓ + Enter)"
+echo "  apps games            # category drill (or Enter on a category row)"
+echo "  apps pins             # favorites only; pin/unpin via row buttons"
 echo "  ai what is the fleet LiteLLM alias for GLM-5.3"
 echo "  hr check the jellyfin service health and notify me"

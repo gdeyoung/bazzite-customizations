@@ -760,6 +760,14 @@ deleg_23359d89 (14 changes).
   Special case: `apps pins` → pins-only view (r2): pinned rows in
   config order, subtext `pinned · <slug>`; if no pins, info row
   `No pins yet` subtext `select an app → PIN action`.
+- Bare `apps` root (r2.2): row 0 is the anchor `apps-root` — "Apps —
+  favorites & categories", sub "HERMES LAUNCHER · ↓ ARROWS TO BROWSE ·
+  ENTER DRILLS", 1.0/HIGHEST, Run = no-op. Why: apps whose NAME
+  contains "apps" (e.g. Web Apps) tie at 1.0 and Plasma's group
+  tie-break favors native runners; without the anchor the whole
+  Hermes group sat below the visible fold (pixel gate apps3). With
+  it, the group renders third behind native exact-name groups —
+  Plasma's prerogative on 1.0 ties, documented, not fought.
 - `apps` (root): pinned rows (config order, subtext `pinned · <slug>`),
   then frequency rows — top 6 by launch count DESC, count ≥ 1 required,
   excluding pins (fresh install renders NO freq section, never `0×`
@@ -779,8 +787,10 @@ deleg_23359d89 (14 changes).
 - Relevance (r2, order-consistent + tiered): pins 0.95, freq rows
   0.90−0.02·rank (floor 0.80), category rows 0.85, exact Name 1.0,
   name-prefix 0.9, other hits 0.55. Deterministic sort: relevance
-  DESC, then Name asc, then id asc. Tiers: pins/freq = runner's
-  R_HIGH band, category = R_MODERATE band, exact/prefix = R_HIGHEST.
+  DESC, then Name asc, then id asc. Tiers (r2.1, pixel gate apps1):
+  pins/freq/category rows = R_HIGH band — category rows at Moderate
+  sank below native results for the literal word "apps"; exact/prefix
+  = R_HIGHEST.
 
 ### L-5 Favorites
 
@@ -820,10 +830,11 @@ deleg_23359d89 (14 changes).
   `("unpin","UNPIN","list-remove")` (r2: pin/unpin added — row action
   buttons render only for ids Actions() declares). Icons are
   freedesktop-standard names present in Breeze.
-- Harness verifies whether plasma-krunner renders runner actions at
-  empty query. If yes: button click → Run(actionId) → `/App query`
-  preload `apps` / `apps pins`. If ignored, documented fallback:
-  type `apps` + Enter. Buttons ship regardless (pure upside).
+- Harness verified (apps3 pixel): plasma's KRunner window at a
+  zero-length query renders NO runner action buttons — just the search
+  field. The Apps/Favorites entries are therefore wire-only (harmless,
+  kept for API parity); user-facing path is documented in README:
+  type `apps`. Row-action pin/unpin buttons render on rows as normal.
 
 ### L-8 Config, stats, help
 
