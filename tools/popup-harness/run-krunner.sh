@@ -326,6 +326,13 @@ spectacle -b -n -o "$OUT/kr-apps-$TAG.png" 2>/dev/null && echo "SHOT-kr-apps"
 $B call org.kde.krunner /App org.kde.krunner.App query s "" >/dev/null 2>&1
 sleep 1.5
 spectacle -b -n -o "$OUT/kr-empty-$TAG.png" 2>/dev/null && echo "SHOT-kr-empty"
+# hermes-menu bind gate (keys v3): the EXACT Exec line from hermes-menu.desktop,
+# replayed against this session's krunner — Super+Space must open ON the menu
+$B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1 \
+  && echo "CKPT-MENU-OPENER-CALL=OK" || echo "CKPT-MENU-OPENER-CALL=FAIL"
+sleep 2
+spectacle -b -n -o "$OUT/kr-menu-$TAG.png" 2>/dev/null && echo "SHOT-kr-menu"
+[ -s "$OUT/kr-menu-$TAG.png" ] && echo "CKPT-MENU-OPENER=OK" || echo "CKPT-MENU-OPENER=FAIL"
 
 # drill: Run on a category row re-drives the query via /App (async thread)
 $B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "appcat:games" "" >/dev/null 2>&1

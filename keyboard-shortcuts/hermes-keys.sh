@@ -2,10 +2,16 @@
 # Hermes desktop keys for KDE Plasma 6 (user-level, reversible).
 #
 # What this wires (Omarchy-parity muscle memory on Bazzite):
-#   Meta+Space        → KRunner (live since 2026-11-01; this makes it script-truth)
+#   Meta+Space        → KRunner PRELOADED with "apps" — the launcher menu
+#                       (pins, most-used, categories) is on screen at open;
+#                       backspace = plain search box. Requires the v0.6
+#                       hermes-runner apps lane. (v3)
 #   Meta+Return       → Konsole (Omarchy's "super enter = terminal")
 #   Meta+H            → KRunner preloaded with "ai " — type the question, Enter
 #   Meta+Shift+H      → KRunner preloaded with "hr " — type the task, Enter
+#
+# v3: Super+Space moves from plain KRunner to the apps-menu preload.
+# revert returns to the v2 state (Super+Space = plain KRunner).
 #
 # No remapper needed: kglobalaccel already ships this layer. Nothing here
 # touches voxtype PTT (hold COMPOSE on the Ornata, evdev 127 — checked free).
@@ -49,9 +55,17 @@ svc() {  # desktop-id, combo  → kwriteconfig6 into [services][<id>] _launch
 apply() {
   mkdir -p "$APPS"
 
-  # 1. KRunner on Meta+Space — matches the live binding set 2026-11-01
-  #    ([services][org.kde.krunner.desktop]); idempotent, no Alt+Space re-add.
-  svc "org.kde.krunner.desktop" "Meta+Space"
+  # 1. Meta+Space → KRunner preloaded with the apps browse menu (v3).
+  #    The preload opens the window AND renders the lane, so Super+Space
+  #    lands on a menu, not an empty box. kglobalaccel allows one _launch
+  #    owner per combo: drop krunner's own stanza, then claim it.
+  write_desktop hermes-menu "Hermes Menu" \
+    'busctl --user call org.kde.krunner /App org.kde.krunner.App query s "apps"' \
+    "start-here-kde"
+  kwriteconfig6 --file kglobalshortcutsrc --delete \
+    --group services --group "org.kde.krunner.desktop" --key "_launch" \
+    >/dev/null 2>&1 || true
+  svc "hermes-menu.desktop" "Meta+Space"
 
   # 2. Meta+Return → Konsole
   write_desktop hermes-terminal "Hermes Terminal" "konsole" "utilities-terminal"
@@ -76,15 +90,16 @@ apply() {
 }
 
 revert() {
-  # KRunner back to the stock Alt+Space; drop the three custom groups+files.
-  svc "org.kde.krunner.desktop" "Alt+Space"
-  for g in "hermes-terminal.desktop" "hermes-ask.desktop" "hermes-task.desktop"; do
+  # Back to v2 state: plain KRunner on Meta+Space; drop custom groups+files.
+  svc "org.kde.krunner.desktop" "Meta+Space"
+  for g in "hermes-terminal.desktop" "hermes-ask.desktop" \
+           "hermes-task.desktop" "hermes-menu.desktop"; do
     # --delete before the groups, KEY-level: group-only delete is a no-op in
     # kwriteconfig6; deleting the last key drops the group header with it.
     kwriteconfig6 --file kglobalshortcutsrc --delete \
       --group services --group "$g" --key "_launch" >/dev/null 2>&1 || true
   done
-  rm -f "$APPS"/hermes-{terminal,ask,task}.desktop
+  rm -f "$APPS"/hermes-{terminal,ask,task,menu}.desktop
   kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   echo "Reverted (log out/in to settle). Custom .desktop launchers removed."
 }
@@ -94,8 +109,8 @@ status() {
   grep -E '^\[services\]\[org\.kde\.krunner\.desktop\]|^\[services\]\[hermes-' \
     -A1 "$KSRC" 2>/dev/null || echo "  (none yet)"
   echo
-  echo "== collision scan for the three new combos (should be empty) =="
-  grep -B1 -E '=(Meta\+H|Meta\+Return|Meta\+Shift\+H)(,|;|$)' "$KSRC" 2>/dev/null \
+  echo "== collision scan for the four combos (should be empty) =="
+  grep -B1 -E '=(Meta\+H|Meta\+Return|Meta\+Shift\+H|Meta\+Space)(,|;|$)' "$KSRC" 2>/dev/null \
     | grep -vE 'hermes-|\[services\]' || echo "  no collisions"
   echo
   echo "== hermes-runner (preloads need it) =="
