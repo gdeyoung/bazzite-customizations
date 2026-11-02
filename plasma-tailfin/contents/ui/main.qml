@@ -5,6 +5,8 @@ import org.kde.plasma.components as PC3
 import org.kde.plasma.plasma5support 2.0
 import org.kde.kirigami as Kirigami
 import "Model.js" as Model
+import "Control.js" as Control
+import QtQuick.Controls as QQC2
 
 // com.gdeyoung.plasma.tailfin — Plasma 6 port of gdeyoung.tailfin (Omarchy).
 // Model.js is ported VERBATIM from the Omarchy plugin (MIT); only this
@@ -13,9 +15,10 @@ import "Model.js" as Model
 // interval, and the Panel.qml popup layout is re-expressed with Plasma
 // components + Kirigami theme tokens.
 //
-// Scope of the port (deliberate): read-only status. The Omarchy panel's
-// write actions (tailscale up/down, exit-node switching, Taildrop, SSH,
-// operator authorization) are NOT wired — see README "Differences".
+// Scope of the port: v0.1 was deliberately read-only; v0.2 adds the
+// §T-2 control allowlist (up/down, exit-node set/clear) behind the §T-1
+// operator gate — see UX-SPEC-CONTROL.md. Mullvad picking, Taildrop,
+// SSH, and account ops stay OUT (Trayscale/CLI territory).
 PlasmoidItem {
     id: root
 
@@ -55,6 +58,87 @@ PlasmoidItem {
     function iconColor() {
         if (!running && !needsLogin) return Kirigami.Theme.disabledTextColor
         return Kirigami.Theme.textColor
+    }
+
+    // ---- Control layer (v0.2, UX-SPEC-CONTROL.md r2) ------------------------
+    // Mirror properties carry Control.js state into change-notified QML
+    // bindings (plain JS objects don't notify); mutation happens only in the
+    // handlers below, which update the mirrors in the same step.
+    property bool ctlBusy: false
+    property string ctlError: ""
+    property string ctlSwitching: ""   // exit-set target while in flight
+    property bool ctlArmed: false
+    property string gateState: "unavailable"  // enabled | disabled | unavailable
+    property string gateHint: ""
+    readonly property bool controlsEnabled: gateState === "enabled"
+    readonly property var confirm: new Control.Confirm()
+    readonly property var ops: new Control.Ops()
+    property string currentOp: ""      // op in flight, "" when idle
+    property string currentOpCmd: ""   // engine source string for it
+    property string gateUser: ""
+    property bool gateUserDone: false
+    property string gatePrefs: ""
+    property int gatePrefsCode: 1
+    property bool gatePrefsDone: false
+
+    function pollNow() {
+        execSource.connectSource(statusCommand())
+    }
+
+    // §T-2/§T-5: the ONLY place control argv reach the engine. Never driven
+    // by automation — harness/test runs point PATH at a stub binary.
+    function runControlOp(op, target) {
+        if (ctlBusy || !controlsEnabled) return
+        disarmConfirm()
+        if (ops.begin(op, target) !== "accepted") return
+        currentOp = op
+        currentOpCmd = Control.argv(op, target).join(" ")
+        ctlBusy = true
+        ctlError = ""
+        ctlSwitching = ops.target
+        watchdog.interval = ops.timeoutFor(op)
+        watchdog.restart()
+        execSource.connectSource(currentOpCmd)
+    }
+
+    function disarmConfirm() {
+        confirm.disarm()
+        ctlArmed = false
+        armTimer.stop()
+    }
+
+    function endControlOp() {
+        currentOp = ""
+        currentOpCmd = ""
+        ctlBusy = false
+        ctlSwitching = ""
+        watchdog.stop()
+        pollNow()  // §T-5: feedback is the refreshed status, not a toast
+    }
+
+    // §T-3 click handling for the header toggle (confirm + dead-zone).
+    function powerClicked() {
+        if (ctlBusy) return
+        if (running) {
+            const r = confirm.click(Date.now())
+            ctlArmed = confirm.armed()
+            if (r === "arm") {
+                armTimer.restart()
+            } else if (r === "fire") {
+                runControlOp("down")
+            }
+            // "ignored" (dead-zone): stays armed, window keeps running.
+        } else {
+            runControlOp("up")
+        }
+    }
+
+    // §T-1 operator gate — computed once both read-only probes answered.
+    function gateUpdate() {
+        if (!gateUserDone || !gatePrefsDone) return
+        const g = Control.parseOperatorPrefs(gatePrefs, gatePrefsCode, gateUser)
+        gateState = g.state
+        gateHint = g.hint
     }
 
     // ---- Data plumbing ------------------------------------------------------
@@ -98,8 +182,9 @@ PlasmoidItem {
         engine: "executable"
         interval: 0
         onNewData: (sourceName, data) => {
-            if (String(sourceName).indexOf("tailscale status") >= 0) {
-                const code = data["exit code"]
+            const cmd = String(sourceName)
+            const code = data["exit code"]
+            if (cmd.indexOf("tailscale status") >= 0) {
                 const out = data["stdout"] || ""
                 if (code === 0) {
                     root.applyStatus(out)
@@ -110,9 +195,35 @@ PlasmoidItem {
                     root.applyStatus("")
                     root.lastError = String(data["stderr"] || "").trim()
                 }
+            } else if (cmd === "id -un") {
+                // §T-1 probes (read-only, once per plasmoid load).
+                root.gateUser = String(data["stdout"] || "").split("\n")[0] || ""
+                root.gateUserDone = true
+                root.gateUpdate()
+            } else if (cmd.indexOf("debug prefs") >= 0) {
+                root.gatePrefs = String(data["stdout"] || "")
+                root.gatePrefsCode = (code === undefined || code === null) ? 1 : code
+                root.gatePrefsDone = true
+                root.gateUpdate()
+            } else if (cmd !== "" && cmd === root.currentOpCmd) {
+                // §T-5: control op ended (process exit). Kill the watchdog
+                // first so a late tick can't race the finish.
+                watchdog.stop()
+                root.ops.finish(root.currentOp,
+                                (code === undefined || code === null) ? 1 : code,
+                                String(data["stdout"] || ""),
+                                String(data["stderr"] || ""))
+                root.ctlError = root.ops.lastError
+                root.endControlOp()
             }
             execSource.disconnectSource(sourceName)
         }
+    }
+
+    // §T-1: run the two read-only gate probes once at load.
+    Component.onCompleted: {
+        execSource.connectSource("id -un")
+        execSource.connectSource(Control.argv("probe").join(" "))
     }
 
     Timer {
@@ -122,6 +233,29 @@ PlasmoidItem {
         repeat: true
         triggeredOnStart: true
         onTriggered: execSource.connectSource(root.statusCommand())
+    }
+
+    // §T-5 op watchdog: up 30 s, down/exit ops 15 s (set per op).
+    Timer {
+        id: watchdog
+        interval: 15000
+        onTriggered: {
+            if (root.currentOpCmd !== "") {
+                execSource.disconnectSource(root.currentOpCmd)
+            }
+            root.ops.timeout(root.currentOp)
+            root.ctlError = root.ops.lastError
+            root.endControlOp()
+        }
+    }
+
+    // §T-3: 4 s auto-disarm window.
+    Timer {
+        id: armTimer
+        interval: 4000
+        onTriggered: {
+            if (root.confirm.expired(Date.now())) root.disarmConfirm()
+        }
     }
 
     // ---- Presentation helpers (mirror Panel.qml/PeerRow semantics) ---------
@@ -281,6 +415,16 @@ PlasmoidItem {
     fullRepresentation: Item {
         id: popup
 
+        // §T-3/§T-5: popup close disarms the confirm; popup reopen
+        // dismisses the last op error.
+        onVisibleChanged: {
+            if (visible) {
+                root.ctlError = root.ops.lastError = ""
+            } else {
+                root.disarmConfirm()
+            }
+        }
+
         Layout.preferredWidth: Kirigami.Units.gridUnit * 32
         Layout.minimumWidth: Kirigami.Units.gridUnit * 24
         Layout.minimumHeight: Kirigami.Units.gridUnit * 8
@@ -298,14 +442,42 @@ PlasmoidItem {
             anchors.margins: Kirigami.Units.smallSpacing * 1.5
             spacing: Kirigami.Units.smallSpacing
 
-            PC3.Label {
+            // ---- Header: device identity + §T-3 power toggle ---------------
+            RowLayout {
                 Layout.fillWidth: true
-                text: root.status && root.status.selfName
-                      ? root.status.selfName
-                      : "Tailscale"
-                color: Kirigami.Theme.textColor
-                font.bold: true
-                elide: Text.ElideRight
+                spacing: Kirigami.Units.smallSpacing
+
+                PC3.Label {
+                    Layout.fillWidth: true
+                    text: root.status && root.status.selfName
+                          ? root.status.selfName
+                          : "Tailscale"
+                    color: Kirigami.Theme.textColor
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                // §T-3: enabled styling is honest — normal textColor at
+                // rest, negative only while armed; disabled palette only
+                // when actually disabled (busy).
+                PC3.ToolButton {
+                    id: powerBtn
+                    visible: root.controlsEnabled
+                    enabled: !root.ctlBusy
+                    flat: true
+                    text: root.ctlBusy ? "working…"
+                          : root.ctlArmed ? "Confirm disconnect"
+                          : root.running ? "Disconnect" : "Connect"
+                    palette.windowText: root.ctlArmed
+                                        ? Kirigami.Theme.negativeTextColor
+                                        : Kirigami.Theme.textColor
+                    leftPadding: Kirigami.Units.smallSpacing * 1.5
+                    rightPadding: Kirigami.Units.smallSpacing * 1.5
+                    topPadding: Kirigami.Units.smallSpacing
+                    bottomPadding: Kirigami.Units.smallSpacing
+                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
+                    onClicked: root.powerClicked()
+                }
             }
 
             PC3.Label {
@@ -320,16 +492,61 @@ PlasmoidItem {
                 elide: Text.ElideMiddle
             }
 
-            // ---- Exit-node banner (ActiveExitBanner) --------------------
+            // ---- §T-5 header message stack (fixed order) -------------------
+            // 1. armed warning (§T-3)
             PC3.Label {
                 Layout.fillWidth: true
-                visible: text !== ""
-                text: root.exitBannerText() !== ""
-                      ? "▸ exit node: " + root.exitBannerText()
-                      : ""
-                color: Kirigami.Theme.neutralTextColor
+                visible: root.ctlArmed
+                text: "tailnet goes down here — remote access via ts.net drops until reconnect"
+                color: Kirigami.Theme.negativeTextColor
                 font: Kirigami.Theme.smallFont
                 elide: Text.ElideRight
+            }
+            // 2. op error (§T-5)
+            PC3.Label {
+                Layout.fillWidth: true
+                visible: root.ctlError !== ""
+                text: root.ctlError
+                color: Kirigami.Theme.negativeTextColor
+                font: Kirigami.Theme.smallFont
+                elide: Text.ElideRight
+            }
+            // 3. operator-gate hint (§T-1)
+            PC3.Label {
+                Layout.fillWidth: true
+                visible: !root.controlsEnabled && root.gateHint !== ""
+                text: root.gateHint
+                color: Kirigami.Theme.disabledTextColor
+                font: Kirigami.Theme.smallFont
+                elide: Text.ElideRight
+            }
+
+            // ---- Exit-node banner (ActiveExitBanner) + §T-4 clear ----------
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+                visible: root.exitBannerText() !== ""
+
+                PC3.Label {
+                    Layout.fillWidth: true
+                    text: "▸ exit node: " + root.exitBannerText()
+                    color: Kirigami.Theme.neutralTextColor
+                    font: Kirigami.Theme.smallFont
+                    elide: Text.ElideRight
+                }
+
+                PC3.ToolButton {
+                    visible: root.controlsEnabled
+                    enabled: !root.ctlBusy
+                    flat: true
+                    text: "×"
+                    QQC2.ToolTip.text: "stop using exit node"
+                    QQC2.ToolTip.visible: hovered
+                    leftPadding: Kirigami.Units.smallSpacing * 1.5
+                    rightPadding: Kirigami.Units.smallSpacing * 1.5
+                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
+                    onClicked: root.runControlOp("exit-clear")
+                }
             }
 
             // ---- Health warnings (ack-free port of the warnings section) -
@@ -412,6 +629,29 @@ PlasmoidItem {
                                     color: Kirigami.Theme.neutralTextColor
                                     font: Kirigami.Theme.smallFont
                                 }
+
+                                // §T-4: use as exit node — candidates only,
+                                // hidden on the active exit node itself.
+                                // ≥gridUnit·1.4 hit target, spaced from the
+                                // name so text clicks can't land here.
+                                PC3.ToolButton {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    visible: root.controlsEnabled
+                                           && !peerRow.modelData.ExitNode
+                                           && Control.isExitCandidate(
+                                                  peerRow.modelData,
+                                                  root.rawPeers[String(peerRow.modelData && peerRow.modelData.id)] || {})
+                                    enabled: !root.ctlBusy
+                                    flat: true
+                                    text: "use"
+                                    QQC2.ToolTip.text: "use " + root.peerName(peerRow.modelData) + " as exit node"
+                                    QQC2.ToolTip.visible: hovered
+                                    leftPadding: Kirigami.Units.smallSpacing * 1.5
+                                    rightPadding: Kirigami.Units.smallSpacing * 1.5
+                                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
+                                    onClicked: root.runControlOp(
+                                        "exit-set", Control.exitTarget(peerRow.modelData))
+                                }
                             }
 
                             PC3.Label {
@@ -421,6 +661,18 @@ PlasmoidItem {
                                 color: Kirigami.Theme.disabledTextColor
                                 font: Kirigami.Theme.smallFont
                                 elide: Text.ElideMiddle
+                            }
+
+                            // §T-4: transient "switching…" on the target row,
+                            // cleared on completion/failure/timeout.
+                            PC3.Label {
+                                Layout.fillWidth: true
+                                visible: text !== ""
+                                text: root.ctlSwitching !== ""
+                                      && Control.exitTarget(peerRow.modelData) === root.ctlSwitching
+                                      ? "switching…" : ""
+                                color: Kirigami.Theme.neutralTextColor
+                                font: Kirigami.Theme.smallFont
                             }
 
                             PC3.Label {

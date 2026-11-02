@@ -46,21 +46,41 @@ popup:  this-device name · self IP · dns
 
 ## Differences vs the Omarchy panel (deliberate scope)
 
-The Omarchy panel is a full Tailscale client. The Plasma port is a
-**read-only status view**:
+The Omarchy panel is a full Tailscale client. The Plasma port is a status
+view plus a minimal, gated control surface (v0.2, `UX-SPEC-CONTROL.md`):
 
 - Kept: connection state + counts, self identity (name/IP/DNS), health
   warnings, active exit-node name, machine list with online state, subnet
-  routes, IPs, DNS names, last-seen, offline collapsed/expanded.
-- Not ported: on/off toggle, exit-node switching (incl. Mullvad regions),
-  account switching, Taildrop send/receive, SSH launcher, health-warning
-  acknowledgement, preference toggles, keyboard-driven cursor navigation.
-  Those all write (`tailscale up/down/set`, `pkexec`, systemd user units) and
-  need careful operator/privilege handling; on KDE, Trayscale or the Tailscale
-  CLI cover interactive use. The data layer (Model.js) already parses
-  everything needed, so adding a write action later is a UI-only change.
+  routes, IPs, DNS names, last-seen, offline collapsed/expanded; **v0.2
+  adds** connect/disconnect, exit-node set/clear — behind a
+  `tailscale set --operator` gate, with a mandatory two-step inline
+  disconnect confirm (500 ms arm dead-zone kills the double-click path),
+  an op watchdog (15 s / 30 s for `up`), and a closed typed-op allowlist.
+- Not ported: Mullvad region picking, account switching, Taildrop
+  send/receive, SSH launcher, health-warning acknowledgement, preference
+  toggles, keyboard-driven cursor navigation. On KDE, Trayscale or the
+  Tailscale CLI cover those. Model.js stays byte-identical to the Omarchy
+  port; all control logic lives in the separate `Control.js` layer.
 
-## Data source (read-only)
+## Control surface (v0.2) and its safety rules
+
+- **Ops are a closed allowlist** (`Control.js`): `up`, `down`,
+  `set --exit-node=<host>`, `set --exit-node=`. Nothing else is
+  constructible; tests assert the map byte-for-byte.
+- **Operator gate:** controls render only when `tailscale debug prefs`
+  reports `OperatorUser` = the current user (read-only probe, once per
+  load). Otherwise one hint row names the exact fix.
+- **Disconnect cannot be a stray click:** arm → 500 ms dead-zone (extra
+  clicks ignored) → confirm within 4 s, with the remote-lockout warning
+  shown while armed. Popup close or any other control disarms.
+- **Tests never touch the real binary:** `tests/control.test.js` is pure
+  logic (injected clocks/env); the harness (`tools/popup-harness/
+  run-tailfin.sh`) puts a logging stub first in the nested session's PATH
+  and asserts the stub's argv log. The first real control op is always
+  the user's own click at the desk — a disconnect from a remote tailnet
+  session has no recovery path until physical access.
+
+## Data source
 
 `tailscale status --json` — no arguments, no state change. Polled every
 `interval` seconds (default 10; KConfig XT, 5–3600). Mullvad peers are
@@ -137,10 +157,23 @@ since the package is just files.)
 ## Development
 
 ```bash
-node --test tests/model.test.js tests/port.test.js   # model + port tests
+node --test tests/model.test.js tests/port.test.js tests/control.test.js  # 50 tests
 python3 ../tools/check_qml.py .                      # static QML/metadata check
 ./install.sh --dry-run                               # preview install actions
 ```
+
+## Verified (v0.2)
+
+- 50/50 node tests (model + port + control allowlist/confirm/watchdog).
+- `tools/popup-harness/run-tailfin.sh` at scale 1 and 2 (host-DPR
+  geometry): stubbed `tailscale` — journal checkpoints (gate=enabled,
+  arm, dead-zone held, fire, exit-set, end) + stub argv log exact
+  (one `down`, one `set --exit-node=…`, no dead-zone leak); pixels
+  confirmed: Disconnect/Confirm-disconnect + warning line, banner ×,
+  `use` on candidate rows only, `exit` tag on the active node, offline
+  footer. Scale-2 armed shot missed the 2.4 s transient (spectacle
+  capture latency at 5120×2880) — armed-state pixels verified at
+  scale 1; wire sequence verified at both scales.
 
 ## License
 
