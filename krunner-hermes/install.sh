@@ -91,7 +91,7 @@ systemctl --user restart plasma-krunner.service
 
 echo
 echo "OK. In KRunner (Alt+Space or Super+Space) try:"
-echo "  apps                  # browse: pins, most-used, categories (↓ + Enter)"
+echo "  apps                  # tree: Favorites + category branches (↓ + Enter)"
 echo "  apps games            # category drill (or Enter on a category row)"
 echo "  apps pins             # favorites only; pin/unpin via row buttons"
 echo "  ai what is the fleet LiteLLM alias for GLM-5.3"

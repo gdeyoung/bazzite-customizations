@@ -462,21 +462,28 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
         rows = []
         if mode == "root":
             # r2.2 anchor: bare 'apps' outranks native rows NAMED "apps"
-            # only with a 1.0/HIGHEST row leading the group (pixel apps3)
+            # only with a 1.0/HIGHEST row leading the group (pixel apps3).
+            # r5 (foyer tree directive): root = fan-out branches ONLY —
+            # Favorites is a CATEGORY that drills (never loose favorite
+            # apps on the dropdown), categories below it, nothing else.
             rows.append({"id": "apps-root",
                          "title": "Apps",
-                         "sub": "FAVORITES · CATEGORIES · ARROWS TO "
-                                "BROWSE · ENTER OPENS",
+                         "sub": "PICK A BRANCH · ARROWS TO BROWSE · "
+                                "ENTER OPENS",
                          "icon": "start-here-kde", "tier": "HIGHEST",
                          "rel": 1.0, "actions": [], "slug": ""})
-        # Kickoff favorites first — KDE's list, read-only (launch-only).
-        # r4 (foyer home): root shows favorites + categories ONLY — no
-        # pins, no frequency (those live in `apps pins`). Cap 6 + pointer
-        # so the whole home fits KRunner's hard 15-row render budget
-        # (§L-15); rel STEPPED 0.95−0.005i so the cut + order are
-        # deterministic (equal floats re-sort unstable).
+        # Kickoff favorites — KDE's list, read-only (launch-only).
+        # r5: on root they appear ONLY as the Favorites branch row;
+        # the full list lives behind it (`apps pins` view).
         resolvable = [k for k in kickoff if k in by_id]
-        shown = resolvable if mode == "pins" else resolvable[:6]
+        if mode == "root" and resolvable:
+            rows.append({"id": "appcat:pins",
+                         "title": "Favorites",
+                         "sub": f"{len(resolvable)} APPS · YOUR KDE "
+                                f"MENU FAVORITES",
+                         "icon": "emblem-favorite", "tier": "HIGH",
+                         "rel": 0.95, "actions": [], "slug": "pins"})
+        shown = resolvable if mode == "pins" else []
         for i, kid in enumerate(shown):
             app = by_id[kid]
             r = app_row(app, slug_of(app), False,
@@ -484,12 +491,6 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
             r["sub"] = f"favorite · {slug_of(app)}"
             r["actions"] = ["launch"]
             rows.append(r)
-        if mode == "root" and len(resolvable) > 6:
-            rows.append({"id": "appcat:pins",
-                         "title": f"+{len(resolvable) - 6} MORE FAVORITES",
-                         "sub": "ENTER FOR ALL · MANAGED IN THE KDE MENU",
-                         "icon": "bookmarks", "tier": "HIGH", "rel": 0.88,
-                         "actions": [], "slug": "pins"})
         # r4: hermes pins render ONLY in `apps pins` (root = foyer home)
         if mode == "pins":
             for pid in pins:

@@ -483,9 +483,9 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertIn("WARMING", rows[0][2])
 
     def test_root_order_and_freq(self):
-        # r4 foyer home: kickoff favorites lead, then categories — config
-        # pins and frequency rows are NOT root rows (they live in
-        # `apps pins`); kickoff members never double-render anyway.
+        # r5 foyer tree: root = anchor + FAVORITES BRANCH + categories.
+        # No loose favorite/pin/freq rows on the dropdown — every row
+        # is a branch that fans out (user directive 2026-11-02).
         self.conf["_app_pins"] = ["konsole.desktop"]
         fake = SimpleNamespace(data={"app_launches":
                                      {"firefox.desktop": 2,
@@ -493,18 +493,15 @@ class TestRunnerIntegration(unittest.TestCase):
         rows = self.route("apps", stats=fake)
         ids = [r[0] for r in rows]
         self.assertEqual(ids[0], "apps-root")
-        self.assertEqual(ids[1], "app:firefox.desktop")   # kickoff 1st
-        self.assertEqual(ids[2], "app:mines.desktop")     # kickoff 2nd
-        self.assertNotIn("app:konsole.desktop", ids)      # pin → pins view
-        self.assertNotIn("app:kate.desktop", ids)         # freq → gone
-        by = {r[0]: r for r in rows}         # route rows are tuples
-        self.assertEqual(by["app:firefox.desktop"][2],
-                         "favorite · internet")
-        self.assertEqual(by["app:firefox.desktop"][6]["actions"],
-                         ["launch"])
+        self.assertEqual(ids[1], "appcat:pins")          # Favorites branch
+        self.assertFalse(any(i.startswith("app:") for i in ids))
+        by = {r[0]: r for r in rows}
+        self.assertEqual(by["appcat:pins"][1], "Favorites")
+        self.assertIn("2 APPS", by["appcat:pins"][2])    # fixture has 2
         # category rows come from the real menu tree, in menu order,
         # + synthetic 'more' (konsole's TerminalEmulator is unfiled)
-        cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")]
+        cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")
+                   and r[0] != "appcat:pins"]
         self.assertEqual(cat_ids, ["appcat:internet", "appcat:games",
                                    "appcat:system-tools",
                                    "appcat:multimedia",
@@ -512,6 +509,10 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertEqual(by["appcat:system-tools"][1], "System Tools")
         self.assertEqual(by["appcat:system-tools"][3],
                          "applications-system")
+        # the favorites themselves live behind the branch
+        prows = self.route("apps pins")
+        self.assertEqual(prows[0][0], "app:firefox.desktop")
+        self.assertEqual(prows[0][2], "favorite · internet")
 
     def test_multiword_category(self):
         rows = self.route("apps system tools")
@@ -529,10 +530,8 @@ class TestRunnerIntegration(unittest.TestCase):
                           "app:kate.desktop"])
 
     def test_root_caps_favorites_with_pointer(self):
-        # r4: >6 resolvable favorites → 6 rows + appcat:pins pointer;
-        # apps pins stays uncapped. Write 11 extra fixture apps first so
-        # the kickoff list has 12 resolvable ids (empty Categories → all
-        # land in the synthetic 'more' group, exercising finding 3 too).
+        # r5: root NEVER lists favorite apps — just the Favorites branch
+        # with the full count. The `apps pins` view holds the whole list.
         d = Path(self.tmp.name, "applications")
         for i in range(11):
             (d / "hxf{}.desktop".format(i)).write_text(
@@ -544,24 +543,23 @@ class TestRunnerIntegration(unittest.TestCase):
         rows = apps_model.build_rows(
             apps, [], {}, {}, "", menu=self.store.menu, kickoff=kickoff)
         ids = [r["id"] for r in rows]
-        favs = [i for i in ids if i.startswith("app:")]
-        self.assertEqual(len(favs), 6)
-        self.assertIn("appcat:pins", ids)
-        ptr = [r for r in rows if r["id"] == "appcat:pins"][0]
-        self.assertEqual(ptr["title"], "+6 MORE FAVORITES")
+        self.assertFalse(any(i.startswith("app:") for i in ids))
+        fav = [r for r in rows if r["id"] == "appcat:pins"][0]
+        self.assertEqual(fav["title"], "Favorites")
+        self.assertEqual(fav["sub"], "12 APPS · YOUR KDE MENU FAVORITES")
         # dead ids don't inflate the count
         rows2 = apps_model.build_rows(
             apps, [], {}, {}, "",
             menu=self.store.menu,
             kickoff=kickoff[:11] + ["ghost.desktop"])
-        ptr2 = [r for r in rows2 if r["id"] == "appcat:pins"][0]
-        self.assertEqual(ptr2["title"], "+5 MORE FAVORITES")
+        fav2 = [r for r in rows2 if r["id"] == "appcat:pins"][0]
+        self.assertEqual(fav2["sub"], "11 APPS · YOUR KDE MENU FAVORITES")
         # synthetic 'more' group renders (11 unfiled fixture apps)
         self.assertIn("appcat:more", ids)
         more = [r for r in rows if r["id"] == "appcat:more"][0]
         self.assertEqual(more["icon"], "applications-other")
         self.assertEqual(more["sub"], "12 apps")   # 11 fixture + konsole
-        # pins view stays uncapped
+        # the favorites branch holds ALL favorites, uncapped
         allrows = apps_model.build_rows(
             apps, [], {}, {}, "pins", menu=self.store.menu,
             kickoff=kickoff)

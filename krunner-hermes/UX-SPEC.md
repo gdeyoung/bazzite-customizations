@@ -997,3 +997,24 @@ v0.8 r4 shapes (user directive "make it like Foyer"):
   the 15-row cut and order are deterministic under equal-float re-sorts.
 - Re-drive delay injectable: `KRUNNER_REDRIVE_DELAY` (0.25 s live) so
   tests can shrink it and join threads deterministically.
+
+### L-16 r5: the foyer tree directive (2026-11-02, user)
+
+"Look at what the top level items are on foyer. That's what I want on
+the top level items of KRunner. And I want them to fan out just like
+foyer does." — verified against the real Omarchy menu source
+(basecamp/omarchy `default/omarchy/omarchy-menu.jsonc`: root = Apps,
+Learn, Appearance, Trigger, Setup, Install, Remove, Update, About,
+System — each a submenu; apps splice under the `apps` node).
+
+KRunner translation (rows cannot nest inline; every branch is a drill):
+- **Root = branches ONLY**: anchor → `Favorites` (N APPS · YOUR KDE
+  MENU FAVORITES, drills to the full favorites list) → category rows →
+  `More`. NO loose favorite apps on the dropdown (explicit directive),
+  no pins, no frequency rows.
+- Favorites content = kactivitymanagerd `:global` list — whatever the
+  KDE menu shows, in menu order; pruning happens IN Kickoff and mirrors
+  here (5 s TTL). 38 raw / 27 resolvable live at r5 time.
+- Every root row is live: apps-root refreshes the tree (r5 fixed the
+  dead-click), Favorites drills to `apps pins`, categories drill to
+  their bounded views.

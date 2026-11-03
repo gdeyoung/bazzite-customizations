@@ -4,7 +4,7 @@ The Omarchy "front door" feeling, KDE-native: Super+Space, ask a question or
 fire an agent task, no terminal, no browser. Zero-compile Plasma 6 DBus
 runner — no C++, no KDE SDK, nothing layered into the image.
 
-**Status: v0.8 — foyer redesign (UX-SPEC.md §L-15), single-runner mode, harness-gated, unit-tested.**
+**Status: v0.8.1 — foyer tree (UX-SPEC.md §L-16), single-runner mode, harness-gated, unit-tested.**
 
 ## What the prefixes do
 
@@ -142,9 +142,9 @@ Super+Space now opens a Hermes-only menu with the full 15-row budget
 (`querySingleRunner ss hermes "apps"` — see UX-SPEC.md §L-15 for the
 Milou render-cap law and why plain `query()` re-imposes it).
 
-- **Root = foyer home**: 6 kickoff favorites + `+N MORE FAVORITES`
-  pointer (→ `apps pins` for all of them + your pins) + category rows.
-  Config-pins and most-used no longer clutter the root.
+- **Root = foyer tree**: `Favorites` branch (N apps · your KDE menu
+  favorites) + category branches. No loose apps on the dropdown —
+  every row fans out (v0.8.1 directive). The Apps anchor refreshes.
 - **Category views are bounded**: anchor + 13 alphabetized apps +
   `SHOWING 13 OF N · TYPE TO FILTER` hint. KRunner cannot scroll —
   typing is the scroll. No more category walls.

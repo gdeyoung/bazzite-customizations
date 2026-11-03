@@ -353,7 +353,7 @@ grep -q 'favorite \\302\\267 games' "$ROOT/kr-appspins-$TAG.txt" \
     && echo "CKPT-APPS-PINS-KICKOFF=OK" || echo "CKPT-APPS-PINS-KICKOFF=FAIL"
 
 # v0.7: kickoff favorite leads the root view, launch-only (kickoff · group)
-grep -q 'favorite \\302\\267 games' "$ROOT/kr-apps-$TAG.txt" \
+grep -q 'favorite \\302\\267 games' "$ROOT/kr-appspins-$TAG.txt" \
     && echo "CKPT-APPS-KICKOFF=OK" || echo "CKPT-APPS-KICKOFF=FAIL"
 # noise row (other favorites agent) must NOT leak in as a favorite
 grep -q 'favorite \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
@@ -361,9 +361,13 @@ grep -q 'favorite \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
 # v0.8 r4: root caps favorites at 6 of 9 -> "+3 MORE FAVORITES" pointer present,
 # exactly 6 favorite rows on the wire
 FAVN=$(grep -o 'favorite \\302\\267' "$ROOT/kr-apps-$TAG.txt" | wc -l)
-[ "$FAVN" = "6" ] && echo "CKPT-APPS-FAVCAP=OK" || echo "CKPT-APPS-FAVCAP=FAIL($FAVN)"
-grep -q '+3 MORE FAVORITES' "$ROOT/kr-apps-$TAG.txt" \
-    && echo "CKPT-APPS-FAVPTR=OK" || echo "CKPT-APPS-FAVPTR=FAIL"
+[ "$FAVN" = "0" ] && echo "CKPT-APPS-ROOT-NOLOOSEFAVS=OK" || echo "CKPT-APPS-ROOT-NOLOOSEFAVS=FAIL($FAVN)"
+grep -q '"Favorites"' "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-FAVBRANCH=OK" || echo "CKPT-APPS-FAVBRANCH=FAIL"
+grep -q '9 APPS' "$ROOT/kr-apps-$TAG.txt" && grep -q 'MENU FAVORITES' "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-FAVCOUNT=OK" || echo "CKPT-APPS-FAVCOUNT=FAIL"
+FAVP=$(grep -o 'favorite \\302\\267' "$ROOT/kr-appspins-$TAG.txt" | wc -l)
+[ "$FAVP" = "9" ] && echo "CKPT-APPS-FAVFULL=OK" || echo "CKPT-APPS-FAVFULL=FAIL($FAVP)"
 # v0.8 r4: drilled category leads with its anchor row
 grep -q 'appcat:games' "$ROOT/kr-appsgames-$TAG.txt" \
     && echo "CKPT-APPS-CATANCHOR=OK" || echo "CKPT-APPS-CATANCHOR=FAIL"
@@ -403,9 +407,9 @@ $B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "app:hxmine.deskt
 sleep 1
 /usr/bin/python3 -c "import json,sys;sys.exit(0 if json.load(open('$H/.config/hermes-runner/config.json')).get('app_pins')==['hxmine.desktop'] else 1)" \
     && echo "CKPT-APP-PIN-CONF=OK" || echo "CKPT-APP-PIN-CONF=FAIL"
-$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps" \
-    > "$ROOT/kr-apps2-$TAG.txt" 2>&1
-head -30 "$ROOT/kr-apps2-$TAG.txt" | grep -q "app:hxmine.desktop" \
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps pins" \
+  > "$ROOT/kr-pins2-$TAG.txt" 2>&1
+head -30 "$ROOT/kr-pins2-$TAG.txt" | grep -q "app:hxmine.desktop" \
     && echo "CKPT-APP-PIN-ROW=OK" || echo "CKPT-APP-PIN-ROW=FAIL"
 
 # empty-state action buttons exist on the wire

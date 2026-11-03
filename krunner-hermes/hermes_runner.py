@@ -750,14 +750,14 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
         elif lane == "apps":
             # §L-8: launcher-lane help block (foyer-browse grammar)
             helppage("apps", 0, "apps",
-                     "FOYER HOME: FAVORITES (6) + CATEGORIES",
+                     "TREE: FAVORITES + CATEGORY BRANCHES · ENTER OPENS A BRANCH",
                      copyable=True)
             helppage("apps", 1, "apps games · apps internet fire…",
                      "CATEGORY: 13 SHOWN · TYPE LETTERS TO FILTER · "
                      "'more' = UNFILED APPS",
                      copyable=True)
             helppage("apps", 2, "apps pins",
-                     "ALL FAVORITES + YOUR PINS TOGETHER",
+                     "THE FAVORITES BRANCH · ALL FAVORITES + YOUR PINS",
                      copyable=True)
             helppage("apps", 3, "Favorites mirror the KDE menu",
                      "MANAGE THEM THERE (DRAG IN MENU) — PIN/UNPIN ONLY "
@@ -1256,8 +1256,26 @@ def run_dispatch(kind, key, text, act, ctx):
                 except Exception as e:
                     log(f"appcat preload failed: {e}")
             threading.Thread(target=_preload, daemon=True).start()
-    elif kind in ("apphelp", "apps-root"):
-        pass   # §L-4 info/anchor rows — no-op
+    elif kind == "apps-root":
+        # r5: the anchor is a live row — click/Enter refreshes the tree
+        # (favorites TTL is 5 s; re-drive gives visible feedback too)
+        if stats:
+            stats.hit("app_browses")
+        log("HARNESS-APPSROOT apps")
+
+        def _root_refresh():
+            time.sleep(KRUNNER_REDRIVE_DELAY)
+            try:
+                bus = dbus.SessionBus()
+                bus.call_blocking("org.kde.krunner", "/App",
+                                  "org.kde.krunner.App",
+                                  "querySingleRunner", "ss",
+                                  (RUNNER_ID, "apps"))
+            except Exception as e:
+                log(f"apps-root refresh failed: {e}")
+        threading.Thread(target=_root_refresh, daemon=True).start()
+    elif kind == "apphelp":
+        pass   # §L-4 info/footer rows — no-op
     elif kind == "task":
         if act in ("", "askagain"):
             if stats: stats.hit("tasks")
