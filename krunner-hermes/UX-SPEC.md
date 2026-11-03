@@ -1018,3 +1018,46 @@ KRunner translation (rows cannot nest inline; every branch is a drill):
 - Every root row is live: apps-root refreshes the tree (r5 fixed the
   dead-click), Favorites drills to `apps pins`, categories drill to
   their bounded views.
+
+## L-17 — the prime law (v0.8.2, proven 2026-11-03)
+
+**Symptom (live):** after ANY plain multi `query()` has run on the session,
+a bare `querySingleRunner(hermes, "apps")` opens KRunner in MULTI mode —
+one Hermes row behind the natives — while the single-runner CHIP still
+renders (the QML property is set; the query is not). Deterministic, not
+flaky: probes ps2 C1/C2/E all rendered multi; every live attempt since
+the v3 bind cached did too.
+
+**Root cause (source, Plasma 6.7.5):** `View::querySingleRunner` does
+`display(); setProperty("singleRunner", id); setProperty("query", term)`.
+The two QML bindings (`queryString`, `singleRunner` on Milou ResultsView)
+evaluate in one batch; the queryString binding wins with a STALE empty
+`singleRunner()` → `RunnerResultsModel::setQueryString(term, "")` →
+`launchQuery(term, "")` = multi. The late singleRunner write sets
+`d->runner` (chip visible) but never re-launches the query.
+
+**Fix — PRIME then QUERY:** `displaySingleRunner(hermes)` resolves the
+runner (d->runner set, bindings settle, ~0.4 s), then
+`querySingleRunner(hermes, "apps")` carries a live runner id into
+`launchQuery` → single mode, deterministically (probes ps4 G and H on a
+poisoned session; 11-row tree, zero native rows).
+
+**Where the prime is applied:**
+- keys v5 Super+Space Exec (sh -c: displaySingleRunner; sleep 0.4;
+  querySingleRunner … apps)
+- apps-root anchor Run re-drive (`_redrive(prime=True)`) — it is the
+  bridge out of a stale multi-mode popup (cached old binds)
+- Drills and empty-state actions skip the prime: they only fire while
+  already in single mode, and priming mid-tree would flash the field
+  empty for 0.4 s (`KRUNNER_PRIME_DELAY = 0.4`, injectable).
+
+**Gate (apps13):** the harness now POISONS the session with a plain
+`query("apps")` before replaying the bind Exec; single mode is proven at
+the WIRE level (zero Match calls to a dbus-activated sibling runner,
+baloo) plus the tree shot. `CKPT-MENU-SINGLE` is the regression tripwire.
+
+**Corollaries recorded:** empty queries are never delivered to runners
+(single mode with empty term shows placeholder only — probe ps3);
+`krunner --runner <id> <term>` CLI forwarding hits the same race via
+KDBusService activation; `toggleDisplay` while poisoned does not clear
+the fallback.

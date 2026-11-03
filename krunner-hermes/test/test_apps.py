@@ -729,6 +729,33 @@ class TestRunDispatch(unittest.TestCase):
         self.assertEqual(calls, [("querySingleRunner", "ss",
                                   ("hermes", "apps games"))])
 
+    def test_apps_root_run_primes_then_queries(self):
+        # §L-17 prime law: the apps-root anchor Run MUST call
+        # displaySingleRunner before querySingleRunner — after any plain
+        # multi query() the bare call falls back to multi mode (QML
+        # binding race, Plasma 6.7.5) and the tree never renders.
+        import unittest.mock as mock
+        import time as _time
+        calls = []
+
+        class FakeBus:
+            def call_blocking(self, svc, path, iface, method, sig, args):
+                calls.append((method, sig, args))
+
+        with mock.patch.object(hermes_runner.dbus, "SessionBus",
+                               lambda: FakeBus()), \
+             mock.patch.object(hermes_runner,
+                               "KRUNNER_PRIME_DELAY", 0.05):
+            hermes_runner.run_dispatch("apps-root", "apps", "", "",
+                                       self.ctx())
+            deadline = _time.time() + 2
+            while len(calls) < 2 and _time.time() < deadline:
+                _time.sleep(0.05)
+        self.assertEqual(calls, [
+            ("displaySingleRunner", "s", ("hermes",)),
+            ("querySingleRunner", "ss", ("hermes", "apps")),
+        ])
+
     def test_launch_gtk_fallback(self):
         import unittest.mock as mock
         with mock.patch.object(hermes_runner.shutil, "which",

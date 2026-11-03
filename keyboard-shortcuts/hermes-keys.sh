@@ -11,6 +11,10 @@
 #   Meta+Shift+H      → KRunner preloaded with "hr " — type the task, Enter
 #
 # v3: Super+Space moves from plain KRunner to the apps-menu preload.
+# v5: Super+Space PRIMES single-runner mode (displaySingleRunner) before
+#     the querySingleRunner preload — §L-17 prime law; without the prime
+#     any prior plain query() (Alt+Space, stale binds) silently collapses
+#     the tree back to 1 row behind native runners.
 # revert returns to the v2 state (Super+Space = plain KRunner).
 #
 # No remapper needed: kglobalaccel already ships this layer. Nothing here
@@ -56,16 +60,21 @@ apply() {
   mkdir -p "$APPS"
 
   # 1. Meta+Space → KRunner in SINGLE-RUNNER mode on Hermes, preloaded
-  #    with the apps browse menu (v4). Single-runner is load-bearing
+  #    with the apps browse menu (v5). Single-runner is load-bearing
   #    (§L-15): KRunner caps visible results at 15 total and splits them
-  #    across categories 1/(n+2) — behind native runners our category
-  #    gets 1 row. Locked to Hermes we get the whole budget. Note the
-  #    runner id is "hermes" (krunner --list), NOT the bus name.
+  #    across runner categories, so behind the native runners Hermes gets
+  #    ~1 row. §L-17 prime law (proven 2026-11-03, Plasma 6.7.5): a bare
+  #    querySingleRunner silently falls back to MULTI mode on any session
+  #    that has ever run a plain query() (QML binding race). The bind
+  #    therefore PRIMES with displaySingleRunner, waits 0.4 s for the
+  #    runner to resolve, then fires querySingleRunner — single mode
+  #    renders deterministically even on a "poisoned" session.
+  write_desktop hermes-menu "Hermes Menu" \
+    'sh -c "busctl --user call org.kde.krunner /App org.kde.krunner.App displaySingleRunner s hermes; sleep 0.4; busctl --user call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes apps"' \
+    "start-here-kde"
+  #    Runner id is "hermes" (krunner --list), NOT the bus name.
   #    kglobalaccel allows one _launch owner per combo: drop krunner's
   #    own stanza, then claim it.
-  write_desktop hermes-menu "Hermes Menu" \
-    'busctl --user call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes "apps"' \
-    "start-here-kde"
   kwriteconfig6 --file kglobalshortcutsrc --delete \
     --group services --group "org.kde.krunner.desktop" --key "_launch" \
     >/dev/null 2>&1 || true

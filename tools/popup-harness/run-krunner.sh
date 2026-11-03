@@ -379,14 +379,33 @@ spectacle -b -n -o "$OUT/kr-apps-$TAG.png" 2>/dev/null && echo "SHOT-kr-apps"
 $B call org.kde.krunner /App org.kde.krunner.App query s "" >/dev/null 2>&1
 sleep 1.5
 spectacle -b -n -o "$OUT/kr-empty-$TAG.png" 2>/dev/null && echo "SHOT-kr-empty"
-# hermes-menu bind gate (keys v4): the EXACT Exec line from hermes-menu.desktop,
+# POISON step (§L-17 gate): a plain multi query() first — any session that
+# ever ran one (Alt+Space, stale v3 binds) collapses a bare querySingleRunner
+# back to multi mode on Plasma 6.7.5. The gate must prove the bind UNDER
+# poison, because that is the live failure shape.
+$B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1
+$B call org.kde.krunner /App org.kde.krunner.App toggleDisplay >/dev/null 2>&1
+sleep 1
+# hermes-menu bind gate (keys v5): the EXACT Exec line from hermes-menu.desktop,
 # replayed against this session's krunner — Super+Space must open ON the menu in
-# SINGLE-RUNNER mode (plain query() clears it and re-imposes the 15-row split)
-$B call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes "apps" >/dev/null 2>&1 \
+# SINGLE-RUNNER mode even after the poison above. v5 = PRIME (displaySingleRunner)
+# + 0.4 s settle + querySingleRunner (§L-17 prime law).
+sh -c 'busctl --user call org.kde.krunner /App org.kde.krunner.App displaySingleRunner s hermes; sleep 0.4; busctl --user call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes apps' >/dev/null 2>&1 \
   && echo "CKPT-MENU-OPENER-CALL=OK" || echo "CKPT-MENU-OPENER-CALL=FAIL"
 sleep 2
 spectacle -b -n -o "$OUT/kr-menu-$TAG.png" 2>/dev/null && echo "SHOT-kr-menu"
 [ -s "$OUT/kr-menu-$TAG.png" ] && echo "CKPT-MENU-OPENER=OK" || echo "CKPT-MENU-OPENER=FAIL"
+# §L-17 render check (wire-level, no OCR): single mode queries ONLY hermes.
+# baloo was dbus-activated by the poison query; any Match call to it during
+# the replay = multi-mode fallback. Zero baloo traffic = single mode held.
+( timeout 12 busctl --user monitor org.kde.runners.baloo > "$ROOT/baloo-mon-$TAG.log" 2>&1 & )
+sleep 1
+sh -c 'busctl --user call org.kde.krunner /App org.kde.krunner.App displaySingleRunner s hermes; sleep 0.4; busctl --user call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes apps' >/dev/null 2>&1
+sleep 3
+BALOO_MATCHES=$(grep -c 'Member=Match' "$ROOT/baloo-mon-$TAG.log" 2>/dev/null)
+BALOO_MATCHES="${BALOO_MATCHES:-0}"
+[ "$BALOO_MATCHES" -eq 0 ] \
+  && echo "CKPT-MENU-SINGLE=OK" || echo "CKPT-MENU-SINGLE=FAIL(${BALOO_MATCHES} baloo matches)"
 
 # drill: Run on a category row re-drives the query via /App (async thread)
 $B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "appcat:games" "" >/dev/null 2>&1

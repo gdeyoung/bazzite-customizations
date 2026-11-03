@@ -54,6 +54,16 @@ BUS_NAME = "org.kde.runners.hermes"
 RUNNER_ID = "hermes"
 # redrive delay is injectable so tests can shrink it and join threads
 KRUNNER_REDRIVE_DELAY = 0.25
+# §L-17 prime law (proven in the nested harness 2026-11-03, Plasma 6.7.5):
+# after ANY plain multi query() has run, a bare querySingleRunner races its
+# own QML property bindings (queryString evaluates with a stale empty
+# singleRunner) and silently falls back to MULTI mode — one Hermes row
+# behind the natives. displaySingleRunner() first resolves the runner
+# (d->runner); a querySingleRunner ~0.4 s later then carries a live runner
+# id into launchQuery and renders single mode deterministically. Entry
+# points (bind, apps-root anchor bridge) MUST prime; in-tree drills are
+# already single and skip the prime (avoids a 0.4 s field-clear flicker).
+KRUNNER_PRIME_DELAY = 0.4
 OBJ_PATH = "/hermes"
 IFACE = "org.kde.krunner1"
 
@@ -1017,6 +1027,19 @@ def launch_app(app, conf, stats):
     return True
 
 
+def _redrive(bus, term, prime=False):
+    """§L-15/§L-17: re-drive KRunner via /App. prime=True first calls
+    displaySingleRunner — on a session that has EVER run a plain multi
+    query() the bare querySingleRunner falls back to multi mode (QML
+    binding race, Plasma 6.7.5); the prime resolves the runner first."""
+    if prime:
+        bus.call_blocking("org.kde.krunner", "/App", "org.kde.krunner.App",
+                          "displaySingleRunner", "s", (RUNNER_ID,))
+        time.sleep(KRUNNER_PRIME_DELAY)
+    bus.call_blocking("org.kde.krunner", "/App", "org.kde.krunner.App",
+                      "querySingleRunner", "ss", (RUNNER_ID, term))
+
+
 def run_dispatch(kind, key, text, act, ctx):
     conf = ctx.conf
     stats = getattr(ctx, "stats", None)   # F-8; absent in old test ctxs
@@ -1032,11 +1055,7 @@ def run_dispatch(kind, key, text, act, ctx):
         def _action_preload(q=target):
             time.sleep(KRUNNER_REDRIVE_DELAY)
             try:
-                bus = dbus.SessionBus()
-                bus.call_blocking("org.kde.krunner", "/App",
-                                  "org.kde.krunner.App",
-                                  "querySingleRunner", "ss",
-                                  (RUNNER_ID, q))
+                _redrive(dbus.SessionBus(), q)
             except Exception as e:
                 log(f"app action preload failed: {e}")
         threading.Thread(target=_action_preload, daemon=True).start()
@@ -1248,17 +1267,16 @@ def run_dispatch(kind, key, text, act, ctx):
             def _preload(slug=key):
                 time.sleep(KRUNNER_REDRIVE_DELAY)
                 try:
-                    bus = dbus.SessionBus()
-                    bus.call_blocking("org.kde.krunner", "/App",
-                                      "org.kde.krunner.App",
-                                      "querySingleRunner", "ss",
-                                      (RUNNER_ID, f"apps {slug}"))
+                    _redrive(dbus.SessionBus(), f"apps {slug}")
                 except Exception as e:
                     log(f"appcat preload failed: {e}")
             threading.Thread(target=_preload, daemon=True).start()
     elif kind == "apps-root":
         # r5: the anchor is a live row — click/Enter refreshes the tree
-        # (favorites TTL is 5 s; re-drive gives visible feedback too)
+        # (favorites TTL is 5 s; re-drive gives visible feedback too).
+        # §L-17: PRIMED — this row is also the bridge out of a stale
+        # multi-mode popup (e.g. kglobalaccel's cached old Exec), so it
+        # must engage single mode deterministically.
         if stats:
             stats.hit("app_browses")
         log("HARNESS-APPSROOT apps")
@@ -1266,11 +1284,7 @@ def run_dispatch(kind, key, text, act, ctx):
         def _root_refresh():
             time.sleep(KRUNNER_REDRIVE_DELAY)
             try:
-                bus = dbus.SessionBus()
-                bus.call_blocking("org.kde.krunner", "/App",
-                                  "org.kde.krunner.App",
-                                  "querySingleRunner", "ss",
-                                  (RUNNER_ID, "apps"))
+                _redrive(dbus.SessionBus(), "apps", prime=True)
             except Exception as e:
                 log(f"apps-root refresh failed: {e}")
         threading.Thread(target=_root_refresh, daemon=True).start()

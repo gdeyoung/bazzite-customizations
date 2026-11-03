@@ -151,3 +151,22 @@ Milou render-cap law and why plain `query()` re-imposes it).
 - Deterministic ordering under the render cap (stepped relevances).
 - Tests: 158 (incl. single-runner drill + leaked-thread race guard);
   harness apps8 40/40 checkpoints.
+
+## v0.8.2 — the prime law (§L-17)
+
+`querySingleRunner` alone is NOT enough on Plasma 6.7.5: once a session
+has run any plain multi `query()` (Alt+Space, a stale cached bind), the
+bare call silently falls back to multi mode — one Hermes row behind the
+natives, single-runner chip still showing. Fixed by PRIMING with
+`displaySingleRunner` (+0.4 s settle) before the query:
+
+- **keys v5** — Super+Space Exec = prime + query (deterministic single
+  mode even on a poisoned session)
+- **apps-root anchor** — re-drive now primes; the anchor row is the
+  logout-free bridge out of a stale multi-mode popup
+- drills stay unprimed (already single; priming would flash the field)
+- harness apps13 gate: session POISONED with a plain query before the
+  bind replay; single mode proven at the wire (zero Match calls to
+  sibling runners) — `CKPT-MENU-SINGLE`
+
+159 tests (new: primed anchor Run asserts display+query pair).
