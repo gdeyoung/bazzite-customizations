@@ -55,12 +55,16 @@ svc() {  # desktop-id, combo  → kwriteconfig6 into [services][<id>] _launch
 apply() {
   mkdir -p "$APPS"
 
-  # 1. Meta+Space → KRunner preloaded with the apps browse menu (v3).
-  #    The preload opens the window AND renders the lane, so Super+Space
-  #    lands on a menu, not an empty box. kglobalaccel allows one _launch
-  #    owner per combo: drop krunner's own stanza, then claim it.
+  # 1. Meta+Space → KRunner in SINGLE-RUNNER mode on Hermes, preloaded
+  #    with the apps browse menu (v4). Single-runner is load-bearing
+  #    (§L-15): KRunner caps visible results at 15 total and splits them
+  #    across categories 1/(n+2) — behind native runners our category
+  #    gets 1 row. Locked to Hermes we get the whole budget. Note the
+  #    runner id is "hermes" (krunner --list), NOT the bus name.
+  #    kglobalaccel allows one _launch owner per combo: drop krunner's
+  #    own stanza, then claim it.
   write_desktop hermes-menu "Hermes Menu" \
-    'busctl --user call org.kde.krunner /App org.kde.krunner.App query s "apps"' \
+    'busctl --user call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes "apps"' \
     "start-here-kde"
   kwriteconfig6 --file kglobalshortcutsrc --delete \
     --group services --group "org.kde.krunner.desktop" --key "_launch" \

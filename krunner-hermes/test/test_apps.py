@@ -263,23 +263,25 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(cats[0]["sub"], "2 apps")
         self.assertEqual(cats[0]["tier"], "HIGH")   # pixel gate: Moderate
         # sank below native rows for the literal word "apps"
-        self.assertEqual(cats[0]["rel"], 0.85)
+        # r4: stepped 0.84−0.01i — deterministic under the 15-row cap
+        self.assertEqual([r["rel"] for r in cats],
+                         [0.84, 0.83, 0.82, 0.81, 0.80])
 
     def test_root_pins_first_then_freq(self):
+        # r4: root is the foyer home — favorites + categories ONLY.
+        # pins and frequency are NOT root rows (they live in `apps pins`).
         rows = self.build("", pins=["konsole.desktop"],
                           freq={"firefox.desktop": 3, "konsole.desktop": 9,
                                 "kate.desktop": 1, "mines.desktop": 0})
         ids = [r["id"] for r in rows]
         self.assertEqual(ids[0], "apps-root")
-        self.assertEqual(ids[1], "app:konsole.desktop")
-        self.assertEqual(rows[1]["sub"], "pinned · system")
-        self.assertEqual(rows[1]["actions"], ["launch", "unpin"])
-        self.assertEqual(rows[1]["rel"], 0.95)
-        # freq: konsole excluded (pinned), mines excluded (0), top-6 order
-        self.assertEqual(ids[2], "app:firefox.desktop")
-        self.assertEqual(rows[2]["sub"], "3× · internet")
-        self.assertEqual(rows[2]["rel"], 0.90)
-        self.assertEqual(ids[3], "app:kate.desktop")
+        self.assertNotIn("app:konsole.desktop", ids)   # pin → not root
+        self.assertFalse(any("× ·" in r["sub"] for r in rows))  # no freq
+        # the pin still renders in the pins view with its actions
+        prows = self.build("pins", pins=["konsole.desktop"])
+        self.assertEqual(prows[-1]["id"], "app:konsole.desktop")
+        self.assertEqual(prows[-1]["sub"], "pinned · system")
+        self.assertEqual(prows[-1]["actions"], ["launch", "unpin"])
 
     def test_root_no_freq_when_zero(self):
         rows = self.build("", freq={})
@@ -300,18 +302,44 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(seen, ["nope.desktop"])
 
     def test_category_view_and_filter(self):
+        # r4: drilled category = anchor + bounded app rows
         rows = self.build("games")
-        self.assertEqual([r["id"] for r in rows], ["app:mines.desktop"])
-        self.assertEqual(rows[0]["sub"], "Minesweeper")
+        self.assertEqual([r["id"] for r in rows],
+                         ["appcat:games", "app:mines.desktop"])
+        self.assertEqual(rows[0]["sub"], "1 APPS · TYPE LETTERS TO FILTER")
+        self.assertEqual((rows[0]["rel"], rows[0]["tier"]), (1.0, "HIGHEST"))
+        self.assertEqual(rows[1]["sub"], "Minesweeper")
         rows = self.build("games mines")
         self.assertEqual([r["id"] for r in rows], ["app:mines.desktop"])
         rows = self.build("games zzz")
         self.assertEqual(rows[0]["id"], "apphelp")
 
+    def test_category_view_capped_with_hint(self):
+        # r4 (§L-15): >13 apps → 13 rows + SHOWING hint, never a wall
+        import tempfile, os
+        d = Path(self.tmp.name, "bigcat")
+        d.mkdir()
+        for i in range(20):
+            (d / f"big{i:02d}.desktop").write_text(
+                "[Desktop Entry]\nType=Application\n"
+                f"Name=Big App {i:02d}\nExec=big{i}\nCategories=Game;\n")
+        store = apps_model.AppStore(dirs=[str(d)],
+                                    cache_path=Path(self.tmp.name,
+                                                    "big.json"))
+        apps = store.snapshot()
+        rows = apps_model.build_rows(apps, [], {}, {}, "games")
+        ids = [r["id"] for r in rows]
+        self.assertEqual(ids[0], "appcat:games")
+        self.assertEqual(len([i for i in ids if i.startswith("app:")]), 13)
+        self.assertEqual(ids[-1], "apphelp")
+        self.assertEqual(rows[-1]["title"],
+                         "SHOWING 13 OF 20 · TYPE TO FILTER")
+
     def test_category_alphabetical_steps(self):
         rows = self.build("internet")
-        self.assertEqual([r["title"] for r in rows], ["Firefox", "FlatApp"])
-        self.assertGreater(rows[0]["rel"], rows[1]["rel"])
+        self.assertEqual([r["title"] for r in rows],
+                         ["Internet", "Firefox", "FlatApp"])
+        self.assertGreater(rows[1]["rel"], rows[2]["rel"])
 
     def test_catlist(self):
         rows = self.build("s")
@@ -338,7 +366,8 @@ class TestBuildRows(unittest.TestCase):
     def test_overrides(self):
         rows = self.build("development",
                           overrides={"kate.desktop": "development"})
-        self.assertEqual([r["id"] for r in rows], ["app:kate.desktop"])
+        self.assertEqual([r["id"] for r in rows],
+                         ["appcat:development", "app:kate.desktop"])
 
     def test_pinned_marker_in_fuzzy(self):
         row = rows_by_id(self.build("firefox", pins=["firefox.desktop"]))
@@ -439,7 +468,8 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertEqual(rows[0][0], "apps-root")
         self.assertTrue(self.route("APPs"))          # case-insensitive
         rows = self.route("apps games")
-        self.assertEqual(rows[0][0], "app:mines.desktop")
+        self.assertEqual(rows[0][0], "appcat:games")   # r4 anchor
+        self.assertEqual(rows[1][0], "app:mines.desktop")
 
     def test_no_claim_on_plain_names(self):
         for q in ("firefox", "fire", "ap"):
@@ -453,8 +483,9 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertIn("WARMING", rows[0][2])
 
     def test_root_order_and_freq(self):
-        # kickoff favorites lead, then config pins, then frequency;
-        # kickoff members never double-render in the freq section
+        # r4 foyer home: kickoff favorites lead, then categories — config
+        # pins and frequency rows are NOT root rows (they live in
+        # `apps pins`); kickoff members never double-render anyway.
         self.conf["_app_pins"] = ["konsole.desktop"]
         fake = SimpleNamespace(data={"app_launches":
                                      {"firefox.desktop": 2,
@@ -464,16 +495,13 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertEqual(ids[0], "apps-root")
         self.assertEqual(ids[1], "app:firefox.desktop")   # kickoff 1st
         self.assertEqual(ids[2], "app:mines.desktop")     # kickoff 2nd
-        self.assertEqual(ids[3], "app:konsole.desktop")   # pin after
-        self.assertIn("app:kate.desktop", ids)            # freq fills in
+        self.assertNotIn("app:konsole.desktop", ids)      # pin → pins view
+        self.assertNotIn("app:kate.desktop", ids)         # freq → gone
         by = {r[0]: r for r in rows}         # route rows are tuples
         self.assertEqual(by["app:firefox.desktop"][2],
                          "favorite · internet")
         self.assertEqual(by["app:firefox.desktop"][6]["actions"],
                          ["launch"])
-        self.assertEqual(by["app:konsole.desktop"][2], "pinned · more")
-        self.assertEqual(by["app:konsole.desktop"][6]["actions"],
-                         ["launch", "unpin"])
         # category rows come from the real menu tree, in menu order,
         # + synthetic 'more' (konsole's TerminalEmulator is unfiled)
         cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")]
@@ -487,7 +515,9 @@ class TestRunnerIntegration(unittest.TestCase):
 
     def test_multiword_category(self):
         rows = self.route("apps system tools")
-        self.assertEqual(rows[0][0], "app:missioncenter.desktop")
+        # r4: drilled category leads with its anchor row
+        self.assertEqual(rows[0][0], "appcat:system-tools")
+        self.assertEqual(rows[1][0], "app:missioncenter.desktop")
         rows = self.route("apps system tools monitor")
         self.assertEqual(rows[0][0], "app:missioncenter.desktop")
 
@@ -499,7 +529,7 @@ class TestRunnerIntegration(unittest.TestCase):
                           "app:kate.desktop"])
 
     def test_root_caps_favorites_with_pointer(self):
-        # r3.1: >10 resolvable favorites → 10 rows + appcat:pins pointer;
+        # r4: >6 resolvable favorites → 6 rows + appcat:pins pointer;
         # apps pins stays uncapped. Write 11 extra fixture apps first so
         # the kickoff list has 12 resolvable ids (empty Categories → all
         # land in the synthetic 'more' group, exercising finding 3 too).
@@ -515,17 +545,17 @@ class TestRunnerIntegration(unittest.TestCase):
             apps, [], {}, {}, "", menu=self.store.menu, kickoff=kickoff)
         ids = [r["id"] for r in rows]
         favs = [i for i in ids if i.startswith("app:")]
-        self.assertEqual(len(favs), 10)
+        self.assertEqual(len(favs), 6)
         self.assertIn("appcat:pins", ids)
         ptr = [r for r in rows if r["id"] == "appcat:pins"][0]
-        self.assertEqual(ptr["title"], "+2 MORE FAVORITES")
+        self.assertEqual(ptr["title"], "+6 MORE FAVORITES")
         # dead ids don't inflate the count
         rows2 = apps_model.build_rows(
             apps, [], {}, {}, "",
             menu=self.store.menu,
             kickoff=kickoff[:11] + ["ghost.desktop"])
         ptr2 = [r for r in rows2 if r["id"] == "appcat:pins"][0]
-        self.assertEqual(ptr2["title"], "+1 MORE FAVORITES")
+        self.assertEqual(ptr2["title"], "+5 MORE FAVORITES")
         # synthetic 'more' group renders (11 unfiled fixture apps)
         self.assertIn("appcat:more", ids)
         more = [r for r in rows if r["id"] == "appcat:more"][0]
@@ -540,8 +570,11 @@ class TestRunnerIntegration(unittest.TestCase):
 
     def test_apps_more_grammar(self):
         rows = self.route("apps more")
+        # r4: 'more' drills like any category — anchor + bounded apps
+        self.assertEqual(rows[0][0], "appcat:more")
         self.assertTrue(all(r[0].startswith("app:")
-                            for r in rows if r[0] != "apphelp"),
+                            for r in rows
+                            if r[0] not in ("apphelp", "appcat:more")),
                         rows[:3])
 
     def test_actions_list(self):
@@ -674,6 +707,30 @@ class TestRunDispatch(unittest.TestCase):
         self.popens.append((list(argv), kw))
         return SimpleNamespace()
 
+    def test_appcat_drill_uses_query_single_runner(self):
+        # §L-15: drills MUST re-drive via querySingleRunner(hermes, …) —
+        # plain query() clears single-runner mode and the category cap
+        # squeezes Hermes back to ~1 row behind the native runners.
+        import unittest.mock as mock
+        import time as _time
+        calls = []
+
+        class FakeBus:
+            def call_blocking(self, svc, path, iface, method, sig, args):
+                calls.append((method, sig, args))
+
+        with mock.patch.object(hermes_runner.dbus, "SessionBus",
+                               lambda: FakeBus()):
+            hermes_runner.run_dispatch("appcat", "games", "", "",
+                                       self.ctx())
+            # the re-drive fires from a daemon thread after 0.25 s —
+            # keep the patch armed until it does
+            deadline = _time.time() + 2
+            while not calls and _time.time() < deadline:
+                _time.sleep(0.05)
+        self.assertEqual(calls, [("querySingleRunner", "ss",
+                                  ("hermes", "apps games"))])
+
     def test_launch_gtk_fallback(self):
         import unittest.mock as mock
         with mock.patch.object(hermes_runner.shutil, "which",
@@ -728,9 +785,16 @@ class TestRunDispatch(unittest.TestCase):
 
     def test_appcat_credits_and_thread(self):
         import unittest.mock as mock
+        import time as _time
+        # shrink the redrive delay and WAIT INSIDE THE PATCH: the drill
+        # thread must boom while _boom is armed, never under a later
+        # test's SessionBus patch (leaked-thread race, found r4)
         with mock.patch.object(hermes_runner, "dbus",
-                               SimpleNamespace(SessionBus=self._boom)):
+                               SimpleNamespace(SessionBus=self._boom)), \
+             mock.patch.object(hermes_runner,
+                               "KRUNNER_REDRIVE_DELAY", 0.05):
             hermes_runner.run_dispatch("appcat", "games", "", "", self.ctx())
+            _time.sleep(0.2)
         self.assertIn(("app_browses", None), self.hits)
 
     def test_appcat_invalid_slug_ignored(self):
@@ -745,9 +809,14 @@ class TestRunDispatch(unittest.TestCase):
 
     def test_empty_state_actions(self):
         import unittest.mock as mock
+        import time as _time
+        # same leaked-thread guard as test_appcat_credits_and_thread
         with mock.patch.object(hermes_runner, "dbus",
-                               SimpleNamespace(SessionBus=self._boom)):
+                               SimpleNamespace(SessionBus=self._boom)), \
+             mock.patch.object(hermes_runner,
+                               "KRUNNER_REDRIVE_DELAY", 0.05):
             hermes_runner.run_dispatch("", "", "", "apps", self.ctx())
+            _time.sleep(0.2)
 
     def _boom(self):
         raise RuntimeError("no bus in tests")

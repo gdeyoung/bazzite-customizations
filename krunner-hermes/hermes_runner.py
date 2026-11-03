@@ -49,6 +49,11 @@ from gi.repository import GLib
 import apps_model
 
 BUS_NAME = "org.kde.runners.hermes"
+# §L-15: KRunner's RUNNER id (krunner --list) — NOT the bus name. The
+# App.querySingleRunner() call silently no-ops on an unresolvable id.
+RUNNER_ID = "hermes"
+# redrive delay is injectable so tests can shrink it and join threads
+KRUNNER_REDRIVE_DELAY = 0.25
 OBJ_PATH = "/hermes"
 IFACE = "org.kde.krunner1"
 
@@ -681,7 +686,7 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
                 "help-browser", R_MODERATE, 0.30, {"actions": []})
             # §L-8: launcher lane rides last in the fixed-rel ladder
             row("help-apps", "Hermes: browse apps with 'apps'",
-                "PINS · CATEGORIES · MOST-USED · TYPE 'hermes apps' "
+                "FOYER HOME: FAVORITES + CATEGORIES · TYPE 'hermes apps' "
                 "FOR DETAILS",
                 "start-here-kde", R_MODERATE, 0.29, {"actions": []})
 
@@ -745,10 +750,10 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
         elif lane == "apps":
             # §L-8: launcher-lane help block (foyer-browse grammar)
             helppage("apps", 0, "apps",
-                     "FAVORITES FIRST, THEN PINS, MOST-USED, CATEGORIES",
+                     "FOYER HOME: FAVORITES (6) + CATEGORIES",
                      copyable=True)
             helppage("apps", 1, "apps games · apps internet fire…",
-                     "CATEGORY VIEW · REMAINING WORDS FILTER BY NAME · "
+                     "CATEGORY: 13 SHOWN · TYPE LETTERS TO FILTER · "
                      "'more' = UNFILED APPS",
                      copyable=True)
             helppage("apps", 2, "apps pins",
@@ -1019,15 +1024,19 @@ def run_dispatch(kind, key, text, act, ctx):
     if kind == "" and act in ("apps", "fav"):
         # §L-7 empty-state action buttons (when plasma renders them):
         # re-drive the KRunner query. Async — see appcat note.
+        # §L-15: querySingleRunner — plain query() clears single-runner
+        # mode and the row cap squeezes us back to 1 row behind natives.
         target = "apps" if act == "apps" else "apps pins"
         log(f"HARNESS-APPACTION {act}")
 
         def _action_preload(q=target):
-            time.sleep(0.25)
+            time.sleep(KRUNNER_REDRIVE_DELAY)
             try:
                 bus = dbus.SessionBus()
                 bus.call_blocking("org.kde.krunner", "/App",
-                                  "org.kde.krunner.App", "query", "s", (q,))
+                                  "org.kde.krunner.App",
+                                  "querySingleRunner", "ss",
+                                  (RUNNER_ID, q))
             except Exception as e:
                 log(f"app action preload failed: {e}")
         threading.Thread(target=_action_preload, daemon=True).start()
@@ -1237,12 +1246,13 @@ def run_dispatch(kind, key, text, act, ctx):
             log(f"HARNESS-APPCAT apps {key}")
 
             def _preload(slug=key):
-                time.sleep(0.25)
+                time.sleep(KRUNNER_REDRIVE_DELAY)
                 try:
                     bus = dbus.SessionBus()
                     bus.call_blocking("org.kde.krunner", "/App",
-                                      "org.kde.krunner.App", "query", "s",
-                                      (f"apps {slug}",))
+                                      "org.kde.krunner.App",
+                                      "querySingleRunner", "ss",
+                                      (RUNNER_ID, f"apps {slug}"))
                 except Exception as e:
                     log(f"appcat preload failed: {e}")
             threading.Thread(target=_preload, daemon=True).start()

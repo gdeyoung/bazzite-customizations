@@ -108,13 +108,23 @@ GenericName=Harness Game
 Exec=hxmine
 Categories=Game;
 EOF
-cat > "$H/.local/share/applications/hxhidden.desktop" <<'EOF'
+cat > "$H/.local/share/applications/hxhidden.desktop" <<'HXEOF'
 [Desktop Entry]
 Type=Application
 Name=HiddenApp
 Exec=hxhidden
 NoDisplay=true
-EOF
+HXEOF
+# v0.8: 8 kickoff favorites beyond the first -> root must cap at 6 + pointer
+for i in 0 1 2 3 4 5 6 7; do
+cat > "$H/.local/share/applications/hxk$i.desktop" <<HXEOF
+[Desktop Entry]
+Type=Application
+Name=K Fav $i
+Exec=hxk$i
+Categories=Game;
+HXEOF
+done
 # v0.7 kickoff-favorites fixture: kactivitymanagerd-shaped SQLite under the
 # harness HOME — AppStore reads it read-only; favorites must lead the root view
 mkdir -p "$H/.local/share/kactivitymanagerd/resources"
@@ -126,6 +136,10 @@ c.execute("CREATE TABLE ResourceLink (usedActivity TEXT, "
 c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
           (":global", "org.kde.plasma.favorites.applications",
            "applications:hxmine.desktop"))
+for i in range(8):
+    c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",
+              (":global", "org.kde.plasma.favorites.applications",
+               "applications:hxk%d.desktop" % i))
 c.execute("INSERT INTO ResourceLink VALUES (?,?,?)",   # noise: other agent
           (":global", "org.kde.plasma.favorites.contacts",
            "applications:hxfire.desktop"))
@@ -344,6 +358,15 @@ grep -q 'favorite \\302\\267 games' "$ROOT/kr-apps-$TAG.txt" \
 # noise row (other favorites agent) must NOT leak in as a favorite
 grep -q 'favorite \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
     && echo "CKPT-APPS-KICKOFF-FILTER=FAIL" || echo "CKPT-APPS-KICKOFF-FILTER=OK"
+# v0.8 r4: root caps favorites at 6 of 9 -> "+3 MORE FAVORITES" pointer present,
+# exactly 6 favorite rows on the wire
+FAVN=$(grep -o 'favorite \\302\\267' "$ROOT/kr-apps-$TAG.txt" | wc -l)
+[ "$FAVN" = "6" ] && echo "CKPT-APPS-FAVCAP=OK" || echo "CKPT-APPS-FAVCAP=FAIL($FAVN)"
+grep -q '+3 MORE FAVORITES' "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-FAVPTR=OK" || echo "CKPT-APPS-FAVPTR=FAIL"
+# v0.8 r4: drilled category leads with its anchor row
+grep -q 'appcat:games' "$ROOT/kr-appsgames-$TAG.txt" \
+    && echo "CKPT-APPS-CATANCHOR=OK" || echo "CKPT-APPS-CATANCHOR=FAIL"
 
 $B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1
 sleep 1
@@ -352,9 +375,10 @@ spectacle -b -n -o "$OUT/kr-apps-$TAG.png" 2>/dev/null && echo "SHOT-kr-apps"
 $B call org.kde.krunner /App org.kde.krunner.App query s "" >/dev/null 2>&1
 sleep 1.5
 spectacle -b -n -o "$OUT/kr-empty-$TAG.png" 2>/dev/null && echo "SHOT-kr-empty"
-# hermes-menu bind gate (keys v3): the EXACT Exec line from hermes-menu.desktop,
-# replayed against this session's krunner — Super+Space must open ON the menu
-$B call org.kde.krunner /App org.kde.krunner.App query s "apps" >/dev/null 2>&1 \
+# hermes-menu bind gate (keys v4): the EXACT Exec line from hermes-menu.desktop,
+# replayed against this session's krunner — Super+Space must open ON the menu in
+# SINGLE-RUNNER mode (plain query() clears it and re-imposes the 15-row split)
+$B call org.kde.krunner /App org.kde.krunner.App querySingleRunner ss hermes "apps" >/dev/null 2>&1 \
   && echo "CKPT-MENU-OPENER-CALL=OK" || echo "CKPT-MENU-OPENER-CALL=FAIL"
 sleep 2
 spectacle -b -n -o "$OUT/kr-menu-$TAG.png" 2>/dev/null && echo "SHOT-kr-menu"

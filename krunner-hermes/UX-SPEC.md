@@ -960,3 +960,40 @@ replace heuristics; nothing writes to KDE's data.
    self-describing, parallel to `pinned ·`.
 6. **Dead favorite ids** are skipped at render with one journal line
    per id per daemon lifetime (L-5 convention; code conforms).
+
+### L-15 The 15-row law + single-runner escape (v0.8, proven in KDE source)
+
+Diagnosis of "only one Hermes row visible" (user screenshot 2026-11-01):
+KRunner's Milou view (`ResultsView.qml`) hardcodes `limit: 15` TOTAL rows
+across all runners, and KRunner's `CategoryDistributionProxyModel` splits
+that budget across categories — category k gets at most limit/(k+1). Hermes
+rows all share ONE category behind the native runners' categories, so live
+we got `ceil(15/(n+2))` = 1 row (harness: 4). The wire was never the
+problem: 22 rows returned in 6 ms, 15 rendered total.
+
+Escape: **single-runner mode**. `org.kde.krunner.App.querySingleRunner ss
+<runnerId> <term>` gives one runner the entire 15-row budget (pixel-verified
+13 rows, dbg5). Constraints, all verified:
+- Runner id is `hermes` (from `krunner --list`), NOT the bus name
+  `org.kde.runners.hermes` — the call silently no-ops on a bad id.
+- Plain `query()` CLEARS single-runner mode → every re-drive (Super+Space
+  bind, app-action buttons, appcat drills) uses querySingleRunner.
+- `krunner --runner <id>` from a second process cannot switch a running
+  daemon.
+- Open question (untested): whether user typing after a querySingleRunner
+  open keeps single-runner mode for the edited term. If it clears, we
+  degrade to the old capped multi-runner view — bounded, not a wall.
+
+v0.8 r4 shapes (user directive "make it like Foyer"):
+- **Root = foyer home**: anchor + kickoff favorites CAPPED AT 6 + pointer
+  row `+N MORE FAVORITES` (→ `apps pins`), then category rows. Config
+  pins and most-used rows NO LONGER render on root (they live in
+  `apps pins`; frequency de-prioritized entirely).
+- **Category view**: anchor row (`<Label> · N APPS · TYPE LETTERS TO
+  FILTER`) + at most 13 apps + `SHOWING 13 OF N · TYPE TO FILTER` hint.
+  KRunner cannot scroll — typing IS the scroll. NEVER dump a full
+  category (the 73-title Games wall was the violation that started v0.8).
+- Stepped relevances everywhere (root cats 0.84−0.01i rounded 2dp) so
+  the 15-row cut and order are deterministic under equal-float re-sorts.
+- Re-drive delay injectable: `KRUNNER_REDRIVE_DELAY` (0.25 s live) so
+  tests can shrink it and join threads deterministically.

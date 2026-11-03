@@ -464,34 +464,40 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
             # r2.2 anchor: bare 'apps' outranks native rows NAMED "apps"
             # only with a 1.0/HIGHEST row leading the group (pixel apps3)
             rows.append({"id": "apps-root",
-                         "title": "Apps — favorites & categories",
-                         "sub": "HERMES LAUNCHER · ↓ ARROWS TO BROWSE · "
-                                "ENTER DRILLS",
+                         "title": "Apps",
+                         "sub": "FAVORITES · CATEGORIES · ARROWS TO "
+                                "BROWSE · ENTER OPENS",
                          "icon": "start-here-kde", "tier": "HIGHEST",
                          "rel": 1.0, "actions": [], "slug": ""})
         # Kickoff favorites first — KDE's list, read-only (launch-only).
-        # r3.1: root view caps at 10 resolvable favorites (viewport
-        # discipline, F-3) + pointer row; `apps pins` shows the full list.
+        # r4 (foyer home): root shows favorites + categories ONLY — no
+        # pins, no frequency (those live in `apps pins`). Cap 6 + pointer
+        # so the whole home fits KRunner's hard 15-row render budget
+        # (§L-15); rel STEPPED 0.95−0.005i so the cut + order are
+        # deterministic (equal floats re-sort unstable).
         resolvable = [k for k in kickoff if k in by_id]
-        shown = resolvable if mode == "pins" else resolvable[:10]
-        for kid in shown:
+        shown = resolvable if mode == "pins" else resolvable[:6]
+        for i, kid in enumerate(shown):
             app = by_id[kid]
-            r = app_row(app, slug_of(app), False, 0.95, "HIGH")
+            r = app_row(app, slug_of(app), False,
+                        0.95 - 0.005 * i, "HIGH")
             r["sub"] = f"favorite · {slug_of(app)}"
             r["actions"] = ["launch"]
             rows.append(r)
-        if mode == "root" and len(resolvable) > 10:
+        if mode == "root" and len(resolvable) > 6:
             rows.append({"id": "appcat:pins",
-                         "title": f"+{len(resolvable) - 10} MORE FAVORITES",
+                         "title": f"+{len(resolvable) - 6} MORE FAVORITES",
                          "sub": "ENTER FOR ALL · MANAGED IN THE KDE MENU",
-                         "icon": "bookmarks", "tier": "HIGH", "rel": 0.86,
+                         "icon": "bookmarks", "tier": "HIGH", "rel": 0.88,
                          "actions": [], "slug": "pins"})
-        # then hermes pins (config)
-        for pid in pins:
-            app = by_id.get(pid)
-            if app:
-                rows.append(app_row(app, slug_of(app), True, 0.95, "HIGH"))
-                rows[-1]["sub"] = f"pinned · {slug_of(app)}"
+        # r4: hermes pins render ONLY in `apps pins` (root = foyer home)
+        if mode == "pins":
+            for pid in pins:
+                app = by_id.get(pid)
+                if app:
+                    rows.append(app_row(app, slug_of(app), True,
+                                        0.95, "HIGH"))
+                    rows[-1]["sub"] = f"pinned · {slug_of(app)}"
         if mode == "pins" and not rows:
             return [{"id": "apphelp", "title": "No favorites yet",
                      "sub": "add in the KDE menu, or select an app → PIN",
@@ -499,31 +505,25 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
                      "rel": 0.5, "actions": [], "slug": ""}]
         if mode == "pins":
             return rows
-        all_favs = set(kickoff) | set(pins)
-        # frequency (count ≥1, excluding favorites, top 6)
-        counts = [(a["id"], freq.get(a["id"], 0)) for a in apps]
-        ranked = sorted((t for t in counts if t[1] >= 1
-                         and t[0] not in all_favs and t[0] in by_id),
-                        key=lambda t: (-t[1], by_id[t[0]]["name"].lower(),
-                                       t[0]))[:6]
-        for i, (aid, n) in enumerate(ranked):
-            app = by_id[aid]
-            rows.append(app_row(app, slug_of(app), False,
-                                max(0.80, 0.90 - 0.02 * i), "HIGH"))
-            rows[-1]["sub"] = f"{n}× · {slug_of(app)}"
-        # category rows in menu order (High band: pixel gate apps1)
+        # r4: frequency rows dropped from the root (foyer home shape);
+        # freq data still feeds `apps pins` sorting elsewhere.
+        # category rows in menu order — stepped 0.84−0.01i so KRunner's
+        # 15-row cut keeps a deterministic prefix of the menu order.
+        cat_i = 0
         if menu:
             for m in menu:
                 n = sum(1 for a in apps if slug_of(a) == m["slug"])
                 if n:
                     rows.append(cat_row(m, n))
+                    rows[-1]["rel"] = round(0.84 - 0.01 * cat_i, 2)
+                    cat_i += 1
             # r3.1: synthetic catch-all so unfiled apps stay browsable
             n_more = sum(1 for a in apps if slug_of(a) == "more")
             if n_more:
                 rows.append({"id": "appcat:more", "title": "More",
                              "sub": f"{n_more} apps",
                              "icon": icon_for_slug("more"),
-                             "tier": "HIGH", "rel": 0.85, "actions": [],
+                             "tier": "HIGH", "rel": 0.74, "actions": [],
                              "slug": "more"})
         else:
             for slug, label in FALLBACK_LABELS:
@@ -532,8 +532,10 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
                     rows.append({"id": f"appcat:{slug}", "title": label,
                                  "sub": f"{n} apps",
                                  "icon": icon_for_slug(slug),
-                                 "tier": "HIGH", "rel": 0.85,
+                                 "tier": "HIGH",
+                                 "rel": round(0.84 - 0.01 * cat_i, 2),
                                  "actions": [], "slug": slug})
+                    cat_i += 1
         return rows
 
     if mode == "catlist":
@@ -580,10 +582,29 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
             matched.append((q[0], q[1], a))
     matched.sort(key=lambda t: (-t[0], t[2]["name"].lower(), t[2]["id"]))
     rows, tier_for = [], {3: "HIGHEST", 2: "HIGHEST", 1: "MODERATE"}
+    # r4 (§L-15): a drilled category is BOUNDED, never a wall — KRunner
+    # cannot scroll (hard 15-row render budget), so emit an anchor + at
+    # most 13 apps + a filter hint; typing narrows within the category.
+    if mode == "cat" and not parsed.get("filter"):
+        label = label_for(slug)
+        n_pool = len(pool)
+        if n_pool:
+            rows.append({"id": f"appcat:{slug}", "title": label,
+                         "sub": f"{n_pool} APPS · TYPE LETTERS TO FILTER",
+                         "icon": icon_for_slug(slug), "tier": "HIGHEST",
+                         "rel": 1.0, "actions": [], "slug": slug})
+            matched = matched[:13]
     for i, (q, base, a) in enumerate(matched):
         rel = max(0.05, base - 0.01 * i)   # stepped: deterministic order
         rows.append(app_row(a, slug_of(a), a["id"] in pins, rel,
                             tier_for[q]))
+    if (mode == "cat" and not parsed.get("filter")
+            and len(pool) > 13):
+        rows.append({"id": "apphelp",
+                     "title": f"SHOWING 13 OF {len(pool)} · TYPE TO FILTER",
+                     "sub": "KRUNNER SHOWS 15 ROWS · TYPING IS THE SCROLL",
+                     "icon": "help-browser", "tier": "MODERATE",
+                     "rel": 0.3, "actions": [], "slug": ""})
     if not rows:
         rows.append({"id": "apphelp", "title": "No apps match",
                      "sub": "try a category, e.g. apps games",
