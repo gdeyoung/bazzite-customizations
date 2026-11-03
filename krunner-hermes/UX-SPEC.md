@@ -1061,3 +1061,78 @@ baloo) plus the tree shot. `CKPT-MENU-SINGLE` is the regression tripwire.
 `krunner --runner <id> <term>` CLI forwarding hits the same race via
 KDBusService activation; `toggleDisplay` while poisoned does not clear
 the fallback.
+
+## L-18 — r6: Foyer parity branches (Apps · Settings · System · Update · About)
+
+User directive (2026-11-03): the runner should carry Foyer's other
+top-levels — "settings, and the other things like foyer has" — in
+addition to the KDE app tree. Ground truth stays the omarchy menu shape:
+top level = branches that fan out; never loose leaf items on root.
+
+### Root (query `apps`, single-runner mode)
+
+Anchor (1.0 HIGHEST): "Apps" · "PICK A BRANCH · ARROWS TO BROWSE · ENTER OPENS"
+Then exactly five branch rows, stepped:
+1. `Apps` (0.95) · "FAVORITES · ALL CATEGORIES · THE FULL APP TREE" · drill
+2. `Settings` (0.94) · "SYSTEM SETTINGS MODULES · TYPE TO FILTER" · drill
+3. `System` (0.93) · "LOCK · SLEEP · LOG OUT · REBOOT · SHUT DOWN" · drill
+4. `Update` (0.92) · "RUNS UJUST UPDATE IN KONSOLE · ENTER STARTS NOW" · action
+5. `About` (0.91) · "SYSTEM SUMMARY · ENTER COPIES TO CLIPBOARD" · action
+
+Update/About are DIRECT actions (Enter runs them); Apps/Settings/System are
+drills (Enter re-drives the scoped view). Typed suffix filters root branch
+names; root never shows loose apps, favorites, or KCMs.
+
+### Drills
+
+- `apps browse` — the r5 app tree, unchanged: Favorites branch
+  ("N APPS · YOUR KDE MENU FAVORITES") + category rows + More.
+- `apps settings [filter]` — KCM fan-out, same shape as app categories:
+  anchor `Settings` (1.0 HIGHEST) · "N MODULES · TYPE LETTERS TO FILTER"
+  (N COMPUTED from the cached KCM list — never hardcoded; verdict r6-3) +
+  13 rows alphabetical + "SHOWING 13 OF N" footer. Source: /usr/share/applications/kcm*.desktop
+  (Name, Icon, desktop-id). Launch via kioclient exec-by-desktop-id.
+  Missing icons fall back per ICON_FALLBACKS (lint the battery, not memory).
+- `apps system` — anchor `System` (1.0 HIGHEST) · "5 POWER ACTIONS · NO
+  CONFIRMATION DIALOG" (Enter on the anchor re-drives, it fires nothing),
+  then five stepped rows; NO SHOWING footer (5 ≤ 13, nothing hidden):
+  Lock Screen (`system-lock-screen`) · "ENTER LOCKS NOW" ·
+  Sleep (`system-suspend`) · "ENTER SLEEPS NOW" ·
+  Log Out (`system-log-out`) · "ENTER LOGS OUT NOW · CLOSES OPEN APPS" ·
+  Reboot (`system-reboot`) · "ENTER REBOOTS NOW · CLOSES OPEN APPS" ·
+  Shut Down (`system-shutdown`) · "ENTER SHUTS DOWN NOW · CLOSES OPEN APPS".
+  Verdict r6-2/r6-1: KRunner has no confirm dialog, so the subtext IS the
+  confirmation — destructive rows must name the CONSEQUENCE ("CLOSES OPEN
+  APPS"), not just the action; the user avoids voluntary logouts precisely
+  because they close open apps.
+
+### Run semantics + safety
+
+- `power:<verb>` handlers: loginctl lock-session / systemctl suspend /
+  loginctl terminate-session $XDG_SESSION_ID / systemctl reboot /
+  systemctl poweroff. ksmserver is dead on this host — never call it.
+- `update-run`: konsole -e ujust update.
+- `about-copy`: clipboard copy + notification (kernel, Plasma, GPU, uptime).
+- **harness_mode stubs ALL of the above** (log-only) — the harness runs on
+  the LIVE HOST; a real reboot/shutdown from a gate would be catastrophic.
+  Tests assert the stub path never Popen()s.
+- Stats: settings_opens, settings_launches, system_opens, power_actions,
+  update_runs, about_copies (event-named per skill rules).
+
+### Id grammar additions
+
+`foyer-apps:`, `foyer-settings:`, `foyer-system:` (branch drills),
+`setting:<kcm-id>`, `power:<verb>`, `update-run`, `about-copy`.
+Update/About rows carry explicit `actions: []`? NO — they are action rows
+(Enter = run); they mint no sub-actions.
+
+### Gate additions (apps14)
+
+CKPT-FOYER-ROOT (5 branch rows, no loose apps on root), CKPT-SETTINGS
+(drill rows + SHOWING footer), CKPT-SYSTEM (5 power rows),
+CKPT-UPDATE-STUB + CKPT-POWER-STUB (journal stub lines, zero execution),
+bind replay still primed (§L-17 poison gate unchanged).
+
+### r6 UX verdict (deleg_c30f50c8, 2026-11-03): APPROVE-WITH-CHANGES —
+all six changes folded above (consequence clauses, System anchor,
+computed N, '·' joiner, LOG OUT naming, settings_launches).

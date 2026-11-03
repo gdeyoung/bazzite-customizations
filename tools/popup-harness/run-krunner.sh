@@ -61,7 +61,8 @@ cat > "$H/.config/hermes-runner/config.json" <<'EOF'
     "api_key_env": "ZHW_PROXY_API_KEY",
     "api_key_file": "/var/home/gdeyoung/.hermes/secrets/infra.env"
   },
-  "notify": true
+  "notify": true,
+  "harness_mode": true
 }
 EOF
 
@@ -329,8 +330,14 @@ $B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps" \
     > "$ROOT/kr-apps-$TAG.txt" 2>&1 && echo "CKPT-APPS-ROOT-QUERY=OK" || echo "CKPT-APPS-ROOT-QUERY=FAIL"
 grep -q "apps-root" "$ROOT/kr-apps-$TAG.txt" \
     && echo "CKPT-APPS-ANCHOR=OK" || echo "CKPT-APPS-ANCHOR=FAIL"
-grep -q "appcat:internet" "$ROOT/kr-apps-$TAG.txt" && grep -q "appcat:games" "$ROOT/kr-apps-$TAG.txt" \
-    && echo "CKPT-APPS-CATS=OK" || echo "CKPT-APPS-CATS=FAIL"
+# r6 (§L-18): root = anchor + FIVE foyer branches — no categories on root
+for br in foyer-apps foyer-settings foyer-system update-run about-copy; do
+    grep -q "$br" "$ROOT/kr-apps-$TAG.txt" \
+        || { echo "CKPT-APPS-BRANCHES=FAIL($br)"; break; }
+    echo "CKPT-APPS-BRANCHES=OK"
+done
+grep -q "appcat:" "$ROOT/kr-apps-$TAG.txt" \
+    && echo "CKPT-APPS-CATS-ON-ROOT=FAIL" || echo "CKPT-APPS-CATS-ON-ROOT=OK"
 grep -q "app:hxhidden.desktop" "$ROOT/kr-apps-$TAG.txt" \
     && echo "CKPT-APPS-NODISPLAY=FAIL" || echo "CKPT-APPS-NODISPLAY=OK"
 
@@ -362,9 +369,12 @@ grep -q 'favorite \\302\\267 internet' "$ROOT/kr-apps-$TAG.txt" \
 # exactly 6 favorite rows on the wire
 FAVN=$(grep -o 'favorite \\302\\267' "$ROOT/kr-apps-$TAG.txt" | wc -l)
 [ "$FAVN" = "0" ] && echo "CKPT-APPS-ROOT-NOLOOSEFAVS=OK" || echo "CKPT-APPS-ROOT-NOLOOSEFAVS=FAIL($FAVN)"
-grep -q '"Favorites"' "$ROOT/kr-apps-$TAG.txt" \
+# r6: favorites branch + counts moved to `apps browse` (behind Apps)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps browse" \
+    > "$ROOT/kr-appsbrowse-$TAG.txt" 2>&1
+grep -q '"Favorites"' "$ROOT/kr-appsbrowse-$TAG.txt" \
     && echo "CKPT-APPS-FAVBRANCH=OK" || echo "CKPT-APPS-FAVBRANCH=FAIL"
-grep -q '9 APPS' "$ROOT/kr-apps-$TAG.txt" && grep -q 'MENU FAVORITES' "$ROOT/kr-apps-$TAG.txt" \
+grep -q '9 APPS' "$ROOT/kr-appsbrowse-$TAG.txt" && grep -q 'MENU FAVORITES' "$ROOT/kr-appsbrowse-$TAG.txt" \
     && echo "CKPT-APPS-FAVCOUNT=OK" || echo "CKPT-APPS-FAVCOUNT=FAIL"
 FAVP=$(grep -o 'favorite \\302\\267' "$ROOT/kr-appspins-$TAG.txt" | wc -l)
 [ "$FAVP" = "9" ] && echo "CKPT-APPS-FAVFULL=OK" || echo "CKPT-APPS-FAVFULL=FAIL($FAVP)"
@@ -406,6 +416,80 @@ BALOO_MATCHES=$(grep -c 'Member=Match' "$ROOT/baloo-mon-$TAG.log" 2>/dev/null)
 BALOO_MATCHES="${BALOO_MATCHES:-0}"
 [ "$BALOO_MATCHES" -eq 0 ] \
   && echo "CKPT-MENU-SINGLE=OK" || echo "CKPT-MENU-SINGLE=FAIL(${BALOO_MATCHES} baloo matches)"
+
+# --- r6 (§L-18) foyer-parity gates ----------------------------------------
+echo "--- §L-18 r6 branches ---"
+# settings drill: computed-N anchor + 13 rows + SHOWING footer (host KCMs)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps settings" \
+    > "$ROOT/kr-set-$TAG.txt" 2>&1 && echo "CKPT-R6-SETTINGS-QUERY=OK" || echo "CKPT-R6-SETTINGS-QUERY=FAIL"
+grep -q "settings-root" "$ROOT/kr-set-$TAG.txt" \
+    && echo "CKPT-R6-SETTINGS-ANCHOR=OK" || echo "CKPT-R6-SETTINGS-ANCHOR=FAIL"
+grep -q "MODULES" "$ROOT/kr-set-$TAG.txt" && grep -q "TYPE LETTERS TO FILTER" "$ROOT/kr-set-$TAG.txt" \
+    && echo "CKPT-R6-SETTINGS-N=OK" || echo "CKPT-R6-SETTINGS-N=FAIL"
+grep -q "setting:kcm" "$ROOT/kr-set-$TAG.txt" \
+    && echo "CKPT-R6-SETTINGS-ROWS=OK" || echo "CKPT-R6-SETTINGS-ROWS=FAIL"
+grep -q "SHOWING 13 OF" "$ROOT/kr-set-$TAG.txt" \
+    && echo "CKPT-R6-SETTINGS-FOOTER=OK" || echo "CKPT-R6-SETTINGS-FOOTER=FAIL"
+
+# system drill: anchor + 5 power rows, verdict wording, NO footer
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "apps system" \
+    > "$ROOT/kr-sys-$TAG.txt" 2>&1 && echo "CKPT-R6-SYSTEM-QUERY=OK" || echo "CKPT-R6-SYSTEM-QUERY=FAIL"
+grep -q "system-root" "$ROOT/kr-sys-$TAG.txt" \
+    && echo "CKPT-R6-SYSTEM-ANCHOR=OK" || echo "CKPT-R6-SYSTEM-ANCHOR=FAIL"
+grep -q "NO CONFIRMATION DIALOG" "$ROOT/kr-sys-$TAG.txt" \
+    && echo "CKPT-R6-SYSTEM-WARN=OK" || echo "CKPT-R6-SYSTEM-WARN=FAIL"
+for pv in lock sleep logout reboot shutdown; do
+    grep -q "power:$pv" "$ROOT/kr-sys-$TAG.txt" \
+        || { echo "CKPT-R6-SYSTEM-ROWS=FAIL($pv)"; break; }
+    echo "CKPT-R6-SYSTEM-ROWS=OK"
+done
+grep -q "CLOSES OPEN APPS" "$ROOT/kr-sys-$TAG.txt" \
+    && echo "CKPT-R6-SYSTEM-CONSEQ=OK" || echo "CKPT-R6-SYSTEM-CONSEQ=FAIL"
+grep -q "apphelp" "$ROOT/kr-sys-$TAG.txt" \
+    && echo "CKPT-R6-SYSTEM-NOFOOTER=FAIL" || echo "CKPT-R6-SYSTEM-NOFOOTER=OK"
+
+# branch Run drills re-drive via /App (in-tree: unprimed per §L-17)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "foyer-settings" "" >/dev/null 2>&1
+sleep 1.5
+grep -q "HARNESS-FOYER foyer-settings" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-R6-SETTINGS-RUN=OK" || echo "CKPT-R6-SETTINGS-RUN=FAIL"
+spectacle -b -n -o "$OUT/kr-set-$TAG.png" 2>/dev/null && echo "SHOT-kr-set"
+
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "foyer-system" "" >/dev/null 2>&1
+sleep 1.5
+grep -q "HARNESS-FOYER foyer-system" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-R6-SYSTEM-RUN=OK" || echo "CKPT-R6-SYSTEM-RUN=FAIL"
+spectacle -b -n -o "$OUT/kr-sys-$TAG.png" 2>/dev/null && echo "SHOT-kr-sys"
+
+# SAFETY: harness runs on the live host — power/update MUST stub.
+UPTIME_BEFORE=$(cut -d. -f1 /proc/uptime)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "power:reboot" "" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "power:shutdown" "" >/dev/null 2>&1
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "update-run" "" >/dev/null 2>&1
+sleep 1.5
+grep -q "HARNESS-POWER-STUB reboot" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-R6-POWER-STUB=OK" || echo "CKPT-R6-POWER-STUB=FAIL"
+grep -q "HARNESS-UPDATE-STUB" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-R6-UPDATE-STUB=OK" || echo "CKPT-R6-UPDATE-STUB=FAIL"
+sleep 4
+UPTIME_AFTER=$(cut -d. -f1 /proc/uptime)
+[ "$UPTIME_AFTER" -ge "$UPTIME_BEFORE" ] \
+    && echo "CKPT-R6-HOST-SURVIVED=OK" || echo "CKPT-R6-HOST-SURVIVED=FAIL"
+
+# about: copies summary to clipboard, notifies, logs
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "about-copy" "" >/dev/null 2>&1
+sleep 1
+grep -q "HARNESS-ABOUT-COPY" "$ROOT/runner-$TAG.log" \
+    && echo "CKPT-R6-ABOUT=OK" || echo "CKPT-R6-ABOUT=FAIL"
+
+# unknown KCM id: safe refusal, no stub exec
+N0=$(grep -c "STUB-KIOCLIENT exec" "$H/stub-kioclient.log" 2>/dev/null || echo 0)
+$B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "setting:kcm_ghost" "" >/dev/null 2>&1
+sleep 1
+N1=$(grep -c "STUB-KIOCLIENT exec" "$H/stub-kioclient.log" 2>/dev/null || echo 0)
+grep -q "kcm id not in cache" "$ROOT/runner-$TAG.log" && [ "$N0" = "$N1" ] \
+    && echo "CKPT-R6-SETTING-SAFE=OK" || echo "CKPT-R6-SETTING-SAFE=FAIL"
+
 
 # drill: Run on a category row re-drives the query via /App (async thread)
 $B call org.kde.runners.hermes /hermes org.kde.krunner1 Run ss "appcat:games" "" >/dev/null 2>&1

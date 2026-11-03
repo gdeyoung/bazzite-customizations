@@ -18,6 +18,8 @@ from pathlib import Path
 
 CACHE_VERSION = 3
 CACHE_NAME = "apps.json"
+KCM_CACHE_NAME = "kcms.json"
+KCM_TTL_S = 3600
 
 SYSTEM_MENU = "/etc/xdg/menus/applications.menu"
 USER_MENU = "~/.config/menus/applications.menu"
@@ -25,6 +27,9 @@ DIRECTORY_DIRS = ("/usr/share/desktop-directories",
                   "~/.local/share/desktop-directories")
 KICKOFF_DB = ("~/.local/share/kactivitymanagerd/resources/database")
 KICKOFF_AGENT = "org.kde.plasma.favorites.applications"
+# r6 (§L-18): System Settings modules — the native systemsettings runner
+# is invisible in single-runner mode, so the tree hosts its own fan-out.
+KCM_DIRS = ("/usr/share/applications", "~/.local/share/applications")
 
 # Fallback only (menu file missing/unparseable) — v0.6 behavior.
 CATEGORY_PRECEDENCE = [
@@ -326,7 +331,100 @@ def _norm_word(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def parse_query(rest, menu=None):
+def parse_kcms(dirs=KCM_DIRS, cache_path=None, ttl=KCM_TTL_S, now=None):
+    """§L-18 r6: System Settings modules. Cache-first (Match is I/O-free):
+    kcms.json beside apps.json; mtime+TTL gated; never fatal — [] on any
+    failure. Returns [{"id","name","icon"}] sorted by name."""
+    now = now if now is not None else time.time()
+    if cache_path:
+        cp = Path(cache_path).expanduser()
+        try:
+            if cp.exists() and now - cp.stat().st_mtime < ttl:
+                data = json.loads(cp.read_text() or "[]")
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    mods = {}
+    for d in dirs:
+        for f in sorted(Path(d).expanduser().glob("kcm*.desktop")):
+            # KCMs are NOT menu apps: 83/84 host kcm*.desktop carry
+            # NoDisplay=true (right for Kickoff, wrong here — System
+            # Settings modules are opened via kcmshell/systemsettings,
+            # never from an app menu). So: do NOT reuse parse_desktop's
+            # NoDisplay skip; only require a Name and skip Hidden.
+            try:
+                cp = configparser.ConfigParser(interpolation=None,
+                                               strict=False)
+                cp.read_string(f.read_text(errors="replace"))
+                e = cp["Desktop Entry"] if cp.has_section(
+                    "Desktop Entry") else None
+            except Exception:
+                e = None
+            if not e:
+                continue
+            try:
+                if e.getboolean("Hidden", False):
+                    continue
+            except ValueError:
+                pass
+            name = (e.get("Name") or "").strip()
+            if not name:
+                continue
+            mods[f.stem] = {"id": f.stem,
+                            "name": name,
+                            "icon": (e.get("Icon") or "").strip()
+                                    or "preferences-system",
+                            "path": str(f)}
+    rows = sorted(mods.values(), key=lambda m: (m["name"].lower(), m["id"]))
+    if cache_path:
+        try:
+            Path(cache_path).expanduser().write_text(json.dumps(rows))
+        except Exception:
+            pass
+    return rows
+
+
+# r6 (§L-18) foyer root branches — Apps · Settings · System · Update · About.
+# Stepped 0.95→0.91 under the 1.0 anchor; Update/About are DIRECT actions.
+FOYER_BRANCHES = [
+    {"id": "foyer-apps", "title": "Apps",
+     "sub": "FAVORITES · ALL CATEGORIES · THE FULL APP TREE",
+     "icon": "applications-all", "rel": 0.95},
+    {"id": "foyer-settings", "title": "Settings",
+     "sub": "SYSTEM SETTINGS MODULES · TYPE TO FILTER",
+     "icon": "preferences-system", "rel": 0.94},
+    {"id": "foyer-system", "title": "System",
+     "sub": "LOCK · SLEEP · LOG OUT · REBOOT · SHUT DOWN",
+     "icon": "preferences-system", "rel": 0.93},
+    {"id": "update-run", "title": "Update",
+     "sub": "RUNS UJUST UPDATE IN KONSOLE · ENTER STARTS NOW",
+     "icon": "system-software-update", "rel": 0.92},
+    {"id": "about-copy", "title": "About",
+     "sub": "SYSTEM SUMMARY · ENTER COPIES TO CLIPBOARD",
+     "icon": "dialog-information", "rel": 0.91},
+]
+
+# r6: `apps system` drill. Subtext IS the confirmation (no KRunner dialog)
+# — destructive rows name the consequence (verdict r6-1).
+POWER_ROWS = [
+    {"id": "power:lock", "title": "Lock Screen",
+     "sub": "ENTER LOCKS NOW", "icon": "system-lock-screen"},
+    {"id": "power:sleep", "title": "Sleep",
+     "sub": "ENTER SLEEPS NOW", "icon": "system-suspend"},
+    {"id": "power:logout", "title": "Log Out",
+     "sub": "ENTER LOGS OUT NOW · CLOSES OPEN APPS",
+     "icon": "system-log-out"},
+    {"id": "power:reboot", "title": "Reboot",
+     "sub": "ENTER REBOOTS NOW · CLOSES OPEN APPS",
+     "icon": "system-reboot"},
+    {"id": "power:shutdown", "title": "Shut Down",
+     "sub": "ENTER SHUTS DOWN NOW · CLOSES OPEN APPS",
+     "icon": "system-shutdown"},
+]
+
+
+def parse_query(rest, menu=None, allow_reserved=True):
     """L-4 token grammar (r3: menu-driven labels, multi-word names).
     Returns {"mode": "root"|"pins"|"cat"|"catlist"|"fuzzy",
      "slug": str, "filter": str, "slugs": [str], "tokens": [str]}
@@ -348,6 +446,18 @@ def parse_query(rest, menu=None):
         out["mode"] = "root"
         return out
     low = tokens[0].lower()
+    # r6 (§L-18): foyer branch drills — reserved FIRST, before category
+    # lookup ("settings"/"system" would otherwise prefix-match the
+    # system-tools category and land in catlist).
+    if allow_reserved and low == "browse":
+        out.update(mode="browse", tokens=tokens[1:])
+        return out
+    if allow_reserved and low == "settings":
+        out.update(mode="settings", filter=" ".join(tokens[1:]))
+        return out
+    if allow_reserved and low == "system":
+        out.update(mode="system", filter=" ".join(tokens[1:]))
+        return out
     if low == "pins":
         out["mode"] = "pins"
         return out
@@ -416,7 +526,7 @@ def app_row(app, slug, pinned, rel, tier):
 
 
 def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
-               dead_pin_logger=None):
+               dead_pin_logger=None, kcms=None, _no_reserved=False):
     """L-4/L-5 row list (r3: menu tree + kickoff favorites).
 
     apps: parsed + cached entries with id/path set. pins: ordered ids
@@ -456,27 +566,131 @@ def build_rows(apps, pins, freq, overrides, rest, menu=None, kickoff=None,
         if pid not in by_id and dead_pin_logger:
             dead_pin_logger(pid)
 
-    parsed = parse_query(rest, menu)
+    parsed = parse_query(rest, menu, allow_reserved=not _no_reserved)
     mode = parsed["mode"]
-    if mode in ("root", "pins"):
+
+    if mode == "root":
+        # r6 (§L-18): foyer root = anchor + FIVE branch rows only —
+        # no loose apps, favorites, or KCMs on the dropdown (standing
+        # directive). Typed filtering of branches happens BELOW (typed
+        # queries parse as cat/catlist/fuzzy, never "root").
+        rows = [{"id": "apps-root", "title": "Apps",
+                 "sub": "PICK A BRANCH · ARROWS TO BROWSE · ENTER OPENS",
+                 "icon": "start-here-kde", "tier": "HIGHEST",
+                 "rel": 1.0, "actions": [], "slug": ""}]
+        for b in FOYER_BRANCHES:
+            rows.append({"id": b["id"], "title": b["title"], "sub": b["sub"],
+                         "icon": b["icon"], "tier": "HIGH", "rel": b["rel"],
+                         "actions": [], "slug": ""})
+        return rows
+
+    if parsed["tokens"] and len(parsed["tokens"]) == 1 \
+            and mode in ("cat", "catlist", "fuzzy"):
+        # r6 (§L-18): one typed token that prefix-matches a BRANCH NAME
+        # filters the foyer root ("apps set" → Settings). Multi-token
+        # stays a category/app search ("apps games min" = Mines).
+        pre = _norm_word(parsed["tokens"][0])
+        hit = [b for b in FOYER_BRANCHES
+               if _norm_word(b["title"]).startswith(pre)]
+        if hit:
+            rows = [{"id": "apps-root", "title": "Apps",
+                     "sub": "PICK A BRANCH · ARROWS TO BROWSE · "
+                            "ENTER OPENS",
+                     "icon": "start-here-kde", "tier": "HIGHEST",
+                     "rel": 1.0, "actions": [], "slug": ""}]
+            for b in hit:
+                rows.append({"id": b["id"], "title": b["title"],
+                             "sub": b["sub"], "icon": b["icon"],
+                             "tier": "HIGH", "rel": b["rel"],
+                             "actions": [], "slug": ""})
+            return rows
+
+    if mode == "settings":
+        # r6 (§L-18): KCM fan-out, same shape as app categories — anchor
+        # with COMPUTED N (never hardcoded; verdict r6-3) + 13 rows +
+        # SHOWING footer when truncated. Match stays I/O-free: kcms come
+        # from the caller's cache.
+        kcms = kcms or []
+        filt = (parsed.get("filter") or "").split()
+        pool = kcms
+        if filt:
+            fl = " ".join(filt).lower()
+            pool = [m for m in kcms if fl in m["name"].lower()]
+        rows = [{"id": "settings-root", "title": "Settings",
+                 "sub": f"{len(kcms)} MODULES · TYPE LETTERS TO FILTER",
+                 "icon": "preferences-system", "tier": "HIGHEST",
+                 "rel": 1.0, "actions": [], "slug": "settings"}]
+        if not filt:
+            pool = pool[:13]
+        for i, m in enumerate(pool):
+            rows.append({"id": f"setting:{m['id']}", "title": m["name"],
+                         "sub": "SYSTEM SETTINGS MODULE · ENTER OPENS",
+                         "icon": m["icon"], "tier": "HIGH",
+                         "rel": round(0.84 - 0.01 * i, 2), "actions": [],
+                         "slug": "settings"})
+        if not filt and len(kcms) > 13:
+            rows.append({"id": "apphelp",
+                         "title": f"SHOWING 13 OF {len(kcms)} · "
+                                  f"TYPE TO FILTER",
+                         "sub": "KRUNNER SHOWS 15 ROWS · TYPING IS THE "
+                                "SCROLL",
+                         "icon": "help-browser", "tier": "MODERATE",
+                         "rel": 0.3, "actions": [], "slug": ""})
+        if len(rows) == 1:
+            if not _no_reserved:
+                # typed filter matched no KCM — e.g. "settings tools" was
+                # never a settings query. Re-parse as a normal app query.
+                return build_rows(apps, pins, freq, overrides, rest,
+                                  menu=menu, kickoff=kickoff,
+                                  kcms=kcms, _no_reserved=True)
+            rows.append({"id": "apphelp", "title": "No modules match",
+                         "sub": "system settings · try fewer letters",
+                         "icon": "help-browser", "tier": "MODERATE",
+                         "rel": 0.5, "actions": [], "slug": ""})
+        return rows
+
+    if mode == "system":
+        # r6 (§L-18): anchor carries the no-confirm warning (verdict r6-2);
+        # five stepped rows; no SHOWING footer (5 ≤ 13).
+        filt = (parsed.get("filter") or "").lower()
+        pool = POWER_ROWS
+        if filt:
+            pool = [p for p in POWER_ROWS
+                    if p["title"].lower().replace(" ", "").startswith(
+                        filt.replace(" ", ""))
+                    or filt in p["title"].lower()]
+        rows = [{"id": "system-root", "title": "System",
+                 "sub": "5 POWER ACTIONS · NO CONFIRMATION DIALOG",
+                 "icon": "preferences-system", "tier": "HIGHEST",
+                 "rel": 1.0, "actions": [], "slug": "system"}]
+        for i, p in enumerate(pool):
+            rows.append({"id": p["id"], "title": p["title"], "sub": p["sub"],
+                         "icon": p["icon"], "tier": "HIGH",
+                         "rel": round(0.84 - 0.01 * i, 2), "actions": [],
+                         "slug": "system"})
+        if len(rows) == 1 and not _no_reserved:
+            # filter matched no power row — "system tools" is the
+            # system-tools CATEGORY. Re-parse as a normal app query.
+            return build_rows(apps, pins, freq, overrides, rest,
+                              menu=menu, kickoff=kickoff,
+                              kcms=kcms, _no_reserved=True)
+        return rows
+
+    if mode in ("browse", "pins"):
         rows = []
-        if mode == "root":
-            # r2.2 anchor: bare 'apps' outranks native rows NAMED "apps"
-            # only with a 1.0/HIGHEST row leading the group (pixel apps3).
-            # r5 (foyer tree directive): root = fan-out branches ONLY —
-            # Favorites is a CATEGORY that drills (never loose favorite
-            # apps on the dropdown), categories below it, nothing else.
-            rows.append({"id": "apps-root",
+        if mode == "browse":
+            # r6: the r5 app tree lives BEHIND the Apps branch now — anchor
+            # re-drives this view (apps-browse Run), Favorites branch first.
+            rows.append({"id": "apps-browse",
                          "title": "Apps",
-                         "sub": "PICK A BRANCH · ARROWS TO BROWSE · "
-                                "ENTER OPENS",
+                         "sub": "FOYER APPS · FAVORITES + CATEGORIES",
                          "icon": "start-here-kde", "tier": "HIGHEST",
                          "rel": 1.0, "actions": [], "slug": ""})
         # Kickoff favorites — KDE's list, read-only (launch-only).
-        # r5: on root they appear ONLY as the Favorites branch row;
+        # r5/r6: on browse they appear ONLY as the Favorites branch row;
         # the full list lives behind it (`apps pins` view).
         resolvable = [k for k in kickoff if k in by_id]
-        if mode == "root" and resolvable:
+        if mode == "browse" and resolvable:
             rows.append({"id": "appcat:pins",
                          "title": "Favorites",
                          "sub": f"{len(resolvable)} APPS · YOUR KDE "

@@ -170,3 +170,33 @@ natives, single-runner chip still showing. Fixed by PRIMING with
   sibling runners) — `CKPT-MENU-SINGLE`
 
 159 tests (new: primed anchor Run asserts display+query pair).
+
+## v0.9.0 — r6 foyer parity (§L-18)
+
+The root dropdown is now Foyer's top level: anchor **Apps** +
+five branches — **Apps · Settings · System · Update · About** — and
+each fans out like Foyer does. The r5 app tree (Favorites branch +
+categories) lives behind the Apps branch (`apps browse`).
+
+- **Settings** — KCM fan-out from a cached `kcms.json` scan (TTL 1 h,
+  never fatal); anchor shows computed `N MODULES · TYPE LETTERS TO
+  FILTER`; 13 rows + SHOWING footer under the 15-row law; rows launch
+  via kioclient by desktop-id
+- **System** — Lock / Sleep / Log Out / Reboot / Shut Down; anchor
+  warns `NO CONFIRMATION DIALOG`; destructive rows carry `CLOSES OPEN
+  APPS` (the subtext IS the consent — KRunner has no dialog)
+- **Update** — runs `ujust update` in Konsole (Bazzite-native)
+- **About** — system summary to clipboard + notification
+- **Type-to-filter**: a single token that prefix-matches a branch name
+  filters the root (`apps set` → Settings); `apps settings <letters>`
+  filters KCMs; `apps system lock` filters power rows; empty drills
+  fall through to the normal category/app search (`apps system tools`
+  is still the System Tools category)
+- **Harness safety**: power/update actions stub under
+  `harness_mode: true` — the gate runs on the live host and must
+  never reboot it (`CKPT-R6-POWER-STUB`, `CKPT-R6-HOST-SURVIVED`)
+- stats: settings_opens, settings_launches, system_opens,
+  power_actions, update_runs, about_copies
+
+176 tests; harness apps14 gate adds r6 branch drills + stub-safety
+checkpoints under poison.

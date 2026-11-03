@@ -30,6 +30,7 @@ Reload:  systemctl --user kill -s HUP hermes-runner.service  (or restart).
 
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -526,7 +527,8 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
                 conf.get("_app_cats") or {}, rest,
                 menu=appstore.menu or None,
                 kickoff=appstore.kickoff_favorites(),
-                dead_pin_logger=dead_pin):
+                dead_pin_logger=dead_pin,
+                kcms=kcms_snapshot()):
             tier = {"HIGHEST": R_HIGHEST, "HIGH": R_HIGH,
                     "MODERATE": R_MODERATE}[r["tier"]]
             row(r["id"], r["title"], r["sub"], r["icon"], tier, r["rel"],
@@ -696,8 +698,8 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
                 "help-browser", R_MODERATE, 0.30, {"actions": []})
             # §L-8: launcher lane rides last in the fixed-rel ladder
             row("help-apps", "Hermes: browse apps with 'apps'",
-                "FOYER HOME: FAVORITES + CATEGORIES · TYPE 'hermes apps' "
-                "FOR DETAILS",
+                "FOYER: APPS · SETTINGS · SYSTEM · UPDATE · ABOUT · "
+                "TYPE 'hermes apps' FOR DETAILS",
                 "start-here-kde", R_MODERATE, 0.29, {"actions": []})
 
         def helppage(lane_id, n, title, sub, copyable=False):
@@ -760,7 +762,8 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
         elif lane == "apps":
             # §L-8: launcher-lane help block (foyer-browse grammar)
             helppage("apps", 0, "apps",
-                     "TREE: FAVORITES + CATEGORY BRANCHES · ENTER OPENS A BRANCH",
+                     "FOYER ROOT: APPS · SETTINGS · SYSTEM · UPDATE · "
+                     "ABOUT · ENTER OPENS A BRANCH",
                      copyable=True)
             helppage("apps", 1, "apps games · apps internet fire…",
                      "CATEGORY: 13 SHOWN · TYPE LETTERS TO FILTER · "
@@ -1040,6 +1043,25 @@ def _redrive(bus, term, prime=False):
                       "querySingleRunner", "ss", (RUNNER_ID, term))
 
 
+_KCMS_CACHE = {"list": None, "ts": 0.0}
+
+
+def kcms_snapshot(force=False):
+    """§L-18: KCM list for the settings drill. In-process TTL cache
+    (3600 s) + on-disk kcms.json via apps_model. Never fatal."""
+    now = time.time()
+    if force or _KCMS_CACHE["list"] is None \
+            or now - _KCMS_CACHE["ts"] > apps_model.KCM_TTL_S:
+        try:
+            _KCMS_CACHE["list"] = apps_model.parse_kcms(
+                cache_path=CACHE_DIR / apps_model.KCM_CACHE_NAME)
+            _KCMS_CACHE["ts"] = now
+        except Exception as e:
+            log("kcm snapshot failed:", e)
+            _KCMS_CACHE["list"] = _KCMS_CACHE["list"] or []
+    return _KCMS_CACHE["list"]
+
+
 def run_dispatch(kind, key, text, act, ctx):
     conf = ctx.conf
     stats = getattr(ctx, "stats", None)   # F-8; absent in old test ctxs
@@ -1288,6 +1310,116 @@ def run_dispatch(kind, key, text, act, ctx):
             except Exception as e:
                 log(f"apps-root refresh failed: {e}")
         threading.Thread(target=_root_refresh, daemon=True).start()
+
+    elif kind in ("foyer-apps", "foyer-settings", "foyer-system",
+                  "settings-root", "system-root", "apps-browse"):
+        # §L-18 r6: branch/anchor drills — re-drive the scoped view.
+        # In-tree navigation (already single mode): no prime (§L-17).
+        target = {"foyer-apps": "apps browse",
+                  "apps-browse": "apps browse",
+                  "foyer-settings": "apps settings",
+                  "settings-root": "apps settings",
+                  "foyer-system": "apps system",
+                  "system-root": "apps system"}[kind]
+        counter = {"foyer-apps": "app_browses",
+                   "apps-browse": "app_browses",
+                   "foyer-settings": "settings_opens",
+                   "settings-root": "settings_opens",
+                   "foyer-system": "system_opens",
+                   "system-root": "system_opens"}[kind]
+        if stats:
+            stats.hit(counter)
+        log(f"HARNESS-FOYER {kind}")
+
+        def _foyer_rd(q=target):
+            time.sleep(KRUNNER_REDRIVE_DELAY)
+            try:
+                _redrive(dbus.SessionBus(), q)
+            except Exception as e:
+                log(f"foyer re-drive failed: {e}")
+        threading.Thread(target=_foyer_rd, daemon=True).start()
+
+    elif kind == "setting":
+        # §L-18: open a System Settings module by desktop-id, resolved
+        # from the daemon's OWN kcm cache — never trust the wire.
+        kcm = next((m for m in kcms_snapshot()
+                    if m["id"] == key), None)
+        if kcm is None:
+            log(f"WARN kcm id not in cache: {key}")
+            notify("Hermes · cannot open",
+                   f"unknown settings module · {clip(key, 60)}",
+                   "dialog-error", "low", conf)
+            return
+        if stats:
+            stats.hit("settings_launches")
+        log(f"HARNESS-SETTING {key}")
+        if conf.get("harness_mode"):
+            return                      # harness host = live host: stub
+        launch_app({"id": kcm["id"], "name": kcm["name"],
+                    "path": kcm["path"]}, conf, stats)
+
+    elif kind == "power":
+        # §L-18: power verbs. The subtext IS the confirmation (no KRunner
+        # dialog) — see POWER_ROWS. ksmserver is dead on this host, so
+        # logout goes through loginctl. HARNESS: stub only, always — the
+        # gate runs on the live host and must NEVER reboot it.
+        argv = {
+            "lock": ["loginctl", "lock-session"],
+            "sleep": ["systemctl", "suspend"],
+            "logout": ["loginctl", "terminate-session",
+                       os.environ.get("XDG_SESSION_ID", "")],
+            "reboot": ["systemctl", "reboot"],
+            "shutdown": ["systemctl", "poweroff"],
+        }.get(key)
+        if argv is None:
+            log(f"WARN unknown power verb: {key}")
+            return
+        if stats:
+            stats.hit("power_actions")
+        log(f"HARNESS-POWER-STUB {key}" if conf.get("harness_mode")
+            else f"power {key}")
+        if conf.get("harness_mode"):
+            return
+        try:
+            subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            log(f"power verb missing binary: {argv[0]}")
+
+    elif kind == "update-run":
+        # §L-18: Bazzite system update in a konsole tab (same action the
+        # Portal offers; invisible in single-runner mode otherwise).
+        if stats:
+            stats.hit("update_runs")
+        if conf.get("harness_mode"):
+            log("HARNESS-UPDATE-STUB ujust update")
+            return
+        log("update: konsole -e ujust update")
+        try:
+            subprocess.Popen(["konsole", "-e", "ujust", "update"],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            log("konsole missing; update skipped")
+
+    elif kind == "about-copy":
+        # §L-18: system summary to clipboard + notification. I/O lives in
+        # Run (never Match); stdlib only.
+        if stats:
+            stats.hit("about_copies")
+        try:
+            up_s = int(float(open("/proc/uptime").read().split()[0]))
+            up = f"{up_s // 3600}h {(up_s % 3600) // 60}m"
+        except Exception:
+            up = "?"
+        u = platform.uname()
+        summary = (f"{u[1]} · {u[0]} {u[2]}\n"
+                   f"kernel {u[3].split(' ~')[0][:48]}\n"
+                   f"arch {u[4]} · up {up}")
+        clipboard(summary)
+        notify("Hermes · system summary copied",
+               clip(summary, 160), "dialog-information", "low", conf)
+        log("HARNESS-ABOUT-COPY")
     elif kind == "apphelp":
         pass   # §L-4 info/footer rows — no-op
     elif kind == "task":

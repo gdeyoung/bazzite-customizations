@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -251,10 +252,22 @@ class TestBuildRows(unittest.TestCase):
             dead_pin_logger=dead_pin_logger)
 
     def test_root_categories_only(self):
+        # r6 (§L-18): root = anchor + FIVE foyer branches, nothing else.
         rows = self.build("")
         self.assertEqual(rows[0]["id"], "apps-root")   # r2.2 anchor
         self.assertEqual((rows[0]["rel"], rows[0]["tier"]), (1.0, "HIGHEST"))
-        cats = [r for r in rows if r["id"].startswith("appcat:")]
+        self.assertFalse(any(r["id"].startswith("appcat:") for r in rows))
+        self.assertFalse(any(r["id"].startswith("app:") for r in rows))
+        self.assertEqual([r["id"] for r in rows[1:]],
+                         ["foyer-apps", "foyer-settings", "foyer-system",
+                          "update-run", "about-copy"])
+        self.assertEqual([r["rel"] for r in rows[1:]],
+                         [0.95, 0.94, 0.93, 0.92, 0.91])
+        # the r5 tree lives behind the Apps branch now
+        browse = self.build("browse")
+        self.assertEqual(browse[0]["id"], "apps-browse")
+        cats = [r for r in browse if r["id"].startswith("appcat:")
+                and r["id"] != "appcat:pins"]
         # fallback map order: internet, media, games, system, utilities
         # (media present since the kdenlive AudioVideo fixture app)
         self.assertEqual([r["id"] for r in cats],
@@ -342,9 +355,14 @@ class TestBuildRows(unittest.TestCase):
         self.assertGreater(rows[1]["rel"], rows[2]["rel"])
 
     def test_catlist(self):
-        rows = self.build("s")
+        # r6: single-token prefixes that match BRANCH names ("s", "set")
+        # filter the foyer root instead — use "i" (internet only) here.
+        self.assertEqual(
+            [r["id"] for r in self.build("s")],
+            ["apps-root", "foyer-settings", "foyer-system"])
+        rows = self.build("i")
         self.assertEqual([r["id"] for r in rows],
-                         ["appcat:system", "appcat:settings"])
+                         ["appcat:internet"])
 
     def test_fuzzy_quality_ladder(self):
         exact = rows_by_id(self.build("firefox"))["app:firefox.desktop"]
@@ -454,6 +472,18 @@ class TestRunnerIntegration(unittest.TestCase):
         self.conf["_snippets"] = []
         self.conf["_ssh_hosts"] = []
         self.cache = hermes_runner.AnswerCache()
+        # hermetic KCM list (r6): Match reads kcms_snapshot() — pin the
+        # in-process cache so tests never scan /usr/share/applications.
+        hermes_runner._KCMS_CACHE["list"] = [
+            {"id": "kcm_bluetooth", "name": "Bluetooth",
+             "icon": "preferences-system-bluetooth",
+             "path": "/usr/share/applications/kcm_bluetooth.desktop"},
+            {"id": "kcm_users", "name": "Users",
+             "icon": "preferences-system-users",
+             "path": "/usr/share/applications/kcm_users.desktop"}]
+        hermes_runner._KCMS_CACHE["ts"] = time.time()
+        self.addCleanup(lambda: hermes_runner._KCMS_CACHE.update(
+            {"list": None, "ts": 0.0}))
 
     def route(self, query, stats=None, appstore="default"):
         return hermes_runner.route(
@@ -463,8 +493,10 @@ class TestRunnerIntegration(unittest.TestCase):
     def test_claims(self):
         rows = self.route("apps")
         self.assertTrue(rows)
-        self.assertTrue(all(r[0].startswith(("app:", "appcat:", "apps-root"))
-                            for r in rows))
+        self.assertTrue(all(
+            r[0].startswith(("app:", "appcat:", "apps-root", "apps-browse",
+                             "foyer-", "update-run", "about-copy"))
+            for r in rows))
         self.assertEqual(rows[0][0], "apps-root")
         self.assertTrue(self.route("APPs"))          # case-insensitive
         rows = self.route("apps games")
@@ -483,9 +515,9 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertIn("WARMING", rows[0][2])
 
     def test_root_order_and_freq(self):
-        # r5 foyer tree: root = anchor + FAVORITES BRANCH + categories.
-        # No loose favorite/pin/freq rows on the dropdown — every row
-        # is a branch that fans out (user directive 2026-11-02).
+        # r6 foyer root: anchor + FIVE branches, then the r5 tree behind
+        # `apps browse`. No loose favorite/pin/freq rows anywhere on the
+        # root — every row is a branch or direct action (§L-18).
         self.conf["_app_pins"] = ["konsole.desktop"]
         fake = SimpleNamespace(data={"app_launches":
                                      {"firefox.desktop": 2,
@@ -493,21 +525,31 @@ class TestRunnerIntegration(unittest.TestCase):
         rows = self.route("apps", stats=fake)
         ids = [r[0] for r in rows]
         self.assertEqual(ids[0], "apps-root")
-        self.assertEqual(ids[1], "appcat:pins")          # Favorites branch
+        self.assertEqual(ids[1:], ["foyer-apps", "foyer-settings",
+                                   "foyer-system", "update-run",
+                                   "about-copy"])
         self.assertFalse(any(i.startswith("app:") for i in ids))
         by = {r[0]: r for r in rows}
-        self.assertEqual(by["appcat:pins"][1], "Favorites")
-        self.assertIn("2 APPS", by["appcat:pins"][2])    # fixture has 2
+        self.assertEqual(by["foyer-settings"][1], "Settings")
+        self.assertIn("MODULES", by["foyer-settings"][2])
+        # the r5 tree (favorites branch + categories) lives in browse now
+        browsed = self.route("apps browse", stats=fake)
+        bids = [r[0] for r in browsed]
+        self.assertEqual(bids[0], "apps-browse")
+        self.assertFalse(any(i.startswith("app:") for i in bids))
+        bby = {r[0]: r for r in browsed}
+        self.assertEqual(bby["appcat:pins"][1], "Favorites")
+        self.assertIn("2 APPS", bby["appcat:pins"][2])    # fixture has 2
         # category rows come from the real menu tree, in menu order,
         # + synthetic 'more' (konsole's TerminalEmulator is unfiled)
-        cat_ids = [r[0] for r in rows if r[0].startswith("appcat:")
+        cat_ids = [r[0] for r in browsed if r[0].startswith("appcat:")
                    and r[0] != "appcat:pins"]
         self.assertEqual(cat_ids, ["appcat:internet", "appcat:games",
                                    "appcat:system-tools",
                                    "appcat:multimedia",
                                    "appcat:accessories", "appcat:more"])
-        self.assertEqual(by["appcat:system-tools"][1], "System Tools")
-        self.assertEqual(by["appcat:system-tools"][3],
+        self.assertEqual(bby["appcat:system-tools"][1], "System Tools")
+        self.assertEqual(bby["appcat:system-tools"][3],
                          "applications-system")
         # the favorites themselves live behind the branch
         prows = self.route("apps pins")
@@ -530,8 +572,9 @@ class TestRunnerIntegration(unittest.TestCase):
                           "app:kate.desktop"])
 
     def test_root_caps_favorites_with_pointer(self):
-        # r5: root NEVER lists favorite apps — just the Favorites branch
-        # with the full count. The `apps pins` view holds the whole list.
+        # r5/r6: the root NEVER lists favorite apps; since r6 even the
+        # Favorites branch lives in `apps browse`. The `apps pins` view
+        # holds the whole list.
         d = Path(self.tmp.name, "applications")
         for i in range(11):
             (d / "hxf{}.desktop".format(i)).write_text(
@@ -541,7 +584,8 @@ class TestRunnerIntegration(unittest.TestCase):
         kickoff = ["hxf{}.desktop".format(i) for i in range(11)] + \
                   ["firefox.desktop"]
         rows = apps_model.build_rows(
-            apps, [], {}, {}, "", menu=self.store.menu, kickoff=kickoff)
+            apps, [], {}, {}, "browse", menu=self.store.menu,
+            kickoff=kickoff)
         ids = [r["id"] for r in rows]
         self.assertFalse(any(i.startswith("app:") for i in ids))
         fav = [r for r in rows if r["id"] == "appcat:pins"][0]
@@ -549,7 +593,7 @@ class TestRunnerIntegration(unittest.TestCase):
         self.assertEqual(fav["sub"], "12 APPS · YOUR KDE MENU FAVORITES")
         # dead ids don't inflate the count
         rows2 = apps_model.build_rows(
-            apps, [], {}, {}, "",
+            apps, [], {}, {}, "browse",
             menu=self.store.menu,
             kickoff=kickoff[:11] + ["ghost.desktop"])
         fav2 = [r for r in rows2 if r["id"] == "appcat:pins"][0]
@@ -865,6 +909,275 @@ class TestStats(unittest.TestCase):
             rep = st.report()
             self.assertIn("app_launches", rep)
             self.assertIn("app_browses", rep)
+
+
+KCMS = [{"id": f"kcm_m{i}", "name": f"Module {i:02d}",
+         "icon": "preferences-system", "path": f"/kcm_m{i}.desktop"}
+        for i in range(20)]
+
+
+class TestR6FoyerBranches(unittest.TestCase):
+    """§L-18 r6: foyer-parity root + drills, verdict-folded wording."""
+
+    def build(self, rest, kcms=None, menu=None, kickoff=()):
+        return apps_model.build_rows([], [], {}, {}, rest, menu=menu,
+                                     kickoff=list(kickoff), kcms=kcms)
+
+    def test_root_five_branches(self):
+        rows = self.build("", kcms=KCMS)
+        self.assertEqual([r["id"] for r in rows],
+                         ["apps-root", "foyer-apps", "foyer-settings",
+                          "foyer-system", "update-run", "about-copy"])
+        self.assertEqual([r["rel"] for r in rows[1:]],
+                         [0.95, 0.94, 0.93, 0.92, 0.91])
+        by = {r["id"]: r for r in rows}
+        # verdict r6-4: '·' joiner; r6-5: LOG OUT (verb form)
+        self.assertEqual(by["foyer-apps"]["sub"],
+                         "FAVORITES · ALL CATEGORIES · THE FULL APP TREE")
+        self.assertEqual(by["foyer-system"]["sub"],
+                         "LOCK · SLEEP · LOG OUT · REBOOT · SHUT DOWN")
+
+    def test_settings_drill_computed_n_and_footer(self):
+        rows = self.build("settings", kcms=KCMS)
+        self.assertEqual(rows[0]["id"], "settings-root")
+        self.assertEqual(rows[0]["title"], "Settings")
+        self.assertEqual((rows[0]["rel"], rows[0]["tier"]), (1.0, "HIGHEST"))
+        # verdict r6-3: computed N, never hardcoded
+        self.assertEqual(rows[0]["sub"], "20 MODULES · TYPE LETTERS TO FILTER")
+        mods = [r for r in rows if r["id"].startswith("setting:")]
+        self.assertEqual(len(mods), 13)              # 15-row law: 13 + footer
+        foot = [r for r in rows if r["id"] == "apphelp"]
+        self.assertEqual(foot[0]["title"], "SHOWING 13 OF 20 · TYPE TO FILTER")
+        small = self.build("settings", kcms=KCMS[:8])
+        self.assertEqual(small[0]["sub"], "8 MODULES · TYPE LETTERS TO FILTER")
+        self.assertFalse(any(r["id"] == "apphelp" for r in small))
+
+    def test_settings_drill_filters(self):
+        rows = self.build("settings module 05", kcms=KCMS)
+        mods = [r for r in rows if r["id"].startswith("setting:")]
+        self.assertEqual([r["title"] for r in mods], ["Module 05"])
+        self.assertFalse(any(r["id"] == "apphelp" for r in rows))
+
+    def test_system_drill_verdict_wording(self):
+        rows = self.build("system")
+        self.assertEqual(rows[0]["id"], "system-root")
+        self.assertEqual(rows[0]["sub"],
+                         "5 POWER ACTIONS · NO CONFIRMATION DIALOG")
+        self.assertEqual((rows[0]["rel"], rows[0]["tier"]), (1.0, "HIGHEST"))
+        by = {r["id"]: r for r in rows}
+        order = ["power:lock", "power:sleep", "power:logout",
+                 "power:reboot", "power:shutdown"]
+        self.assertEqual([r["id"] for r in rows[1:]], order)
+        # verdict r6-1: consequence clause on destructive rows only
+        self.assertEqual(by["power:lock"]["sub"], "ENTER LOCKS NOW")
+        self.assertEqual(by["power:sleep"]["sub"], "ENTER SLEEPS NOW")
+        for pid in ("logout", "reboot", "shutdown"):
+            self.assertIn("CLOSES OPEN APPS", by[f"power:{pid}"]["sub"])
+        # verdict r6-2: no SHOWING footer (5 ≤ 13)
+        self.assertFalse(any(r["id"] == "apphelp" for r in rows))
+        # icons: verified Breeze names only (preferences-system-power absent)
+        self.assertNotIn("preferences-system-power",
+                         [r["icon"] for r in rows])
+
+    def test_system_filter_and_fallthrough(self):
+        rows = self.build("system lock")
+        self.assertEqual([r["id"] for r in rows],
+                         ["system-root", "power:lock"])
+        # no power row matches "tools" → the system-tools CATEGORY
+        # (multi-word labels + real fixture apps, like r5's test)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        store = fixture_store(tmp.name)
+        cat = apps_model.build_rows(
+            store.snapshot(), [], {}, {}, "system tools", menu=store.menu)
+        self.assertEqual(cat[0]["id"], "appcat:system-tools")
+
+    def test_update_and_about_rows(self):
+        rows = self.build("", kcms=KCMS)
+        by = {r["id"]: r for r in rows}
+        self.assertEqual(by["update-run"]["sub"],
+                         "RUNS UJUST UPDATE IN KONSOLE · ENTER STARTS NOW")
+        self.assertEqual(by["about-copy"]["sub"],
+                         "SYSTEM SUMMARY · ENTER COPIES TO CLIPBOARD")
+
+
+class TestParseKcms(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.d = Path(self.tmp.name)
+        for name in ("Alpha", "Beta"):
+            n = name.lower()
+            # host shape: real kcm*.desktop files carry NoDisplay=true —
+            # they must STILL be listed (settings modules, not menu apps)
+            (self.d / f"kcm_{n}.desktop").write_text(
+                f"[Desktop Entry]\nType=Application\nNoDisplay=true\n"
+                f"Name={name} KCM\n"
+                f"Icon=preferences-system-{n}\nExec=kcmshell6 {n}\n")
+        (self.d / "kcm_hidden.desktop").write_text(
+            "[Desktop Entry]\nType=Application\nHidden=true\n"
+            "Name=Ghost KCM\n")
+
+    def test_parse_sorted_with_path(self):
+        mods = apps_model.parse_kcms(dirs=[self.d])
+        self.assertEqual([m["id"] for m in mods],
+                         ["kcm_alpha", "kcm_beta"])
+        self.assertEqual(mods[0]["name"], "Alpha KCM")
+        self.assertEqual(mods[0]["icon"], "preferences-system-alpha")
+        self.assertEqual(mods[0]["path"],
+                         str(self.d / "kcm_alpha.desktop"))
+
+    def test_cache_write_then_fresh_read(self):
+        cache = self.d / "cache.json"
+        first = apps_model.parse_kcms(dirs=[self.d], cache_path=cache)
+        self.assertTrue(cache.exists())
+        # fresh process simulation: dir mtime unchanged → cache read
+        (self.d / "kcm_alpha.desktop").write_text(
+            "[Desktop Entry]\nType=Application\nName=STALE NAME\n"
+            "Icon=x\nExec=y\n")
+        # same dir mtime granularity can't be trusted; force stale cache
+        import time as _t
+        past = _t.time() - apps_model.KCM_TTL_S - 10
+        os.utime(cache, (past, past))
+        second = apps_model.parse_kcms(dirs=[self.d], cache_path=cache)
+        names = [m["name"] for m in second]
+        self.assertIn("STALE NAME", names)         # TTL expiry → rescan
+        self.assertEqual(len(first), 2)
+
+    def test_never_fatal(self):
+        bad = self.d / "kcm_bad.desktop"
+        bad.write_text("[Desktop Entry]\nNoNameHere\n")
+        (self.d / "kcm_noentry.desktop").write_text("garbage \x00 bytes")
+        mods = apps_model.parse_kcms(dirs=[self.d], cache_path=None)
+        ids = [m["id"] for m in mods]
+        self.assertIn("kcm_alpha", ids)
+        self.assertNotIn("kcm_bad", ids)          # Name= empty → skipped
+        self.assertNotIn("kcm_noentry", ids)
+        self.assertNotIn("kcm_hidden", ids)       # Hidden=true → skipped
+
+
+class TestR6RunDispatch(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.store = fixture_store(self.tmp.name)
+        import copy
+        self.conf = copy.deepcopy(hermes_runner.DEFAULT_CONF)
+        self.hits = []
+        self.popens = []
+
+    def ctx(self):
+        stats = SimpleNamespace(
+            hit=lambda name, prefix=None: self.hits.append((name, prefix)))
+        return SimpleNamespace(conf=self.conf, stats=stats,
+                               appstore=self.store, cache=None)
+
+    def _popen(self, argv, **kw):
+        self.popens.append(argv)
+
+    def test_foyer_settings_redrives_unprimed(self):
+        # §L-17: in-tree drill — NO displaySingleRunner (already single).
+        import unittest.mock as mock
+        import time as _time
+        calls = []
+
+        class FakeBus:
+            def call_blocking(self, svc, path, iface, method, sig, args):
+                calls.append((method, sig, args))
+
+        with mock.patch.object(hermes_runner.dbus, "SessionBus",
+                               lambda: FakeBus()), \
+             mock.patch.object(hermes_runner,
+                               "KRUNNER_REDRIVE_DELAY", 0.05):
+            hermes_runner.run_dispatch("foyer-settings", "", "", "",
+                                       self.ctx())
+            deadline = _time.time() + 2
+            while len(calls) < 1 and _time.time() < deadline:
+                _time.sleep(0.05)
+        self.assertEqual(calls, [
+            ("querySingleRunner", "ss", ("hermes", "apps settings"))])
+        self.assertIn(("settings_opens", None), self.hits)
+
+    def test_power_harness_stub(self):
+        # harness runs on the LIVE host — power verbs must NEVER fire.
+        import unittest.mock as mock
+        self.conf["harness_mode"] = True
+        with mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen):
+            hermes_runner.run_dispatch("power", "reboot", "", "",
+                                       self.ctx())
+            _t = time.time() + 0.3
+            while time.time() < _t:                # popen would be instant
+                time.sleep(0.02)
+        self.assertEqual(self.popens, [])
+        self.assertIn(("power_actions", None), self.hits)
+
+    def test_power_live_argv(self):
+        import unittest.mock as mock
+        with mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen):
+            hermes_runner.run_dispatch("power", "shutdown", "", "",
+                                       self.ctx())
+        self.assertEqual(self.popens, [["systemctl", "poweroff"]])
+
+    def test_update_harness_stub_and_live(self):
+        import unittest.mock as mock
+        self.conf["harness_mode"] = True
+        with mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen):
+            hermes_runner.run_dispatch("update-run", "", "", "", self.ctx())
+        self.assertEqual(self.popens, [])
+        self.assertIn(("update_runs", None), self.hits)
+        self.conf["harness_mode"] = False
+        with mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen):
+            hermes_runner.run_dispatch("update-run", "", "", "", self.ctx())
+        self.assertEqual(self.popens, [["konsole", "-e", "ujust", "update"]])
+
+    def test_about_copy(self):
+        import unittest.mock as mock
+        copied = []
+        with mock.patch.object(hermes_runner, "clipboard",
+                               copied.append), \
+             mock.patch.object(hermes_runner, "notify",
+                               lambda *a, **k: None):
+            hermes_runner.run_dispatch("about-copy", "", "", "", self.ctx())
+        self.assertEqual(len(copied), 1)
+        self.assertIn("up ", copied[0])
+        self.assertIn(("about_copies", None), self.hits)
+
+    def test_setting_launch_from_own_cache(self):
+        # canon re-resolution: the WIRE id is never trusted — the KCM
+        # must exist in the daemon's own snapshot.
+        import unittest.mock as mock
+        snap = [{"id": "kcm_alpha", "name": "Alpha",
+                 "icon": "preferences-system",
+                 "path": "/usr/share/applications/kcm_alpha.desktop"}]
+        with mock.patch.object(hermes_runner, "kcms_snapshot",
+                               lambda force=False: snap), \
+             mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen), \
+             mock.patch.object(hermes_runner.shutil, "which",
+                               lambda n: "/usr/bin/" + n):
+            hermes_runner.run_dispatch("setting", "kcm_alpha", "", "",
+                                       self.ctx())
+        self.assertTrue(self.popens and
+                        self.popens[0][:2] == ["kioclient", "exec"])
+        self.assertIn("kcm_alpha.desktop", " ".join(self.popens[0]))
+        self.assertIn(("settings_launches", None), self.hits)
+
+    def test_setting_unknown_id_is_safe(self):
+        import unittest.mock as mock
+        with mock.patch.object(hermes_runner, "kcms_snapshot",
+                               lambda force=False: []), \
+             mock.patch.object(hermes_runner, "notify",
+                               lambda *a, **k: None), \
+             mock.patch.object(hermes_runner.subprocess, "Popen",
+                               self._popen):
+            hermes_runner.run_dispatch("setting", "kcm_ghost", "", "",
+                                       self.ctx())
+        self.assertEqual(self.popens, [])
+        self.assertNotIn(("settings_launches", None), self.hits)
 
 
 if __name__ == "__main__":
