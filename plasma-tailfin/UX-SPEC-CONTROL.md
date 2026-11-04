@@ -18,6 +18,12 @@ fucking list. It scrolls." §R supersedes the §T-9 wireframe; §T-1..§T-8
 (gates, allowlist, confirm, exit-node ops, busy/failure) carry forward
 unchanged.
 
+r4 (2026-11-04) appends §V-1..§V-14 — v0.4 single-view redesign. Verdict
+on v0.3: "NOPE, THE UX STILL FUCKING SUCKS… LOOK AT WHAT WE BUILT FOR
+TAILFIN AND OMARCHY. THAT UX WAS OKAY. YOU CAN LOOK AT TRAYSCALE." Tabs
+are dead; §V supersedes §R-1..§R-12 (strings re-adopted where noted);
+§T-1..§T-8 carry forward unchanged, chip stays byte-identical.
+
 HARD invariants (not up for redesign):
 - Automation never executes control ops against the real `tailscale` binary.
   All tests/harness runs use a stub. First real op is the user at the desk.
@@ -547,3 +553,422 @@ EXIT NODE                  21 OFFLINE · SHOW    OPERATOR
                             capacity or when    ● AS OF 14:03:22
                             offline expanded)
 ```
+
+---
+
+# v0.4 — Single-view popup redesign (r4 sections §V-1..§V-14)
+
+> **BUILD STATUS (2026-11-04): SHIPPED as tailfin v0.4.0.** 68/68 node
+> tests; full harness matrix green — norm19 (gate enabled+disabled),
+> norm24 (24 online zero-scroll, content 516 ≤ view 547), norm25 (valve
+> opens, 598 > 548), empty/login/down/missing/parse, LIGHT, SCALE=2;
+> GEO-UNIQUE=1 (612×685 logical) everywhere incl. search round-trip;
+> count-sum invariant ok on every tick; search pixel-verified
+> (host03 → MATCHES · 2 = prefix host03 + subsequence host103);
+> needs-login strip + Connect header pixel-verified. Two §V-4 ledger
+> deviations implemented as specified (no `routes:` line, exit tag →
+> tooltip).
+
+Mandatory restructure of the fullRepresentation. The two approved poles:
+the Omarchy §T-9 single view (context-first, inline actions, zero
+navigation — "THAT UX WAS OKAY") and Trayscale's information
+architecture (THIS MACHINE / EXIT NODES / ONLINE / OFFLINE sections,
+live peer search, explicit empty states — "YOU CAN LOOK AT TRAYSCALE").
+v0.4 deletes the tab chrome and rebuilds the popup as ONE sectioned view
+with Trayscale's section semantics, verified against trayscale master
+(`internal/ui/mainwindow.go` sidebarLayout/searchSidebarLayout,
+`internal/peersearch/peersearch.go`):
+
+- Exit-node-capable ONLINE peers get their own EXIT NODES section and
+  are EXCLUDED from the Online census (never two places for one peer).
+- A section with zero rows renders no label at all.
+- Search is a first-class control: multi-token, all tokens must match,
+  substring or in-order subsequence over name/hostname/DNS/IP, results
+  score-sorted; empty result has an explicit empty state.
+
+§T-1..§T-8 control semantics (gate, allowlist, arm/dead-zone, exit-node
+ops, watchdog, message strings) carry forward byte-identical. The chip
+stays byte-identical (§T-6 restated).
+
+## V-1 — Diagnosis: why v0.2 and v0.3 both failed, and what prevents each
+
+| # | Failure mode (evidence) | v0.4 structural prevention |
+|---|---|---|
+| 1 | **Sparse fixed-frame pages.** Status and Health each filled ~20% of the 612×487 frame; the frame was sized for Peers, so every other tab read as an unfinished diagnostic dump (rej-v03-status/health: 35–50% of the panel blank) | No pages. One view whose every section draws from live data; a section with count 0 renders nothing. No surface can exist without content |
+| 2 | **Navigation tax.** Identity, exit switching, and health each lived on a different tab; the whole was never glanceable, each tab sparse alone | Zero navigation in the popup. All four glanceables (identity+state, exit node, peer census, health) sit on the first screenful, pinned above any scrolling region |
+| 3 | **Dialog-like geometry.** A fixed 487 px frame read as a window, not a tray popup | Width unchanged (never the complaint); height rises to 38·gu ONLY because measured content (19/3/21 split) demands it — §V-5's ledger accounts for every row; no filler |
+| 4 | **Density without hierarchy.** 1.5·gu two-line cells, 6–8 px sublines, three competing status treatments (green dot / orange ACTIVE / orange exit), tags eliding into a floating right column with ambiguous row association (rej-v03-peers) | Census cells are name-only one-liners in a 2-col grid — no sublines, no tags, no second status vocabulary. Tags exist in exactly one place (ACTIVE on the active exit candidate). Detail lives in tooltip + search, not in microtext |
+| 5 | **Buried actions.** Exit switching needed a tab hop; `SHOW` looked like footer text; the operator remediation was dead prose rendered twice (header + Health) | Exit nodes are a first-class SECTION at the §T-9 position (top of the list); `use`/`×` inline there; remediation string renders exactly once (message strip); footer carries only the verdict |
+| 6 | **Duplication.** `gdtower` in header AND under THIS DEVICE; control-disabled string in header AND Health | The header IS the machine block (§T-9 shape: title row + identity line). Dedup rule: every string has exactly one render site (§V-7) |
+| 7 | **Wall-of-peers (v0.2).** 40 ungrouped rows, one endless scroll, offline dominant | Trayscale sectioning: exit-capable pulled out and never duplicated, offline collapsed behind a count row by default, census zero-scroll at 19 measured online; live search for find-by-anything |
+
+## V-2 — Disposition of v0.3 artifacts (what happens to the tabs)
+
+- **Tabs: DELETED.** PC3.TabBar/TabButton + StackLayout removed from
+  PopupShell.qml. Nothing tab-like replaces them; the popup contains no
+  navigation of any kind — sections stack in one ScrollView.
+- **Files deleted:** `tabs/StatusTab.qml`, `tabs/PeersTab.qml`,
+  `tabs/HealthTab.qml`. `PeerCell.qml` is replaced by the name-only
+  census atom `CensusCell.qml`. `SectionLabel.qml` survives.
+- **Config:** `lastTab` — QML reader deleted, kcfg entry removed from
+  `contents/config/main.xml`; a stale value in an existing appletrc is
+  harmless (never read). `showOffline` survives unchanged (seeds the
+  offline section's initial state). No new config keys; search is not
+  configurable.
+- **§R-6 amendment REVERTED:** health warnings return to the message
+  strip; the §T-5 four-item stack order is restored verbatim.
+- **Superseded:** §R-1..§R-12 in full. Re-adopted verbatim from §R: the
+  offline toggle copy, all §R-8 edge strings, §R-7 grammar, §R-2
+  type/color/token discipline (with the §V-6 label amendment), §R-10
+  file/release discipline. NOT re-adopted: per-row `exit` tags
+  (tautological inside a dedicated EXIT NODES section), the candidate
+  row's `routes:` line (same tautology — §V-4 deviation ledger), tab
+  labels, `POLL EVERY <N> S` (moves to the provenance tooltip).
+- **§T-9:** its structure returns as §V-3; two row details change
+  (§V-4 deviation ledger). §T-1..§T-8 untouched.
+
+## V-3 — Popup wireframe (supersedes §R-12)
+
+Measured tailnet shown (19 online · 3 exit-capable · 21 offline):
+
+```
+gdtower                                    [Disconnect]  ← header (§T-3 states)
+● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net    ← identity + state
+tailnet goes down here — …                 ← strip 1: armed only (negative)
+op failed: …                               ← strip 2: last op failure (neg)
+control disabled — run: sudo tailscale …   ← strip 3: operator gate (disabled)
+⚠ <health warning, wraps>                  ← strip 4: health (negative, wrap)
+────────────────────────────────────────────────────────
+[edit-find] Search peers               [✕]               ← Ctrl+F · Esc clears
+EXIT NODES · 3                                           ← hidden when 0 & none active
+▸ exit node: tower                          [×]          ← §T-4 banner + clear
+● tower                                           ACTIVE ← active row: `use` hidden
+  100.101.135.11 · tower.horse-frog.ts.net
+● nasbox                                    [use]         ← §T-4 candidate
+  100.101.135.14 · nasbox.horse-frog.ts.net
+● host04                                    [use]
+  100.101.135.20 · host04.horse-frog.ts.net
+ONLINE · 16                                              ← census = online − exit-capable
+● aicube          ● aibox                               ← 2-col census, name-only
+● gx10            ● gx13                                (tooltip: dns · ip · routes)
+● jellyfin        ● micro
+● node            ● spark2         … (16 cells = 8 rows, zero-scroll)
+21 OFFLINE · SHOW                                        ← collapsed (showOffline seeds)
+────────────────────────────────────────────────────────
+● AS OF 23:44:39            CONTROL ENABLED · gdeyoung  ← footer
+```
+
+Search mode (query non-empty) — sections are REPLACED by one result
+list; header, strip, banner context, and footer stay pinned:
+
+```
+[edit-find] tow                        [✕]
+MATCHES · 2
+● tower                                ACTIVE [use]
+  100.101.135.11 · tower.horse-frog.ts.net
+● watertower
+  100.101.135.2 · watertower.horse-frog.ts.net · last seen 3h ago
+```
+
+## V-4 — Section & row inventory
+
+| Zone | Contents | Height | Source | Renders when |
+|---|---|---|---|---|
+| Header | selfName hero + §T-3 power ToolButton | 30 px | `status.selfName` (fallback `Tailscale`) | always |
+| Identity line | `● <STATE CAPS> · <selfIp> · <selfDnsName>` | 20 px | `backendState.toUpperCase()`, self fields | parsed status known |
+| Message strip | §T-5 items 1–4, in order, one line each except health (wrap) | 20 px/row | §T-3/§T-5/§T-1 + `health[]` | per-item conditions |
+| Search row | `edit-find` icon + TextField (placeholder `Search peers`) + trailing `✕` clear | 34 px | UI state `peerQuery` | ≥1 peer and no down/missing/login/parse edge |
+| EXIT NODES label | `EXIT NODES · <E>` | 22 px | `exitNodes.length` | E > 0 or an exit node is active |
+| Banner | `▸ exit node: <name>` + `×` (§T-4 verbatim) | 26 px | active exit / `activeMullvadExit` | exit node active |
+| Candidate row | `● <name>` [+ `ACTIVE` tag] + trailing `use`; line 2 `<ip> · <dns>`; transient `switching…` line 3 (§T-4) | 47 px (+20 switching) | `exitNodes[]` (online, 0.0.0.0/0 — §T-4 unchanged) | per candidate; `use` hidden on active row and when gate disabled |
+| ONLINE label | `ONLINE · <N>`, N = census count | 22 px | computed | N > 0 or offline > 0 |
+| Census grid | 2-col, row-major, alphabetical; cell = dot + name ONLY | 27 px pitch | online peers minus exit-capable | N > 0 |
+| Census empty | centered muted `NO ONLINE PEERS` | 26 px | computed | N = 0 and offline > 0 |
+| Offline toggle | `<N> OFFLINE · SHOW` / `· HIDE` | 26 px | `filterOnline(peers,false).length` | offline > 0 |
+| Offline grid | same 2-col cells, muted (dot+name `disabledTextColor`) | 27 px pitch | offline peers | expanded (toggle or search) |
+| Footer | `● AS OF hh:mm:ss` (→ `◐ STALE · hh:mm:ss`) + `CONTROL <verdict>` | 26 px | `statusStampMs` vs `pollSeconds` · gate state | always |
+| Edge row | centered §V-10 string, replaces sections | region | §V-10 signals | edge states |
+
+**Cell/row anatomies (final):**
+
+- **Census cell:** `● name`. Dot 0.35·gu (`positiveTextColor` online /
+  `disabledTextColor` offline), name 0.62·gu elide-right. NO subline, NO
+  tags, NOT interactive (default cursor, no hover background — honest
+  non-affordance; nothing in the census pretends to be clickable).
+  Tooltip: `<dns> · <ip>` + ` · routes: <joined ", ">` when
+  `subnetRoutes(peer)` is non-empty; offline cells append
+  ` · last seen <fmtLastSeen>`.
+- **Candidate row (the §T-9 action row):** line 1 `● name` + `ACTIVE`
+  tag (neutral, `peer.Active`) + trailing `use` ToolButton (§T-4
+  verbatim: flat, `neutralTextColor`, hover bg, single click, tooltip
+  `use <DisplayName> as exit node`, hit ≥ 1.4·gu, ≥ smallSpacing from
+  text; hidden on the active exit node and when the gate is disabled);
+  line 2 `<ip> · <dns>` (smallFont, elide-middle). `switching…` renders
+  as a transient third line on the in-flight target only.
+- **Search result row:** same two-line anatomy as the candidate row
+  (full 1-col width); exit-capable matches keep their `use`, the active
+  one its `ACTIVE` tag; offline matches render muted with line 2
+  `<ip> · <dns> · last seen <fmtLastSeen>`.
+
+**Deviation ledger vs the approved §T-9 (deliberate, both):**
+
+1. The candidate row's `routes: 0.0.0.0/0, ::/0` line is DROPPED from
+   the row (moves to tooltip). Inside a dedicated EXIT NODES section the
+   route advertisement is tautological — it is why the row exists; the
+   §T-9 line predates the section (routes disambiguated candidates in a
+   flat list). This deletes the most common 3-line row (every candidate
+   advertises 0.0.0.0/0) and is what makes the §V-5 budget close.
+2. v0.3's per-row `exit` tag is not re-adopted (same tautology).
+
+## V-5 — Frame geometry & fit budget
+
+**Fixed frame, one view.** Width authority unchanged from §R-2
+(`Layout.minimumWidth == Layout.preferredWidth` on the root; children
+inherit; nothing feeds back into popup width). The frame NEVER resizes
+on data, search, section expand, or op flight — scroll is the overflow
+valve, never a geometry change (§R-2 rule, restated).
+
+| Dimension | Value | @ gridUnit 18 (100%) | @ gridUnit 22 (125%) |
+|---|---|---|---|
+| Width | `34·gu` | 612 px | 748 px (≈598 logical — under the ~640 bar) |
+| Height | `min(38·gu, 0.9·availableHeight)` | 684 px | 836 px (clamped on short screens) |
+
+38·gu is justified row-by-row below; at 125% capacity only grows
+(px-constant chrome, gu-scaled rows — §R-2 convention). Audit
+appletsrc for frozen `popupWidth`/`popupHeight` keys if the frame
+misbehaves in harness (§R-2 warning carries).
+
+**Vertical ledger (gu=18, banner present, gate-hint present — worst
+PERSISTENT case; E = exit-capable online count):**
+
+```
+Fixed chrome:
+  top pad 10 + header 30 + identity 20 + strip 20 + search 34
+  + EXIT label 22 + banner 26 + ONLINE label 22 + offline row 26
+  + footer 26 + bottom pad 10                      = 246 px
+Candidates: E × 47 px (2-line anatomy, no routes line — §V-4)
+Census region   G = 684 − 246 − 47·E         cell pitch 27 (1.4·gu + 2)
+Census capacity C = 2 · ⌊G / 27⌋             (2-col grid)
+
+  E=1: G=391 → C=28   demand 18 (norm19, 1 exit)   ✓ zero-scroll, 10 spare
+  E=3: G=297 → C=22   demand 16 (measured shape)   ✓ 6 spare
+  E=5: G=203 → C=14   demand 14                    ✓ exact — E>5 opens the valve
+  norm24 (E=1): demand 23 ≤ 28 ✓      norm25 (E=1): demand 24 ≤ 28 ✓
+@ gu=22: G = 836 − 246 − 57·E → E=3: 419 → C = 2·⌊419/33⌋ = 24 ≥ 16 ✓
+```
+
+- **Budget guarantee: 19 online (any E ≤ 5), 24, and 25 online —
+  zero-scroll, with the persistent gate-hint row present.**
+- Transients (armed warning, op error: +20 each; health warnings: wrap,
+  variable; `switching…`: +20 on one row) may push the census into
+  scroll while visible — accepted; they auto-clear (§T-3/§T-5 windows).
+- **Scroll valve cases:** offline section expanded (21 cells = 11 grid
+  rows ≈ 297 px beyond), E > 5, transients, >25 online. ScrollView +
+  StopAtBounds over the SECTION STACK ONLY (header, identity, strip,
+  search, footer pinned outside it); scrollbar lane reserved on the
+  right edge so it never covers a `use`/`×` button.
+- One-column census rejection: 18 × 27 = 486 px > 391 — cannot make
+  budget; two columns is the density answer for the census (as §R-2
+  found for the old grid), now safe because cells are name-only (§V-1
+  failure 4).
+
+Width check: 612 − 32 margins − 8 gutter = 572 → column 282 px; a
+0.62·gu name elides-right at ~34 chars — fleet names fit untruncated.
+Candidate/result rows use the full 572 px: name + tag + `use` never
+collide. Search field 572 px wide.
+
+## V-6 — Type scale, color, tokens
+
+One sweep, all files: hero selfName `0.8·gu` bold · peer name
+`0.62·gu` · sublines, tooltips, footer `Kirigami.Theme.smallFont` ·
+section labels **smallFont bold, `Font.AllUppercase`, letterSpacing
+0.4, `disabledTextColor`** — NOT v0.3's `0.5·gu` custom size (the
+rejection screenshots' 7–8 px microtype is the floor violation; no text
+renders below `smallFont`). Colors: Kirigami.Theme tokens only —
+`textColor`, `disabledTextColor`, `positiveTextColor` (online dot,
+RUNNING dot), `negativeTextColor` (strip rows 1/2/4, edge rows),
+`neutralTextColor` (ACTIVE tag, non-running state dot); no hex literals
+in new files (§R-2 fallback note stands).
+
+## V-7 — Copy catalog & grammar (v0.4)
+
+Grammar (§R-7 unchanged): status words CAPS; joiner ` · `; every count
+computed; control labels sentence-case. **Dedup rule (new):** every
+string has exactly ONE render site. §T-3/§T-4/§T-5 strings are approved
+and byte-identical.
+
+| String | Render site | Binding (all computed) |
+|---|---|---|
+| `<selfName>` / `Tailscale` | header hero | `status.selfName` |
+| `Connect` `Disconnect` `Confirm disconnect` `working…` | header | §T-3 unchanged |
+| `● <STATE> · <selfIp> · <selfDnsName>` | identity line | `backendState.toUpperCase()`; dot positive iff Running |
+| `tailnet goes down here — …` / `op failed: …` / `op timed out` / `login required — run: tailscale login` | strip 1–2 | §T-3/§T-5 verbatim |
+| `control disabled — run: sudo tailscale set --operator=$USER` / `control unavailable — tailscaled not responding` | strip 3 | §T-1 verbatim (the ONLY site) |
+| `⚠ <health[i]>` | strip 4 (wrap) | `health[]` order preserved |
+| `Search peers` | TextField placeholder | static i18n |
+| `EXIT NODES · <E>` | section label | `exitNodes.length` |
+| `▸ exit node: <name>` + `×` | banner | §T-4 unchanged (Mullvad via `activeMullvadExit`) |
+| `ACTIVE` | active candidate row tag | `peer.Active` |
+| `use` / tooltip `use <name> as exit node`; tooltip `stop using exit node` | candidate row / banner | §T-4 unchanged |
+| `<ip> · <dns>` | candidate + result line 2 | peer fields |
+| `switching…` | transient line 3 | §T-4 unchanged |
+| `ONLINE · <N>` | census label | online − exit-capable |
+| `<dns> · <ip>` [` · routes: <r>, …`] [` · last seen <t>`] | census tooltip | `subnetRoutes()`, `fmtLastSeen()` |
+| `<N> OFFLINE · SHOW` / `<N> OFFLINE · HIDE` | offline toggle | offline count |
+| `NO ONLINE PEERS` / `NO PEERS · TAILNET EMPTY` | census empties | counts |
+| `MATCHES · <N>` / `NO MATCHING PEERS` | search mode | results length |
+| `<ip> · <dns>` [` · last seen <t>`] | result line 2 (offline matches muted) | peer fields |
+| `● AS OF hh:mm:ss` / `◐ STALE · hh:mm:ss` | footer left | `statusStampMs` vs 3×`pollSeconds` (tooltip: `POLL EVERY <N> S`) |
+| `CONTROL ENABLED · <user>` / `CONTROL DISABLED` / `CONTROL UNAVAILABLE` | footer right | gate state (verdict only — remediation lives in strip 3) |
+| `NEEDS LOGIN · RUN: tailscale login` · `TAILSCALED NOT RESPONDING · RETRY EVERY <N> S` · `TAILSCALE BINARY MISSING · INSTALL TAILSCALE` · `STATUS ERROR · RETRYING` | edge row (§V-10) | §R-8 strings re-adopted verbatim |
+
+**Count-sum invariant** (asserted, §V-13): E + census N + offline N ===
+`peers.length` === chip total; chip online === E + census N.
+
+## V-8 — Search (the Trayscale port)
+
+Matcher = Model.js `searchPeers(peers, query)` — semantics ported from
+trayscale `peersearch` + `searchSidebarLayout` (verified in source):
+
+- Tokens: whitespace-split query; ALL tokens must match (each against
+  any field). Fields: DisplayName (weight 4), HostName (3), DNSName
+  (2), each `TailscaleIPs` entry (1).
+- Token match (case-insensitive): prefix > substring > in-order
+  subsequence; no subsequence → token fails → peer excluded.
+- Sort: score descending, then HostName ascending.
+- Pure JS over already-parsed peers — NO new exec sources (extends
+  `filterPeers`, §R-9 flag 4's "search is redundant" judgment is
+  REVERSED: at 19 online + 21 offline behind a toggle, find-by-IP/dns
+  is the missing operation and search is the reference-blessed answer).
+
+Behavior:
+
+- Live filter per keystroke; query non-empty → EXIT NODES / ONLINE /
+  OFFLINE sections are REPLACED by one 1-col result list (`MATCHES · N`
+  label). Offline peers are searched regardless of collapse state
+  (Trayscale behavior); collapse state is restored when the query
+  clears.
+- Zero matches with non-blank query → centered muted
+  `NO MATCHING PEERS`.
+- `Ctrl+F` (popup focused) → focus + select-all. `Esc` → clear text if
+  non-empty, else blur. Trailing `✕` clear visible iff text non-empty.
+  Popup close → query cleared (fresh open = fresh view).
+- Search row hidden when `peers.length === 0` and in the
+  down/missing/login/parse edge states (nothing to search).
+- Search does NOT interact with the op machine: typing never disarms
+  (§T-3 disarm triggers are control CLICKS, verbatim).
+
+## V-9 — Interaction map
+
+| Target | Click / key | Effect | States |
+|---|---|---|---|
+| Header button | click | §T-3 machine verbatim: Connect single-click; Disconnect arm → `Confirm disconnect` (negative) + dead-zone 500 ms → 4 s window fire; `working…` in flight; auto-disarm at 4 s/close/launch/other-control-click (disarm+perform) | rest / armed / in-flight; disabledTextColor ONLY when disabled=true |
+| Banner `×` | click | §T-4 `exit-clear` (works for Mullvad); disabled in flight | rest / disabled |
+| Candidate `use` | click | §T-4 `exit-set` (DNSName dot-stripped, IP fallback); no confirm; tooltip teaches | rest / hover / disabled-in-flight; hidden on active row + gate disabled |
+| Search field | type / Ctrl+F / Esc / `✕` | §V-8 | empty / active / no-matches |
+| Offline toggle row | click | expand/collapse offline grid this session | `SHOW`/`HIDE` copy flips |
+| Census cells | — | NON-interactive; tooltip only | online / offline (muted) |
+| Footer | — | non-interactive | fresh / stale |
+| Outside popup | click / Esc | popup closes (disarms §T-3; clears query) | — |
+
+## V-10 — Edge states (detection by existing signals only — §R-8 map)
+
+| State | Signal | Rendering (standing content preserved) |
+|---|---|---|
+| Needs login | `status.needsLogin` | strip row `NEEDS LOGIN · RUN: tailscale login` (§R-8 string); header `Connect`; identity line `● NEEDS LOGIN · …`; sections + search hidden; footer stands |
+| Backend down | poll exit ≠ 0, stdout empty, stderr w/o "not found" | edge row `TAILSCALED NOT RESPONDING · RETRY EVERY <N> S`; identity + sections + search hidden; footer stands (stamp goes `◐ STALE` naturally); gate keeps last-known; chip crossed |
+| Binary missing | exit 127 or stderr `/not found/` | edge row `TAILSCALE BINARY MISSING · INSTALL TAILSCALE`; rest as backend-down |
+| Parse error | `!parsed.ok` | edge row `STATUS ERROR · RETRYING`; rest as backend-down |
+| 0 peers, running | `peers.length === 0` | edge row `NO PEERS · TAILNET EMPTY`; search hidden; header/identity/footer stand |
+| 0 online, offline > 0 | computed | `ONLINE · 0` + centered `NO ONLINE PEERS` + offline toggle row |
+
+Edge rows replace the SECTION STACK only; header, strip, and footer stay
+mounted in every state — the popup is never a bare error screen and
+never duplicates a string (edge strings appear in exactly one place).
+
+## V-11 — Model & test additions (spec-only; build pass implements)
+
+- `Model.js` fork-additions: `searchPeers(peers, query)` (§V-8) —
+  unit tests in `tests/model.test.js`: substring hit; subsequence hit
+  (`gdt` → gdtower); multi-token all-must (`spark gx` → both spark
+  nodes, `spark zzz` → none); score order (prefix beats subsequence);
+  offline inclusion; empty-query passthrough. `parseStatusPlus`,
+  `filterOnline`, `subnetRoutes`, `fmtLastSeen` reused as-is.
+- No changes to `Control.js`, `tests/control.test.js`,
+  `tests/port.test.js` beyond what §V-2 deletes (none) — §T-2 allowlist
+  untouched; harness stub still serves `status --json` + prefs; fixture
+  set below.
+- Fixtures (stub-served): **norm19** (19 online incl. 3 exit-capable,
+  `tower` active, 21 offline, health empty) — run twice, gate enabled +
+  gate disabled; **norm24** (24 online, 1 exit-capable active, 16
+  offline); **norm25** (25 online, 1 exit-capable none active, 15
+  offline); **empty**; **login** (BackendState NeedsLogin + AuthURL);
+  **down**; **missing** (exit 127); **parse** (garbage stdout).
+
+## V-12 — File layout & implementation constraints
+
+- `contents/ui/`: `PopupShell.qml` (frame, header, identity, strip,
+  search row, footer; owns ALL width/height hints), `SearchRow.qml`,
+  `ExitNodeSection.qml` (label + banner + candidate ListView),
+  `CandidateRow.qml` (atom: `use`, ACTIVE tag, subline, `switching…`),
+  `CensusSection.qml` (mode: online|offline; label, empty row, grid,
+  offline toggle), `CensusCell.qml`, existing `SectionLabel.qml`.
+  Deleted: `tabs/*`, `PeerCell.qml`.
+- Tab-era constraints that SURVIVE: `ctx` passing (never `root`),
+  Plasmoid context root-file-only, ~150 ms deferred popup-open work,
+  `tools/check_qml.py` before every install, one handler per signal per
+  file.
+- `metadata.json` → `0.4.0`; README Differences + Verified and ROADMAP
+  row in the same commit (release-stamp rule).
+
+## V-13 — Acceptance criteria (harness: virtual harness, scale 1 + host DPR)
+
+1. **Fixed frame:** identical WxH across all fixtures, during search,
+   offline expand, and op flight; no resize on data tick.
+2. **norm19 zero-scroll:** census `contentHeight ≤` viewport, no
+   scrollbar pixels, gate-hint row present (worst persistent case), on
+   BOTH gate runs.
+3. **norm24, norm25 zero-scroll** per §V-5 math.
+4. **Scroll valve:** offline expanded in norm19 scrolls; scrollbar lane
+   pixel-clear of every `use`/`×`.
+5. **Section membership:** no peer id in two sections; exit-capable
+   excluded from census; count-sum invariant holds; chip reads
+   `19/40` on norm19.
+6. **Computed counts:** fixtures with different peer counts render
+   different count strings; grep finds no count literals in new QML.
+7. **Copy:** every rendered string matches §V-7 (or §T-3/4/5 approved)
+   byte-for-byte; ` · ` joiner everywhere; NO string renders twice.
+8. **Search:** `tow` → tower (first, prefix-scored) + watertower;
+   `zzz` → `NO MATCHING PEERS`; `gdt` → gdtower (subsequence);
+   `spark gx` → both sparks; Esc restores sections; Ctrl+F focuses;
+   reopen → query cleared; search hidden on empty/login/down/missing/
+   parse.
+9. **Offline:** collapsed default (`21 OFFLINE · SHOW`, zero cells);
+   click reveals 21 muted cells; `HIDE` flips; `showOffline=true` and
+   wiped-config default-config pass both verified.
+10. **Control layer:** `use` → stub log `set --exit-node=<dns>`;
+    `×` → `set --exit-node=`; `use` absent on active row + gate-disabled
+    run; in-flight disables all controls + `switching…` transient;
+    watchdog re-enables; arm/dead-zone/confirm pixel-asserted;
+    `control.test.js` green and unchanged.
+11. **Edges:** all six §V-10 states render their one string + standing
+    header/strip/footer; no dead rows; no empty section labels.
+12. **Chip untouched:** `git diff` on the compactRepresentation block
+    empty.
+13. **Hit targets:** `use`/`×` ≥ `1.4·gu` with smallSpacing separation
+    at both scales.
+14. **Theme + type:** no hex literals in new files; no text below
+    `smallFont`; dark + light Breeze legible (dots, tags, muted cells).
+15. **lastTab gone:** no reader in QML; entry absent from `main.xml`
+    (grep); stale appletrc value ignored.
+
+## V-14 — Data flags delta (nothing invented)
+
+Unchanged from §R-9: no direct/relay, no traffic rates, no OS glyphs,
+no self OS/Tags, no health severity, no payload timestamp (stamp is UI
+state). New/changed: (1) search reverses §R-9 flag 4 (§V-8 rationale);
+(2) copy-IP-per-peer (Trayscale peer page has COPY buttons) is deferred
+to ROADMAP with Taildrop/Mullvad-picking — clipboard writes from a
+non-interactive census would be undiscoverable and are not part of this
+review; (3) peer detail beyond tooltip is out of scope — no detail
+pages in a popup.

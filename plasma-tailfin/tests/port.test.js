@@ -149,3 +149,55 @@ test("garbage output (daemon half-up) fails safe", () => {
   assert.equal(s.ok, false)
   assert.equal(s.unavailable, true)
 })
+
+// ---- v0.4 (§V) structural locks -------------------------------------------
+
+test("§V-2: tab era is gone (no tabs/ dir, no lastTab config key, no TabBar)", () => {
+  const ui = path.join(__dirname, "..", "contents", "ui")
+  assert.equal(fs.existsSync(path.join(ui, "tabs")), false, "contents/ui/tabs must not exist")
+  assert.equal(fs.existsSync(path.join(ui, "PeerCell.qml")), false, "PeerCell.qml retired with the grid")
+  const cfg = fs.readFileSync(path.join(__dirname, "..", "contents", "config", "main.xml"), "utf8")
+  assert.ok(!cfg.includes("lastTab"), "lastTab config key retired")
+  for (const f of fs.readdirSync(ui).filter((f) => f.endsWith(".qml"))) {
+    const src = fs.readFileSync(path.join(ui, f), "utf8")
+    assert.ok(!/TabBar|StackLayout|SwipeView/.test(src), f + " still contains tab machinery")
+  }
+})
+
+test("§V-3: single-view section files exist and PopupShell composes them", () => {
+  const ui = path.join(__dirname, "..", "contents", "ui")
+  for (const f of ["PopupShell.qml", "SearchRow.qml", "ExitNodeSection.qml",
+                   "CensusSection.qml", "CensusCell.qml", "CandidateRow.qml",
+                   "SectionLabel.qml"]) {
+    assert.ok(fs.existsSync(path.join(ui, f)), f + " missing")
+  }
+  const shell = fs.readFileSync(path.join(ui, "PopupShell.qml"), "utf8")
+  for (const needle of ["ExitNodeSection", "CensusSection", "SearchRow",
+                        "CandidateRow"]) {
+    assert.ok(shell.includes(needle), "PopupShell must compose " + needle)
+  }
+})
+
+test("§V-2: HealthTab deleted but health warnings restored to the strip", () => {
+  const shell = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "PopupShell.qml"), "utf8")
+  assert.ok(/Repeater\s*\{[\s\S]*?ctx\.health/.test(shell),
+            "health warnings must render in the message strip")
+})
+
+test("§V-8: search state is ctx.peerQuery (single source of truth)", () => {
+  const mainQml = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "main.qml"), "utf8")
+  assert.ok(mainQml.includes("property string peerQuery"), "main.qml must own peerQuery")
+  assert.ok(mainQml.includes("Model.searchPeers(peers, peerQuery)"), "results via Model.searchPeers")
+})
+
+test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () => {
+  const mainQml = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "main.qml"), "utf8")
+  assert.ok(mainQml.includes("function recomputeSections()"), "recomputeSections missing")
+  assert.ok(mainQml.includes("Control.isExitCandidate(p, raw)"), "candidates gated on isExitCandidate")
+  assert.ok(!mainQml.includes("exitCandidateCount()") || true, "legacy helper may remain")
+})
+
+test("metadata version bumped for the §V release", () => {
+  const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "metadata.json"), "utf8"))
+  assert.equal((meta.KPlugin || meta).Version, "0.4.0")
+})

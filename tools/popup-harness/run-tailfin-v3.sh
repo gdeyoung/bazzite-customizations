@@ -1,9 +1,11 @@
 #!/bin/bash
-# run-tailfin-v3.sh — tailfin v0.3 §R acceptance gate (UX-SPEC §R-11).
+# run-tailfin-v3.sh — tailfin v0.4 §V acceptance gate (UX-SPEC §V-13).
 # Fixture-driven: FIXTURE=norm19|norm24|norm25|empty|login|down|missing|parse
 # GATE=enabled|disabled · LIGHT=0|1 · SCALE. REAL tailscale never touched
-# (PATH stub). Asserts geometry, zero-scroll budget, offline collapse,
-# edge states, stub argv allowlist — pixels verified outside this script.
+# (PATH stub). Asserts fixed frame, section-stack zero-scroll budget,
+# count-sum invariant (E+census+banner+offline === total), offline toggle,
+# search semantics, edge states, stub argv allowlist — pixels verified
+# outside this script.
 set -u
 FIXTURE="${FIXTURE:-norm19}"; GATE="${GATE:-enabled}"
 LIGHT="${LIGHT:-0}"; SCALE="${SCALE:-1}"; TAG="${TAG:-v3}"
@@ -165,66 +167,65 @@ s = s.replace(a, """    Component.onCompleted: {
 open(p, 'w').write(s); print("heartbeat in")
 PY
 
-# --- injection 2: PopupShell geometry/tab driver (t8..t14) ------------------
+# --- injection 2: §V driver — geometry, census metrics, offline toggle,
+# search probes (replaces the v0.3 tab/PeersTab drivers) ------------------
 python3 - "$PKG/contents/ui/PopupShell.qml" <<'PY'
 import sys
 p = sys.argv[1]; s = open(p).read()
-assert "HARNESSGEO" not in s
+assert "HARNESSV4" not in s
 anchor = "    Layout.minimumWidth: Kirigami.Units.gridUnit * 34"
 assert anchor in s, "frame anchor missing"
 drv = """    Timer {
-        id: harnessGeo
+        id: harnessV4
         interval: 500
         repeat: true
         running: true
         property int step: 0
         onTriggered: {
             step++
-            if (step === 1) { console.error("HARNESSGEO t0 " + Math.round(shell.width) + "x" + Math.round(shell.height)) }
-            else if (step === 4) { shell.currentTab = 1; console.error("HARNESSGEO t1 " + Math.round(shell.width) + "x" + Math.round(shell.height)) }
-            else if (step === 8) { shell.currentTab = 2; console.error("HARNESSGEO t2 " + Math.round(shell.width) + "x" + Math.round(shell.height)) }
-            else if (step === 12) { shell.currentTab = 0; console.error("HARNESSGEO t0b " + Math.round(shell.width) + "x" + Math.round(shell.height)) }
-        }
-    }
-
-"""
-s = s.replace(anchor, drv + anchor, 1)
-open(p, 'w').write(s); print("geo driver in")
-PY
-
-# --- injection 3: PeersTab metrics + offline toggle (t16) -------------------
-python3 - "$PKG/contents/ui/tabs/PeersTab.qml" <<'PY'
-import sys
-p = sys.argv[1]; s = open(p).read()
-assert "HARNESSPEERS" not in s
-anchor = "    ColumnLayout {"
-assert anchor in s, "PeersTab anchor missing"
-drv = """    Timer {
-        id: harnessPeers
-        interval: 1000
-        repeat: true
-        running: true
-        property int step: 0
-        onTriggered: {
-            step++
-            if (step >= 2 && step <= 12 && tab.ctx.edgeOverlayText() === "" && tab.ctx.peers.length > 0) {
-                console.error("HARNESSPEERS content=" + Math.round(flick.contentHeight)
-                    + " view=" + Math.round(flick.height)
-                    + " needs=" + (flick.needsScroll ? 1 : 0)
-                    + " online=" + tab.ctx.onlinePeers.length
-                    + " off=" + tab.ctx.offlinePeers.length
-                    + " expanded=" + (tab.offlineExpanded ? 1 : 0))
+            const ok = shell.ctx.edgeState === "ok" && !shell.ctx.needsLogin
+                       && shell.ctx.peers.length > 0
+            if (step === 2) {
+                console.error("HARNESSGEO t0 " + Math.round(shell.width) + "x" + Math.round(shell.height))
             }
-            if (step === 7 && tab.ctx.offlinePeers.length > 0 && tab.ctx.edgeOverlayText() === "") {
-                tab.offlineExpanded = true
+            if (ok && step >= 2 && step <= 9) {
+                const banner = shell.ctx.exitBannerText() !== "" ? 1 : 0
+                const sumOk = (shell.ctx.exitNodes.length + shell.ctx.censusPeers.length
+                               + shell.ctx.offlinePeers.length + banner)
+                              === shell.ctx.peers.length ? "ok" : "BAD"
+                const ch = Math.round(stack.contentItem ? stack.contentItem.contentHeight : 0)
+                const vh = Math.round(stack.height)
+                console.error("HARNESSV4 content=" + ch + " view=" + vh
+                    + " needs=" + (ch > vh + 2 ? 1 : 0)
+                    + " E=" + shell.ctx.exitNodes.length
+                    + " census=" + shell.ctx.censusPeers.length
+                    + " off=" + shell.ctx.offlinePeers.length
+                    + " total=" + shell.ctx.peers.length
+                    + " banner=" + banner + " sum=" + sumOk)
+            }
+            if (step === 7 && ok && shell.ctx.offlinePeers.length > 0) {
+                offlineSection.expanded = true
                 console.error("HARNESSTOGGLE expanded=1")
             }
+            if (ok && step === 14) {
+                shell.ctx.peerQuery = "host03"
+                console.error("HARNESSSEARCH q=host03 n=" + shell.ctx.searchResults.length)
+            }
+            if (ok && step === 20) {
+                shell.ctx.peerQuery = "host zzz"
+                console.error("HARNESSSEARCH q=hostzzz n=" + shell.ctx.searchResults.length)
+            }
+            if (ok && step === 22) {
+                shell.ctx.peerQuery = ""
+                console.error("HARNESSSEARCH q=cleared n=" + shell.ctx.searchResults.length)
+                console.error("HARNESSGEO t0b " + Math.round(shell.width) + "x" + Math.round(shell.height))
+            }
         }
     }
 
 """
 s = s.replace(anchor, drv + anchor, 1)
-open(p, 'w').write(s); print("peers driver in")
+open(p, 'w').write(s); print("v4 driver in")
 PY
 
 echo "CKPT-START fixture=$FIXTURE gate=$GATE light=$LIGHT scale=$SCALE"
@@ -257,17 +258,16 @@ done
 echo "CKPT-PANELS=$PANELS after=$(( (i+1)/2 ))s"
 ADDERR=$(busctl --address="$DBUS_SESSION_BUS_ADDRESS" call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tailfin.js)" 2>&1)
 echo "CKPT-ADD: $(echo "$ADDERR" | head -1)"
-# Popup opens 6 s after applet load. Shot plan relative to popup open T:
-# T+1 status · T+3 peers · T+5 health · T+9 offline-expanded (toggle T+7).
+# Popup opens 6 s after applet load; §V driver steps are 500 ms each from
+# popup creation. Shots: view @T+1 (step2) · offline-expanded @T+4 (toggle
+# step7) · search mode @T+5.5 (probe step10).
 sleep 7
-spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-status-s$SCALE$LIGHT.png
-sleep 2
-spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-peers-s$SCALE$LIGHT.png
-sleep 2
-spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-health-s$SCALE$LIGHT.png
-sleep 4
+spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-view-s$SCALE$LIGHT.png
+sleep 3
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-offexp-s$SCALE$LIGHT.png
-sleep 2
+sleep 3.5
+spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-search-s$SCALE$LIGHT.png
+sleep 4
 
 kill $SHELL_PID 2>/dev/null; sleep 2; kill $KWIN_PID 2>/dev/null
 echo "CKPT-CLEANUP-DONE"
@@ -279,14 +279,18 @@ LOG=$ROOT/shell-tailfin-v3-$FIXTURE-s$SCALE$LIGHT.log
 journalctl --user _PID=$SHELL_PID --no-pager > "$ROOT/harness-journal-$TAG-$FIXTURE.log" 2>/dev/null || true
 LOG=$ROOT/harness-journal-$TAG-$FIXTURE.log
 echo "===ASSERTS==="
-# A1: geometry identical across tabs and stable on return
+# A1: frame is fixed — one unique geometry across the whole run incl. the
+# search round-trip (t0/t0b) and never resized by content.
 G=$(grep -ao "HARNESSGEO t[0-9b]* [0-9]*x[0-9]*" "$LOG" | awk '{print $3}' | sort -u | wc -l)
 echo "GEO-UNIQUE=$G (want 1)"
 grep -ao "HARNESSGEO t[0-9b]* [0-9]*x[0-9]*" "$LOG"
-# A2/A3: scroll verdict (latest HARNESSPEERS line per expanded state)
-grep -ao "HARNESSPEERS content=[0-9]* view=[0-9]* needs=[01] online=[0-9]* off=[0-9]* expanded=[01]" "$LOG" | tail -6
-# A4: toggle fired
+# A2: section-stack scroll budget (latest 4 lines incl. expanded + post-search)
+grep -ao "HARNESSV4 content=[0-9]* view=[0-9]* needs=[01] E=[0-9]* census=[0-9]* off=[0-9]* total=[0-9]* banner=[01] sum=ok" "$LOG" | tail -4
+SUMBAD=$(grep -ac "sum=BAD" "$LOG" || true); echo "SUM-BAD=$SUMBAD (want 0)"
+# A3: offline toggle fired (norm fixtures with offline peers)
 grep -a "HARNESSTOGGLE" "$LOG" || echo "TOGGLE-ABSENT (ok for 0-offline fixtures)"
+# A4: search semantics — host03 -> 1, host+zzz -> 0, cleared -> sections
+grep -ao "HARNESSSEARCH q=[a-z0-9]* n=[0-9]*" "$LOG"
 # gate/edge verdict
 grep -ao "HARNESSGate .*" "$LOG" || echo "GATE-LINE-MISSING"
 # A9: stub argv allowlist (status / debug prefs / id -un only)

@@ -437,6 +437,60 @@ function parseSuggest(raw) {
 
 // filterPeers — Machines tab search. Matches name, DNS name, or any
 // Tailscale v4 address, case-insensitively, substring semantics.
+// searchPeers — §V-8, the Trayscale peersearch port (verified in source:
+// internal/peersearch + searchSidebarLayout). Multi-token, ALL tokens must
+// match somewhere; token-vs-field match is prefix > substring > in-order
+// subsequence; field weights DisplayName 4, HostName 3, DNSName 2, IPs 1;
+// score desc then HostName asc. Empty query returns the list unchanged.
+function searchTokenScore(token, field) {
+  var f = String(field || "").toLowerCase()
+  var t = String(token || "").toLowerCase()
+  if (f === "" || t === "") return 0
+  if (f.indexOf(t) === 0) return 3
+  if (f.indexOf(t) !== -1) return 2
+  var i = 0
+  for (var j = 0; j < f.length && i < t.length; j++) {
+    if (f.charAt(j) === t.charAt(i)) i++
+  }
+  return i === t.length ? 1 : 0
+}
+
+function searchPeers(peers, query) {
+  var list = Array.isArray(peers) ? peers : []
+  var q = String(query || "").trim()
+  if (q === "") return list.slice()
+  var tokens = q.split(/\s+/)
+  var scored = []
+  for (var i = 0; i < list.length; i++) {
+    var peer = list[i] || {}
+    var fields = [
+      { v: peer.DisplayName, w: 4 },
+      { v: peer.HostName, w: 3 },
+      { v: peer.DNSName, w: 2 },
+      { v: (peer.TailscaleIPs || []).join(" "), w: 1 }
+    ]
+    var total = 0
+    var ok = true
+    for (var t = 0; t < tokens.length; t++) {
+      var best = 0
+      for (var f = 0; f < fields.length; f++) {
+        var s = searchTokenScore(tokens[t], fields[f].v) * fields[f].w
+        if (s > best) best = s
+      }
+      if (best === 0) { ok = false; break }
+      total += best
+    }
+    if (ok) scored.push({ peer: peer, score: total })
+  }
+  scored.sort(function (a, b) {
+    if (b.score !== a.score) return b.score - a.score
+    return String(a.peer.HostName || "").localeCompare(String(b.peer.HostName || ""))
+  })
+  var out = []
+  for (var k = 0; k < scored.length; k++) out.push(scored[k].peer)
+  return out
+}
+
 function filterPeers(peers, query) {
   var q = String(query || "").trim().toLowerCase()
   var list = Array.isArray(peers) ? peers : []
@@ -521,6 +575,7 @@ if (typeof module !== "undefined") {
     parsePrefs: parsePrefs,
     parseSuggest: parseSuggest,
     filterPeers: filterPeers,
+    searchPeers: searchPeers,
     filterOnline: filterOnline,
     fmtBytes: fmtBytes,
     fmtLastSeen: fmtLastSeen

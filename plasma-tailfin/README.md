@@ -14,17 +14,23 @@ logic, same data source, read-only, zero system mutations.
 
 ```
 chip:   ▪▪▪  12/40      ← Tailscale mark + online/total; click to open
-popup (v0.3 — fixed 34×27·gu frame, three tabs, remembers last tab):
-  [ Status ]  this-device name / IP · dns / backend state / exit node
-  [ Peers ]   2-column grid of compact cells (1.5·gu rows)
-                ● tower   ACTIVE exit [use]
-                  100.x.y.z · tower.dns · routes
-              21 OFFLINE · SHOW          ← collapsed by default
-  [ Health ]  backend, warnings, operator gate, provenance
-Capacity 24 online zero-scroll @ gu=18 (grows with the theme); past
-capacity or with offline expanded the grid scrolls, the frame never
-resizes. Edge states: needs-login / backend down / binary missing /
-parse error — each with standing content, never a dead popup.
+popup (v0.4 — single sectioned view, one scroll, no tabs):
+  gdtower                          [Disconnect]
+  ● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+  🔍 [ Search peers                                    ] ✕
+  EXIT NODES · 5
+    ▸ exit node: tower                              [×]
+    ● spark2          [ACTIVE]                      [use]
+      100.x.y.z · spark2.horse-frog.ts.net
+  ONLINE · 13
+    ● aibox      ● watertower     ● spark   ● nas    (2-col, ● name)
+  21 OFFLINE · SHOW                                   ← collapsed
+  ● AS OF 14:22:31                    CONTROL ENABLED · gdeyoung
+Frame fixed at 34×38·gu (612×684 @100%); only the section stack scrolls
+(exit nodes → online → offline). Search filters ALL peers live
+(multi-token, prefix/substring/subsequence, name · hostname · DNS · IP).
+Edge states: needs-login / backend down / binary missing / parse error —
+each with standing content, never a dead popup.
 ```
 
 ## Provenance
@@ -57,7 +63,11 @@ view plus a minimal, gated control surface (v0.2, `UX-SPEC-CONTROL.md`):
   `tailscale set --operator` gate, with a mandatory two-step inline
   disconnect confirm (500 ms arm dead-zone kills the double-click path),
   an op watchdog (15 s / 30 s for `up`), and a closed typed-op allowlist.
-- **v0.3** replaces the flat scrolling list with the tabbed popup above
+- **v0.3** replaced the flat list with a 3-tab popup — *rejected in desk
+  use (sparse pages, navigation tax)*; **v0.4** removed the tabs for a
+  single Trayscale-sectioned view (EXIT NODES get their own section and
+  never duplicate into ONLINE; offline collapses behind a count row;
+  health warnings returned to the top strip; live search added).
   (spec `§R-1..§R-12` in `UX-SPEC-CONTROL.md`): fixed frame, 2-column
   peer grid with computed offline collapse, four discriminated edge
   states, persisted last tab. Chip and control surface unchanged.

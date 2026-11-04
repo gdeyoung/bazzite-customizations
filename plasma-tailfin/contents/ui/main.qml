@@ -56,13 +56,42 @@ PlasmoidItem {
     // stored only state+hint and dropped the operator name).
     property string gateOperator: ""
 
-    // §R-1: persisted last tab (KConfig, default 0 = Status).
-    readonly property int lastTabCfg: {
-        const n = parseInt(String(Plasmoid.configuration.lastTab), 10)
-        return (isFinite(n) && n >= 0 && n <= 2) ? n : 0
-    }
-    function saveTab(i) {
-        Plasmoid.configuration.lastTab = i
+    // ---- v0.4 (§V) state -------------------------------------------------
+    // §V-2: lastTab retired with the tabs. Search query is the single
+    // source of truth for search mode (typing, Esc, ✕, popup-close all
+    // funnel through this property).
+    property string peerQuery: ""
+    // §V-8: results computed over ALL peers (offline included, rendered
+    // muted by the row); empty query = sections mode.
+    readonly property var searchResults: peerQuery !== ""
+        ? Model.searchPeers(peers, peerQuery) : []
+
+    // Popup height budget (§V-5): PopupShell clamps to 0.9·this.
+    readonly property real availPopupHeight: Plasmoid.availableHeight || 0
+
+    // §V-4 sections, recomputed on every good tick (cheap; ≤40 peers):
+    // exitNodes  = online, exit-capable, NOT the currently-active one
+    //              (the banner owns that) — Trayscale: own section,
+    //              excluded from the census, never duplicated.
+    // censusPeers = online, not exit-capable — alphabetical.
+    property var exitNodes: []
+    property var censusPeers: []
+
+    function recomputeSections() {
+        const cands = []
+        const census = []
+        for (let i = 0; i < onlinePeers.length; i++) {
+            const p = onlinePeers[i]
+            if (p.ExitNode === true) continue
+            const raw = rawPeers[String(p && p.id)] || {}
+            if (Control.isExitCandidate(p, raw)) cands.push(p)
+            else census.push(p)
+        }
+        const byName = function (a, b) {
+            return peerName(a).localeCompare(peerName(b))
+        }
+        exitNodes = cands.sort(byName)
+        censusPeers = census.sort(byName)
     }
 
     // §R-3: computed exit-node candidate count for the Status hint.
@@ -226,6 +255,7 @@ PlasmoidItem {
         } catch (e) {
             rawPeers = ({})
         }
+        recomputeSections()
     }
 
     DataSource {
@@ -450,9 +480,10 @@ PlasmoidItem {
     }
 
     // ==========================================================================
-    // FULL representation (popup): §R shell — fixed 34×27·gu frame,
-    // shared header + message strip, Status/Peers/Health tabs. All
-    // sizing lives in PopupShell.qml (single-site rule, §R-2).
+    // FULL representation (popup): §V single sectioned view — header →
+    // identity → message strip → search → EXIT NODES / ONLINE / OFFLINE
+    // stack → footer. No tabs (§V-2). All sizing lives in PopupShell.qml
+    // (single-site rule).
     // ==========================================================================
     fullRepresentation: PopupShell {
         ctx: root

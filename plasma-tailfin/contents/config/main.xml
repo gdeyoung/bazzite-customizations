@@ -9,9 +9,5 @@
             <label>Show offline devices in the popup list instead of collapsing them behind a count</label>
             <default>false</default>
         </entry>
-        <entry name="lastTab" type="Int">
-            <label>Last-opened popup tab (0 Status, 1 Peers, 2 Health)</label>
-            <default>0</default>
-        </entry>
     </group>
 </kcfg>
