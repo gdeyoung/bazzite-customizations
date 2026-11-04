@@ -49,9 +49,13 @@ cp -r "$here" "$dest"
 # keep the installed package clean of repo-only test scaffolding
 rm -rf "$dest/tests" "$dest/Model.js" "$dest/README.md" "$dest/install.sh"
 
+# BANNED (2026-11-01 incident, re-verified 2026-11-03): installers must
+# NEVER restart plasmashell — the live shell reloads updated applet
+# packages on its own; a restart bounces the user's panel mid-session.
+# If a widget truly needs a fresh shell, the USER restarts it at their
+# desk. (--no-restart flag retained for compat; restart=yes is now inert.)
 if [[ "$restart" == "yes" ]]; then
-    echo "Restarting plasmashell to register it…"
-    systemctl --user restart plasma-plasmashell.service
+    echo "Files installed. plasmashell picks up the update on its own; no restart performed."
 fi
 
 cat <<'MSG'
