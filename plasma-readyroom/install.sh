@@ -18,10 +18,9 @@ cp -r "$here" "$dest"
 # The scripts ship executable; assert that so the dataengine can run them.
 chmod +x "$dest"/contents/scripts/gc-* || true
 
-if [[ "${NO_RESTART:-0}" != "1" ]]; then
-    echo "Restarting plasmashell to register it…"
-    systemctl --user restart plasma-plasmashell.service
-fi
+# BANNED (2026-11-01; sweep 2026-11-03): installers must NEVER restart
+# plasmashell — the live shell reloads updated applet packages itself.
+echo "Files installed. plasmashell picks up the update on its own; no restart performed."
 
 cat <<'MSG'
 
