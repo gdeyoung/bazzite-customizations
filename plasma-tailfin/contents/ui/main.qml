@@ -42,6 +42,52 @@ PlasmoidItem {
     property string unavailableMessage: ""
     property string lastError: ""
 
+    // ---- v0.3 (§R) state ------------------------------------------------
+    // edgeState discriminates failure modes the old popup collapsed into
+    // one "Disconnected" (§R-8): ok | backdown | binmissing | parseerror.
+    property string edgeState: "ok"
+    // Provenance: local time of the last successful status tick (§R-5 —
+    // UI state, not model data; the payload carries no timestamp).
+    property real statusStampMs: 0
+    // Clock for freshness verdicts; nudged 150 ms after popup open and
+    // once per second while open (PopupShell owns the timers).
+    property real clockNow: 0
+    // §T-1 operator identity carried out of parseOperatorPrefs (v0.2
+    // stored only state+hint and dropped the operator name).
+    property string gateOperator: ""
+
+    // §R-1: persisted last tab (KConfig, default 0 = Status).
+    readonly property int lastTabCfg: {
+        const n = parseInt(String(Plasmoid.configuration.lastTab), 10)
+        return (isFinite(n) && n >= 0 && n <= 2) ? n : 0
+    }
+    function saveTab(i) {
+        Plasmoid.configuration.lastTab = i
+    }
+
+    // §R-3: computed exit-node candidate count for the Status hint.
+    function exitCandidateCount() {
+        let n = 0
+        for (let i = 0; i < onlinePeers.length; i++) {
+            const peer = onlinePeers[i]
+            if (peer.ExitNode === true) continue
+            if (Control.isExitCandidate(
+                    peer, rawPeers[String(peer && peer.id)] || {})) n++
+        }
+        return n
+    }
+
+    // §R-8 edge overlay copy — centered on Status/Peers when set.
+    function edgeOverlayText() {
+        if (needsLogin) return "NEEDS LOGIN · RUN: tailscale login"
+        if (edgeState === "backdown")
+            return "TAILSCALED NOT RESPONDING · RETRY EVERY " + pollSeconds + " S"
+        if (edgeState === "binmissing")
+            return "TAILSCALE BINARY MISSING · INSTALL TAILSCALE"
+        if (edgeState === "parseerror") return "STATUS ERROR · RETRYING"
+        return ""
+    }
+
     readonly property bool running: status ? status.running : false
     readonly property bool needsLogin: status ? status.needsLogin : false
     readonly property var peers: status && running ? status.peers : []
@@ -139,6 +185,7 @@ PlasmoidItem {
         const g = Control.parseOperatorPrefs(gatePrefs, gatePrefsCode, gateUser)
         gateState = g.state
         gateHint = g.hint
+        gateOperator = g.operator || ""
     }
 
     // ---- Data plumbing ------------------------------------------------------
@@ -153,6 +200,7 @@ PlasmoidItem {
     function applyStatus(raw) {
         const parsed = Model.parseStatusPlus(raw)
         if (!parsed.ok) {
+            edgeState = "parseerror"
             unavailableMessage = parsed.message || "Status error"
             lastError = parsed.error || ""
             status = null
@@ -160,13 +208,16 @@ PlasmoidItem {
             return
         }
         if (parsed.unavailable) {
+            edgeState = "backdown"
             unavailableMessage = parsed.message || "Disconnected"
             status = null
             rawPeers = ({})
             return
         }
+        edgeState = "ok"
         unavailableMessage = ""
         lastError = ""
+        statusStampMs = Date.now()
         status = parsed
         // Keep the raw Peer map for fields the normalizer drops (AllowedIPs).
         // parseStatusPlus succeeded => the text is valid JSON; parse is safe.
@@ -189,11 +240,19 @@ PlasmoidItem {
                 if (code === 0) {
                     root.applyStatus(out)
                 } else {
-                    // Non-zero: tailscaled down or CLI missing. Empty output makes
-                    // Model.parseStatusPlus report {ok, unavailable} -> chip shows
-                    // the disconnected glyph, exactly like the Omarchy service.
-                    root.applyStatus("")
-                    root.lastError = String(data["stderr"] || "").trim()
+                    // §R-8: discriminate the failure BEFORE collapsing.
+                    // exit 127 / "not found" = binary missing; anything
+                    // else non-zero with empty stdout = tailscaled down.
+                    const err = String(data["stderr"] || "").trim()
+                    if (code === 127 || /not found/i.test(err)) {
+                        root.edgeState = "binmissing"
+                    } else {
+                        root.edgeState = "backdown"
+                        root.lastError = err
+                    }
+                    root.unavailableMessage = "Disconnected"
+                    root.status = null
+                    root.rawPeers = ({})
                 }
             } else if (cmd === "id -un") {
                 // §T-1 probes (read-only, once per plasmoid load).
@@ -278,22 +337,6 @@ PlasmoidItem {
             out.push(entry)
         }
         return out
-    }
-
-    // One string: "100.x.y.z · dns.name" — the PeerRow sub-line, trimmed to
-    // the fields the Plasma popup shows (no traffic counters: those need
-    // cumulative-to-rate math that is meaningless on a slow poll).
-    function peerSubLine(peer) {
-        const parts = []
-        const ips = (peer && peer.TailscaleIPs) || []
-        if (ips.length > 0) parts.push(String(ips[0]))
-        const dns = String((peer && peer.DNSName) || "")
-        if (dns !== "") parts.push(dns)
-        if (!peer.Online) {
-            const lastSeen = Model.fmtLastSeen(peer.LastSeen)
-            parts.push(lastSeen === "never" ? "never seen" : "last seen " + lastSeen)
-        }
-        return parts.join("  ·  ")
     }
 
     function exitBannerText() {
@@ -407,313 +450,11 @@ PlasmoidItem {
     }
 
     // ==========================================================================
-    // FULL representation (popup): device list exactly as Panel.qml lays it
-    // out — self identity, health warnings, exit-node banner, machine list
-    // with name / connection state / subnet routes / self-IPs, offline
-    // collapsed behind a count (configurable). Self-sizing.
+    // FULL representation (popup): §R shell — fixed 34×27·gu frame,
+    // shared header + message strip, Status/Peers/Health tabs. All
+    // sizing lives in PopupShell.qml (single-site rule, §R-2).
     // ==========================================================================
-    fullRepresentation: Item {
-        id: popup
-
-        // §T-3/§T-5: popup close disarms the confirm; popup reopen
-        // dismisses the last op error.
-        onVisibleChanged: {
-            if (visible) {
-                root.ctlError = root.ops.lastError = ""
-            } else {
-                root.disarmConfirm()
-            }
-        }
-
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 32
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 24
-        Layout.minimumHeight: Kirigami.Units.gridUnit * 8
-        // Self-size to content: the scroll view grows with the machine list,
-        // floored at minimumHeight, capped at gridUnit * 30 so a 40-peer
-        // tailnet doesn't tower over the panel.
-        Layout.preferredHeight: Math.min(
-            Kirigami.Units.gridUnit * 30,
-            Math.max(popup.Layout.minimumHeight, listColumn.implicitHeight + 3 * Kirigami.Units.largeSpacing))
-
-        // ---- Header: device identity ------------------------------------
-        ColumnLayout {
-            id: listColumn
-            anchors.fill: parent
-            anchors.margins: Kirigami.Units.smallSpacing * 1.5
-            spacing: Kirigami.Units.smallSpacing
-
-            // ---- Header: device identity + §T-3 power toggle ---------------
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-
-                PC3.Label {
-                    Layout.fillWidth: true
-                    text: root.status && root.status.selfName
-                          ? root.status.selfName
-                          : "Tailscale"
-                    color: Kirigami.Theme.textColor
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                // §T-3: enabled styling is honest — normal textColor at
-                // rest, negative only while armed; disabled palette only
-                // when actually disabled (busy).
-                PC3.ToolButton {
-                    id: powerBtn
-                    visible: root.controlsEnabled
-                    enabled: !root.ctlBusy
-                    flat: true
-                    text: root.ctlBusy ? "working…"
-                          : root.ctlArmed ? "Confirm disconnect"
-                          : root.running ? "Disconnect" : "Connect"
-                    palette.windowText: root.ctlArmed
-                                        ? Kirigami.Theme.negativeTextColor
-                                        : Kirigami.Theme.textColor
-                    leftPadding: Kirigami.Units.smallSpacing * 1.5
-                    rightPadding: Kirigami.Units.smallSpacing * 1.5
-                    topPadding: Kirigami.Units.smallSpacing
-                    bottomPadding: Kirigami.Units.smallSpacing
-                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
-                    onClicked: root.powerClicked()
-                }
-            }
-
-            PC3.Label {
-                Layout.fillWidth: true
-                visible: text !== ""
-                text: root.running && root.status
-                      ? (root.status.selfIp
-                         + (root.status.selfDnsName !== "" ? "  ·  " + root.status.selfDnsName : ""))
-                      : ""
-                color: Kirigami.Theme.disabledTextColor
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideMiddle
-            }
-
-            // ---- §T-5 header message stack (fixed order) -------------------
-            // 1. armed warning (§T-3)
-            PC3.Label {
-                Layout.fillWidth: true
-                visible: root.ctlArmed
-                text: "tailnet goes down here — remote access via ts.net drops until reconnect"
-                color: Kirigami.Theme.negativeTextColor
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideRight
-            }
-            // 2. op error (§T-5)
-            PC3.Label {
-                Layout.fillWidth: true
-                visible: root.ctlError !== ""
-                text: root.ctlError
-                color: Kirigami.Theme.negativeTextColor
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideRight
-            }
-            // 3. operator-gate hint (§T-1)
-            PC3.Label {
-                Layout.fillWidth: true
-                visible: !root.controlsEnabled && root.gateHint !== ""
-                text: root.gateHint
-                color: Kirigami.Theme.disabledTextColor
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideRight
-            }
-
-            // ---- Exit-node banner (ActiveExitBanner) + §T-4 clear ----------
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-                visible: root.exitBannerText() !== ""
-
-                PC3.Label {
-                    Layout.fillWidth: true
-                    text: "▸ exit node: " + root.exitBannerText()
-                    color: Kirigami.Theme.neutralTextColor
-                    font: Kirigami.Theme.smallFont
-                    elide: Text.ElideRight
-                }
-
-                PC3.ToolButton {
-                    visible: root.controlsEnabled
-                    enabled: !root.ctlBusy
-                    flat: true
-                    text: "×"
-                    QQC2.ToolTip.text: "stop using exit node"
-                    QQC2.ToolTip.visible: hovered
-                    leftPadding: Kirigami.Units.smallSpacing * 1.5
-                    rightPadding: Kirigami.Units.smallSpacing * 1.5
-                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
-                    onClicked: root.runControlOp("exit-clear")
-                }
-            }
-
-            // ---- Health warnings (ack-free port of the warnings section) -
-            Repeater {
-                model: root.health
-
-                PC3.Label {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    text: "⚠ " + modelData
-                    color: Kirigami.Theme.negativeTextColor
-                    font: Kirigami.Theme.smallFont
-                    wrapMode: Text.WrapAnywhere
-                }
-            }
-
-            // ---- Machine list (Machines tab) ------------------------------
-            // Always scrollable: a 40-peer tailnet cannot fit a popup.
-            PC3.ScrollView {
-                id: machinesView
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.minimumHeight: Kirigami.Units.gridUnit * 6
-
-                ListView {
-                    id: machineList
-                    // Direct Flickable child of ScrollView = its contentItem;
-                    // the ScrollView sizes it — no anchors here.
-                    model: root.showOffline || root.offlinePeers.length === 0
-                           ? root.peers
-                           : root.onlinePeers
-                    boundsBehavior: Flickable.StopAtBounds
-
-                    // Self is the implicit first machine, as in Panel.qml.
-                    delegate: Item {
-                        id: peerRow
-                        required property var modelData
-                        width: machineList.width
-                        // name + sub-line + routes line (routes shown for
-                        // advertisers only); height = 2 or 3 text rows.
-                        readonly property var routes: root.subnetRoutes(peerRow.modelData)
-                        readonly property bool showRoutes: routes.length > 0
-                        height: peerCol.implicitHeight + Kirigami.Units.smallSpacing
-
-                        ColumnLayout {
-                            id: peerCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 0
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Text {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    text: "●"
-                                    color: peerRow.modelData.Online
-                                           ? Kirigami.Theme.positiveTextColor
-                                           : Kirigami.Theme.disabledTextColor
-                                    font.pixelSize: Kirigami.Units.gridUnit * 0.5
-                                    opacity: peerRow.modelData.Online ? 1 : 0.5
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: root.peerName(peerRow.modelData)
-                                    color: peerRow.modelData.Online
-                                           ? Kirigami.Theme.textColor
-                                           : Kirigami.Theme.disabledTextColor
-                                    font.pixelSize: Kirigami.Units.gridUnit * 0.62
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    visible: peerRow.modelData.ExitNode
-                                    text: "exit"
-                                    color: Kirigami.Theme.neutralTextColor
-                                    font: Kirigami.Theme.smallFont
-                                }
-
-                                // §T-4: use as exit node — candidates only,
-                                // hidden on the active exit node itself.
-                                // ≥gridUnit·1.4 hit target, spaced from the
-                                // name so text clicks can't land here.
-                                PC3.ToolButton {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    visible: root.controlsEnabled
-                                           && !peerRow.modelData.ExitNode
-                                           && Control.isExitCandidate(
-                                                  peerRow.modelData,
-                                                  root.rawPeers[String(peerRow.modelData && peerRow.modelData.id)] || {})
-                                    enabled: !root.ctlBusy
-                                    flat: true
-                                    text: "use"
-                                    QQC2.ToolTip.text: "use " + root.peerName(peerRow.modelData) + " as exit node"
-                                    QQC2.ToolTip.visible: hovered
-                                    leftPadding: Kirigami.Units.smallSpacing * 1.5
-                                    rightPadding: Kirigami.Units.smallSpacing * 1.5
-                                    Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
-                                    onClicked: root.runControlOp(
-                                        "exit-set", Control.exitTarget(peerRow.modelData))
-                                }
-                            }
-
-                            PC3.Label {
-                                Layout.fillWidth: true
-                                visible: text !== ""
-                                text: root.peerSubLine(peerRow.modelData)
-                                color: Kirigami.Theme.disabledTextColor
-                                font: Kirigami.Theme.smallFont
-                                elide: Text.ElideMiddle
-                            }
-
-                            // §T-4: transient "switching…" on the target row,
-                            // cleared on completion/failure/timeout.
-                            PC3.Label {
-                                Layout.fillWidth: true
-                                visible: text !== ""
-                                text: root.ctlSwitching !== ""
-                                      && Control.exitTarget(peerRow.modelData) === root.ctlSwitching
-                                      ? "switching…" : ""
-                                color: Kirigami.Theme.neutralTextColor
-                                font: Kirigami.Theme.smallFont
-                            }
-
-                            PC3.Label {
-                                Layout.fillWidth: true
-                                visible: peerRow.showRoutes
-                                text: "routes: " + peerRow.routes.join(", ")
-                                color: Kirigami.Theme.disabledTextColor
-                                font: Kirigami.Theme.smallFont
-                                elide: Text.ElideMiddle
-                            }
-                        }
-                    }
-
-                    // ---- Offline collapsed count (fork's "N offline — hidden")
-                    footer: Component {
-                        Item {
-                            width: machineList.width
-                            visible: !root.showOffline && root.offlinePeers.length > 0
-                            height: visible ? offlineLabel.implicitHeight + Kirigami.Units.smallSpacing : 0
-
-                            PC3.Label {
-                                id: offlineLabel
-                                anchors.centerIn: parent
-                                text: root.offlinePeers.length + " offline — hidden"
-                                color: Kirigami.Theme.disabledTextColor
-                                font: Kirigami.Theme.smallFont
-                            }
-                        }
-                    }
-
-                    PC3.Label {
-                        anchors.centerIn: parent
-                        visible: machineList.count === 0
-                        text: root.running
-                              ? "No machines."
-                              : (root.unavailableMessage !== "" ? root.unavailableMessage : "Disconnected")
-                        color: Kirigami.Theme.disabledTextColor
-                        font: Kirigami.Theme.smallFont
-                    }
-                }
-            }
-        }
+    fullRepresentation: PopupShell {
+        ctx: root
     }
 }

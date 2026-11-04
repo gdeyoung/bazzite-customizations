@@ -14,16 +14,17 @@ logic, same data source, read-only, zero system mutations.
 
 ```
 chip:   ▪▪▪  12/40      ← Tailscale mark + online/total; click to open
-popup:  this-device name · self IP · dns
-        ▸ exit node: <host>          (when one is active)
-        ⚠ health warnings            (when tailscale reports any)
-        ● tower            exit      ← green=online, dim=offline
-          100.x.y.z · dns.name
-          routes: 0.0.0.0/0, ::/0
-        ● nasbox
-          100.x.y.z · dns.name
-          routes: 192.168.50.0/24
-        3 offline — hidden           (click settings to show them)
+popup (v0.3 — fixed 34×27·gu frame, three tabs, remembers last tab):
+  [ Status ]  this-device name / IP · dns / backend state / exit node
+  [ Peers ]   2-column grid of compact cells (1.5·gu rows)
+                ● tower   ACTIVE exit [use]
+                  100.x.y.z · tower.dns · routes
+              21 OFFLINE · SHOW          ← collapsed by default
+  [ Health ]  backend, warnings, operator gate, provenance
+Capacity 24 online zero-scroll @ gu=18 (grows with the theme); past
+capacity or with offline expanded the grid scrolls, the frame never
+resizes. Edge states: needs-login / backend down / binary missing /
+parse error — each with standing content, never a dead popup.
 ```
 
 ## Provenance
@@ -56,6 +57,10 @@ view plus a minimal, gated control surface (v0.2, `UX-SPEC-CONTROL.md`):
   `tailscale set --operator` gate, with a mandatory two-step inline
   disconnect confirm (500 ms arm dead-zone kills the double-click path),
   an op watchdog (15 s / 30 s for `up`), and a closed typed-op allowlist.
+- **v0.3** replaces the flat scrolling list with the tabbed popup above
+  (spec `§R-1..§R-12` in `UX-SPEC-CONTROL.md`): fixed frame, 2-column
+  peer grid with computed offline collapse, four discriminated edge
+  states, persisted last tab. Chip and control surface unchanged.
 - Not ported: Mullvad region picking, account switching, Taildrop
   send/receive, SSH launcher, health-warning acknowledgement, preference
   toggles, keyboard-driven cursor navigation. On KDE, Trayscale or the
