@@ -118,7 +118,12 @@ Item {
             font: Kirigami.Theme.smallFont
             elide: Text.ElideMiddle
             QQC2.ToolTip.text: cell.line2
-            QQC2.ToolTip.visible: hovered
+            // Labels are not Controls: `hovered` doesn't exist here and
+            // throws ReferenceError on the live host the moment the
+            // tooltip binding evaluates (harness shots never hover, so
+            // only the live journal sees it).
+            QQC2.ToolTip.visible: line2Hover.hovered
+            HoverHandler { id: line2Hover }
         }
 
         // §T-4 transient in-flight marker, target cell only.

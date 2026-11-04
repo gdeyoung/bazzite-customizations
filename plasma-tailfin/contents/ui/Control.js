@@ -168,7 +168,9 @@ function errorText(op, exitCode, stdout, stderr) {
   return "op failed: exit " + exitCode
 }
 
-module.exports = {
+// QML engine has no `module` — guard so the node --test
+// export doesn't ReferenceError on import in plasmashell.
+if (typeof module !== "undefined") module.exports = {
   bin: bin,
   argv: argv,
   ops: ops,
