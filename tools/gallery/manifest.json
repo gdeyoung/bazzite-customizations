@@ -1,0 +1,16 @@
+{
+  "subtitle": "ClearVoice flow: research teardowns (vault §8) → design card → harness iterations + mechanical QA → CC council → install",
+  "iterations": [
+    {
+      "version": "v0.6 — slot-grid single lane",
+      "verdict": "rejected",
+      "commits": "6ec1c25, 66dcfdd",
+      "note": "owner: 'I really hate that design… There needs to be some tabs.' Single scrolling lane was the wrong structure — kept here as history",
+      "shots": [
+        {"file": "/tmp/stk-harness/shots/v6-norm19-view-s10.png", "label": "v0.6 · 12:40", "caption": "default view — slot grid, ExitStrip, ONLINE 19 + rule, footer action bar (8 states existed; 3 shown)"},
+        {"file": "/tmp/stk-harness/shots/v6-norm19-search-s10.png", "label": "v0.6 · 12:40", "caption": "search host03 — MATCHES · 2 OF 40, bold matched chars, single ✕"},
+        {"file": "/tmp/stk-harness/shots/v6z-zero19-view-s10.png", "label": "v0.6 · 12:47", "caption": "all-offline — auto-expand; 472px void → 14px (the one measured win worth keeping)"}
+      ]
+    }
+  ]
+}
