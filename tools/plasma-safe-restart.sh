@@ -5,7 +5,10 @@
 #   preflight  : kwin active + socket present + ksmserver active, else abort
 #                (restarting the shell into a broken session wedges it)
 #   backup     : timestamped appletsrc copy BEFORE touching anything
-#   restart    : systemctl --user try-restart plasma-plasmashell.service
+#   restart    : systemctl --user restart plasma-plasmashell.service
+#                (NOT try-restart: that no-ops on a stopped unit and leaves
+#                the shell DOWN — observed 2026-11-07 when run after a
+#                manual stop→edit window; "restarting..." printed anyway)
 #   verify     : up to 40s — active, journal-clean (no wl_display), panel
 #                count >=1, panel band renders ink (real pixels)
 #   rollback   : on verify failure restore the backup, restart once more,
@@ -78,7 +81,7 @@ else:
 }
 
 echo "restarting plasmashell..."
-systemctl --user try-restart plasma-plasmashell.service
+systemctl --user restart plasma-plasmashell.service
 if verify; then
   echo "SAFE-RESTART PASS"
   exit 0
@@ -89,7 +92,7 @@ if [ "$VMODE" = "locked" ]; then
 fi
 echo "verify failed ($VMODE) — rolling back config and retrying once"
 [ -f "$BAK" ] && cp "$BAK" "$APPLET"
-systemctl --user try-restart plasma-plasmashell.service
+systemctl --user restart plasma-plasmashell.service
 if verify; then
   echo "SAFE-RESTART PASS (after config rollback from $BAK)"
   exit 0
