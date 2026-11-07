@@ -37,6 +37,26 @@
         {"file": "prototype/shots/v4-fleet.png", "label": "FLEET", "caption": "live ICMP probe: 13 UP · 1 DOWN — nas dimmed, red dot, honest scroll"},
         {"file": "prototype/shots/v4-settings.png", "label": "SETTINGS", "caption": "Ctrl+S in-launcher (fork parity): width/density/toggles/sources — compact mode = caption column"}
       ]
+    },
+    {
+      "version": "R3",
+      "title": "Native build — pure QML, harness-verified (11 states, 0 errors)",
+      "verdict": "built",
+      "commits": "",
+      "note": "FoyerRoot.qml (1172 ln) + FoyerData.js: the entire v4 surface in native Qt6/QML, Kirigami.Theme runtime tokens (verified live: accent #569fcc, pos #7ea64b, neg #da4453 under Breeze Dark). Verified in the fleet nested-kwin harness: full plasmashell + private runtime dir + unique socket + PID-gated teardown; 11 states driven through a package-relative file channel (QML_XHR_ALLOW_FILE_READ), 12/12 transitions, zero applet errors, 11/11 unique frames; semantic pixel audit: system renders orange consequence rows (+267), fleet renders 13 green UP dots + red nas DOWN, rail 38px-pitch rows confirmed. Popup geometry proven unscaled 920×640 via corner beacons. Remaining: LayerShellQt daemon (needs layer-shell-qt-devel), live data wiring, kglobalaccel.",
+      "shots": [
+        {"file": "prototype/shots/native/qml-boot.png", "label": "NATIVE·BOOT", "caption": "the QML build, live in nested plasmashell — rail + lens + ask field, real scheme tokens"},
+        {"file": "prototype/shots/native/qml-games.png", "label": "NATIVE·DRILL", "caption": "Apps › Games grid — Repeater + GridLayout, focus border on row 0"},
+        {"file": "prototype/shots/native/qml-typed.png", "label": "NATIVE·TYPED", "caption": "'bro' grouped results — search grammar ported to QML"},
+        {"file": "prototype/shots/native/qml-nomatch.png", "label": "NATIVE·NO MATCH", "caption": "'zzz' — inert Ask row, AI never called without Enter"},
+        {"file": "prototype/shots/native/qml-ai.png", "label": "NATIVE·AI", "caption": "ask card + model facts + questions-only history"},
+        {"file": "prototype/shots/native/qml-stream.png", "label": "NATIVE·STREAM", "caption": "streaming state — distinct from ready, Copy armed on completion"},
+        {"file": "prototype/shots/native/qml-ready.png", "label": "NATIVE·ANSWERED", "caption": "answered state with Copy alt⏎ affordance"},
+        {"file": "prototype/shots/native/qml-system.png", "label": "NATIVE·SYSTEM", "caption": "destructive rows with consequence subtext — orange verified +267 px"},
+        {"file": "prototype/shots/native/qml-fleet.png", "label": "NATIVE·FLEET", "caption": "13 green UP dots + red nas DOWN — liveness verified in pixels"},
+        {"file": "prototype/shots/native/qml-ssh.png", "label": "NATIVE·SSH", "caption": "14-host list, mono names, gdtower tagged local"},
+        {"file": "prototype/shots/native/qml-settings.png", "label": "NATIVE·SETTINGS", "caption": "in-launcher settings rows — fork parity surface"}
+      ]
     }
   ]
 }

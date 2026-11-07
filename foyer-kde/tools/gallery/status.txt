@@ -1,1 +1,1 @@
-R2 — converged. Council folded. Ship-candidate.
+R3 — built. Native QML verified in harness: 11 states, 0 errors, tokens live.
