@@ -152,48 +152,68 @@ test("garbage output (daemon half-up) fails safe", () => {
 
 // ---- v0.4 (§V) structural locks -------------------------------------------
 
-test("§V-2: tab era is gone (no tabs/ dir, no lastTab config key, no TabBar)", () => {
+// v0.7 (§V7-2): TABS RETURN — hand-rolled 3-cell row (PC3.TabBar and
+// SwipeView stay banned: Plasma frame styling diverges; StackLayout is
+// the sanctioned tab-content primitive).
+test("§V7-2: tabbed shell — no TabBar/SwipeView, no tabs/ dir, StackLayout allowed", () => {
   const ui = path.join(__dirname, "..", "contents", "ui")
   assert.equal(fs.existsSync(path.join(ui, "tabs")), false, "contents/ui/tabs must not exist")
   assert.equal(fs.existsSync(path.join(ui, "PeerCell.qml")), false, "PeerCell.qml retired with the grid")
   const cfg = fs.readFileSync(path.join(__dirname, "..", "contents", "config", "main.xml"), "utf8")
-  assert.ok(!cfg.includes("lastTab"), "lastTab config key retired")
+  assert.ok(!cfg.includes("lastTab"), "lastTab config key stays retired (fresh-open law)")
   for (const f of fs.readdirSync(ui).filter((f) => f.endsWith(".qml"))) {
     const src = fs.readFileSync(path.join(ui, f), "utf8")
-    assert.ok(!/TabBar|StackLayout|SwipeView/.test(src), f + " still contains tab machinery")
+    assert.ok(!/TabBar|SwipeView/.test(src), f + " contains banned tab machinery")
   }
 })
 
-test("§W-2: v0.5 single-lane files exist and PopupShell composes them", () => {
+test("§W-2/v0.7: v0.7 files exist and the shell composes the three tabs", () => {
   const ui = path.join(__dirname, "..", "contents", "ui")
-  // v0.6 (§V6-7): ExitStrip replaces RoutingBand
-  for (const f of ["PopupShell.qml", "SearchRow.qml", "PeerRow.qml",
-                   "ExitStrip.qml", "SectionLabel.qml"]) {
+  // v0.7 (§V7-12): tab set + picker + detail replace the single lane
+  for (const f of ["PopupShell.qml", "PeersTab.qml", "ExitTab.qml",
+                   "DeviceTab.qml", "PeerDetailPage.qml", "PickerRow.qml",
+                   "SearchRow.qml", "PeerRow.qml"]) {
     assert.ok(fs.existsSync(path.join(ui, f)), f + " missing")
   }
-  // §W-16: v0.4 section files deleted (one list replaces them);
-  // §V6-7: RoutingBand retired in v0.6.
+  // §W-16/v0.6/v0.7: retired components stay deleted
   for (const f of ["ExitNodeSection.qml", "CensusSection.qml",
-                   "CensusCell.qml", "CandidateRow.qml", "RoutingBand.qml"]) {
+                   "CensusCell.qml", "CandidateRow.qml", "RoutingBand.qml",
+                   "ExitStrip.qml", "SectionLabel.qml"]) {
     assert.equal(fs.existsSync(path.join(ui, f)), false, f + " must be deleted")
   }
   const shell = fs.readFileSync(path.join(ui, "PopupShell.qml"), "utf8")
-  for (const needle of ["ExitStrip", "SearchRow", "PeerRow",
-                        "sortedOnline"]) {
+  for (const needle of ["PeersTab", "ExitTab", "DeviceTab", "StackLayout"]) {
     assert.ok(shell.includes(needle), "PopupShell must compose " + needle)
   }
+  const peers = fs.readFileSync(path.join(ui, "PeersTab.qml"), "utf8")
+  for (const needle of ["PeerDetailPage", "PeerRow", "SearchRow", "StackView"]) {
+    assert.ok(peers.includes(needle), "PeersTab must compose " + needle)
+  }
+  const exitTab = fs.readFileSync(path.join(ui, "ExitTab.qml"), "utf8")
+  assert.ok(exitTab.includes("PickerRow"), "ExitTab must compose PickerRow")
 })
 
-test("§V-2: HealthTab deleted but health warnings restored to the strip", () => {
+test("§V7-7: health renders on DEVICE (header pill points there)", () => {
+  const device = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "DeviceTab.qml"), "utf8")
+  assert.ok(/Repeater\s*\{[\s\S]*?ctx\.health|model:\s*tab\.health/.test(device),
+            "health warnings must render in the Device tab")
   const shell = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "PopupShell.qml"), "utf8")
-  assert.ok(/Repeater\s*\{[\s\S]*?ctx\.health/.test(shell),
-            "health warnings must render in the message strip")
+  assert.ok(shell.includes("⚠ ") || shell.includes("health"), "header health pill present")
 })
 
 test("§V-8: search state is ctx.peerQuery (single source of truth)", () => {
   const mainQml = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "main.qml"), "utf8")
   assert.ok(mainQml.includes("property string peerQuery"), "main.qml must own peerQuery")
   assert.ok(mainQml.includes("Model.searchPeers(peers, peerQuery)"), "results via Model.searchPeers")
+})
+
+test("§V7: main.qml owns tab/detail/rate plumbing + probe re-run", () => {
+  const mainQml = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "main.qml"), "utf8")
+  assert.ok(mainQml.includes("property int selectedTab"), "selectedTab missing")
+  assert.ok(mainQml.includes("property var detailPeer"), "detailPeer missing")
+  assert.ok(mainQml.includes("function updateRates()"), "rate derivation missing")
+  assert.ok(/endControlOp[\s\S]{0,600}argv\("probe"\)/.test(mainQml),
+            "probe re-run must live inside endControlOp")
 })
 
 test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () => {
@@ -203,8 +223,8 @@ test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () 
   assert.ok(!mainQml.includes("exitCandidateCount()") || true, "legacy helper may remain")
 })
 
-test("metadata version bumped for the §W release", () => {
+test("metadata version bumped for the §V7 release", () => {
   const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "metadata.json"), "utf8"))
-  // v0.6 (§V6-24): version moves with the slot-grid release
-  assert.equal((meta.KPlugin || meta).Version, "0.6.0")
+  // v0.7 (§V7): the tabbed release
+  assert.equal((meta.KPlugin || meta).Version, "0.7.0")
 })

@@ -71,6 +71,67 @@ PlasmoidItem {
     readonly property var searchResults: peerQuery !== ""
         ? Model.searchPeers(peers, peerQuery) : []
 
+    // ---- v0.7 (§V7) state -----------------------------------------------
+    // §V7-2 selected tab: 0 PEERS · 1 EXIT NODES · 2 DEVICE. Reset on
+    // every popup open (fresh-open law): PEERS when running, DEVICE
+    // when not. Never persisted.
+    property int selectedTab: 0
+    // §V7-5 detail page state: the peer being inspected (null = list).
+    // PeersTab pushes/pops its StackView in sympathy.
+    property var detailPeer: null
+    // §V7-5 TRAFFIC rates: prevSample keyed by peer id; rateMap holds
+    // FORMATTED per-peer rates after ≥2 samples (main.qml owns the
+    // derivation — Model.js stays untouched).
+    property var prevSamples: ({})
+    property var rateMap: ({})
+    function updateRates() {
+        const now = Date.now()
+        const prev = prevSamples
+        const next = {}
+        const rates = {}
+        for (let i = 0; i < peers.length; i++) {
+            const p = peers[i]
+            const id = String(p.id)
+            const rx = Number(p.RxBytes || 0)
+            const tx = Number(p.TxBytes || 0)
+            const old = prev[id]
+            if (old) {
+                const ds = (now - old.ms) / 1000
+                if (ds > 0.5) {
+                    const rxRate = (rx - old.rx) / ds
+                    const txRate = (tx - old.tx) / ds
+                    rates[id] = {
+                        ready: true,
+                        idle: rxRate <= 0 && txRate <= 0,
+                        rx: Model.fmtBytes(Math.max(0, rxRate)),
+                        tx: Model.fmtBytes(Math.max(0, txRate))
+                    }
+                    next[id] = { rx: rx, tx: tx, ms: now }
+                    continue
+                }
+                next[id] = old          // sample too close: keep the older
+                if (prevRates[id]) rates[id] = prevRates[id]
+                continue
+            }
+            rates[id] = { ready: false, idle: false, rx: "", tx: "" }
+            next[id] = { rx: rx, tx: tx, ms: now }
+        }
+        prevSamples = next
+        prevRates = rates
+        rateMap = rates
+    }
+    property var prevRates: ({})
+    // §V7-7 raw self IPv6 (plumbed from the raw payload; empty = hide).
+    property string selfIp6: ""
+
+    function activeExitPeer() {
+        const ps = peers || []
+        for (let i = 0; i < ps.length; i++) {
+            if (ps[i].ExitNode === true) return ps[i]
+        }
+        return null
+    }
+
     // Popup height budget (§V-5): PopupShell clamps to 0.9·this.
     readonly property real availPopupHeight: Plasmoid.availableHeight || 0
 
@@ -194,6 +255,10 @@ PlasmoidItem {
         ctlSwitching = ""
         watchdog.stop()
         pollNow()  // §T-5: feedback is the refreshed status, not a toast
+        // §V7-7: option facts + exitNodeIp refresh exactly when they
+        // change — re-run the allowlisted read-only probe (no new exec
+        // source; argv("probe") is already in §T-2's allowlist).
+        execSource.connectSource(Control.argv("probe").join(" "))
     }
 
     // §T-3 click handling for the header toggle (confirm + dead-zone).
@@ -256,11 +321,24 @@ PlasmoidItem {
         // Keep the raw Peer map for fields the normalizer drops (AllowedIPs).
         // parseStatusPlus succeeded => the text is valid JSON; parse is safe.
         try {
-            rawPeers = JSON.parse(String(raw)).Peer || ({})
+            const rawObj = JSON.parse(String(raw))
+            rawPeers = rawObj.Peer || ({})
+            // §V7-7: self IPv6 straight from the raw payload (empty = hide).
+            const selfIps = (rawObj.Self && rawObj.Self.TailscaleIPs) || []
+            let v6 = ""
+            for (let i = 0; i < selfIps.length; i++) {
+                if (String(selfIps[i]).indexOf(":") >= 0) {
+                    v6 = String(selfIps[i])
+                    break
+                }
+            }
+            selfIp6 = v6
         } catch (e) {
             rawPeers = ({})
+            selfIp6 = ""
         }
         recomputeSections()
+        updateRates()
     }
 
     DataSource {

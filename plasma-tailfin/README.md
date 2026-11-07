@@ -205,7 +205,37 @@ python3 ../tools/check_qml.py .                      # static QML/metadata check
   capture latency at 5120×2880) — armed-state pixels verified at
   scale 1; wire sequence verified at both scales.
 
-## Verified (v0.6 — slot-grid pass, 2026-11-07)
+## Verified (v0.7 — tabbed popup, 2026-11-07 PM)
+
+- Spec: `docs/UX-SPEC-V7.md` (500 lines, §V7-1..§V7-13, 23-item
+  checklist; Trayscale teardowns vault §8 as the interface grammar,
+  gaps filled: health, traffic rates, 1-gesture exit, detail density).
+- Structure: `PopupShell.qml` tabbed (PEERS · EXIT NODES · DEVICE,
+  hand-rolled cells — PC3.TabBar stays banned); new `PeersTab` /
+  `ExitTab` / `DeviceTab` / `PeerDetailPage` / `PickerRow`; v0.7
+  `PeerRow` single-line 33px clickable; `ExitStrip`/`SectionLabel`
+  retired; metadata 0.7.0.
+- Plumbing: `main.qml` owns `selectedTab` (fresh-open law: PEERS when
+  running, DEVICE when not), `detailPeer` (StackView pops in
+  sympathy), `rateMap` (per-tick Rx/Tx deltas, ≥2 samples, 0.5s floor),
+  `selfIp6` from the raw payload, probe re-run inside `endControlOp`.
+- 69/69 node tests (`port.test.js` rewritten for the v0.7 file set:
+  tabs return, StackLayout allowed, composition locks, version bump).
+- Harness (`tools/popup-harness/run-tailfin-v7.sh`): 6-state matrix —
+  norm19h, norm19, zero19, GATE=disabled, LIGHT=1, SCALE=2. Every run:
+  frame geometry unique across PEERS→EXIT→DEVICE→detail (612×685 at
+  scale 1), count-sum invariant 0 bad, search host03→2 / host+zzz→0 /
+  cleared→0, exit candidates counted + active exit identified, device
+  prefs parsed + health count, detail push/pop clean, QML runtime
+  errors 0 (after two fixes: QQC2.StackView alias, PeerDetailPage
+  null-safe `pd` alias for pop transitions).
+- Pixel audit (PIL, popup box 1941,690→2543,1378): 15/15 state pairs
+  distinct (>2000px diff each); peer rows 33px pitch; offline fold
+  expands (11.9k px); layout fix verified by instrumentation (tab bar
+  was eating 575px — explicit fillHeight:false + maximumHeight on
+  header/tab bar/footer, minimumHeight 20·gu on the tab region).
+
+
 
 - Spec: `docs/UX-SPEC-V6.md` (designer lane, audit-driven — every rule
   maps to a ranked defect from the vault audit §7). Panel chip and

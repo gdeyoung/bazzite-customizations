@@ -2,6 +2,20 @@
   "subtitle": "ClearVoice flow: research teardowns (vault §8) → design card → harness iterations + mechanical QA → CC council → install",
   "iterations": [
     {
+      "version": "v0.7 — tabbed popup (PEERS · EXIT NODES · DEVICE)",
+      "verdict": "in flight",
+      "commits": "(pending)",
+      "note": "Trayscale's interface grammar as 3 tabs, gaps filled: health surfaced, live traffic rates, 1-gesture exit picker + routing pill, peer detail page. 6-state harness matrix green (norm19h/norm19/zero19/gateoff/light/scale2); 15/15 pixel pairs distinct",
+      "shots": [
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-peers-s10.png", "label": "v0.7 · 15:30", "caption": "PEERS — header (identity + ⚠2 + power), tab bar, 33px clickable rows, offline fold, provenance footer"},
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-exittab-s10.png", "label": "v0.7 · 15:30", "caption": "EXIT NODES — state block + routing pill, radio picker (None · direct first · alpha), one gesture, no confirm"},
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-devicetab-s10.png", "label": "v0.7 · 15:30", "caption": "DEVICE — this-device facts, options, read-only prefs, HEALTH (the Trayscale TODO, filled)"},
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-detail-s10.png", "label": "v0.7 · 15:30", "caption": "peer detail — StackView push: IDENTITY / CONNECTION / TRAFFIC rates / SUBNET ROUTES / EXIT NODE"},
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-search-s10.png", "label": "v0.7 · 15:30", "caption": "search host03 — in-tab search row, MATCHES · 2 OF 40, fuzzy ~chips"},
+        {"file": "/tmp/stk-harness/shots/v7k-norm19h-offexp-s10.png", "label": "v0.7 · 15:30", "caption": "offline fold expanded + lane scrolled — 21 OFFLINE · HIDE"}
+      ]
+    },
+    {
       "version": "v0.6 — slot-grid single lane",
       "verdict": "rejected",
       "commits": "6ec1c25, 66dcfdd",

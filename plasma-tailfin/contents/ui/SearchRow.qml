@@ -36,7 +36,7 @@ RowLayout {
         id: queryField
         Layout.fillWidth: true
         // §V6-11: the placeholder is the keyboard-hint surface.
-        placeholderText: i18n("Search peers · ↑↓ results · Esc clears")
+        placeholderText: i18n("Search peers")
         text: searchRow.ctx.peerQuery
         onTextChanged: {
             if (text !== searchRow.ctx.peerQuery) {
