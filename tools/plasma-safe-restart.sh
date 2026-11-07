@@ -21,7 +21,7 @@ abort() { echo "SAFE-RESTART ABORT: $1"; exit 1; }
 
 systemctl --user is-active --quiet plasma-kwin_wayland.service \
   || abort "kwin not active — restarting the shell now would wedge it"
-[ -S /run/user/1000/wayland-0 ] \
+[ -S "/run/user/1000/${WAYLAND_DISPLAY:-wayland-0}" ] \
   || abort "compositor socket missing — session is already broken; needs recycle, not a shell restart"
 systemctl --user is-active --quiet plasma-ksmserver.service \
   || abort "ksmserver not active — shell restart will hang on the session-manager handshake (2026-10-30 lockup); recycle the session instead"

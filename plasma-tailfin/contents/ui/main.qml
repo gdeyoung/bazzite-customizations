@@ -409,6 +409,13 @@ PlasmoidItem {
         implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 3
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
+        // Panel-squeeze floor: without this, a full panel allocates the
+        // applet less than its implicit width and the centered chipRow
+        // paints OUTSIDE the item — observed 2026-11-07 as the 19/40
+        // count rendering ~10px into the sysmon widget's slot. The panel
+        // must take squeeze-px from expanding spacers instead.
+        Layout.minimumWidth: implicitWidth
+
         RowLayout {
             id: chipRow
             anchors.centerIn: parent
