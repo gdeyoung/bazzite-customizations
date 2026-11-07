@@ -32,6 +32,9 @@ Item {
     // §V6-11 search-focus mode: index within the visible result list,
     // or -1 when no row is focused. Owned by PopupShell.
     property int focusIndex: -1
+    // Qt6 required-properties mode: declaring modelData required removes
+    // the context-property fallbacks, so index must be declared too.
+    required property int index
     readonly property int myIndex: index
 
     readonly property bool online: peer.Online === true
