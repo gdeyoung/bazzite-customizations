@@ -205,6 +205,37 @@ python3 ../tools/check_qml.py .                      # static QML/metadata check
   capture latency at 5120×2880) — armed-state pixels verified at
   scale 1; wire sequence verified at both scales.
 
+## Verified (v0.6 — slot-grid pass, 2026-11-07)
+
+- Spec: `docs/UX-SPEC-V6.md` (designer lane, audit-driven — every rule
+  maps to a ranked defect from the vault audit §7). Panel chip and
+  §T-1..§T-8 control semantics byte-identical.
+- 68/68 node tests (`port.test.js` inventory updated to the v0.6 file
+  set: ExitStrip replaces RoutingBand, metadata 0.6.0 — engine suites
+  control/model/search byte-identical, `Model.js` untouched).
+- `tools/check_qml.py` → 0 errors (6 QML files, whole-object font
+  binds rewritten to member binds per §V6-24).
+- Harness (run-tailfin-v5.sh, source-tree copy) green across norm19 /
+  norm19h / zero19 / gate-off / Breeze-light / scale-2: SUM-BAD=0,
+  frame 612×685, zero QML load errors.
+- Measured on the harness shots (PIL): green pixels exist ONLY in the
+  STATUS dot column (418 px, 10px-wide band — v0.5 census was 814 px
+  across 4 element classes); row pitch exactly 36px × 15 rows (v0.5
+  measured 32–40px jitter); ExitStrip renders 28px tinted with a
+  36px tinted active-exit row; health block renders bounded (border,
+  ~64px); all-offline lane void 472px → **14px** (auto-expand +
+  aggregate line).
+- CC ai-tech council cross-check on the built design: 6 ranked risks,
+  0 accepted as code changes — truncation/tooltips, Esc ladder, tab
+  order, and non-color state channels were already implemented; 2-step
+  confirms on exit ops are §T-4-declined (single click, no confirm,
+  user-ratified); 40-row perf is a monitoring note (architecture
+  unchanged from shipped v0.5).
+- Vision QA of the v0.6 build was blocked by an intermittent provider
+  outage this session; pixel verification above is PIL-measured, and
+  the iteration gallery (`docs/gallery/GALLERY.html`) carries the raw
+  shots for eyeball review.
+
 ## Verified (v0.5)
 
 - 68/68 node tests (model + port + control + search; port.test §W-2

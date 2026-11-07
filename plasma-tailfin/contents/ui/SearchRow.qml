@@ -16,6 +16,9 @@ RowLayout {
     // The PlasmoidItem root via ctx — never named "root" here.
     required property var ctx
     property var field: queryField   // exposed for focus()/selectAll() calls
+    // §V6-11: fired when ↑ is pressed in the field — PopupShell moves
+    // focus to the first result row.
+    signal requestFirstResult()
 
     Layout.fillWidth: true
     Layout.preferredHeight: Kirigami.Units.gridUnit * 1.9
@@ -32,16 +35,24 @@ RowLayout {
     PC3.TextField {
         id: queryField
         Layout.fillWidth: true
-        placeholderText: i18n("Search peers")
+        // §V6-11: the placeholder is the keyboard-hint surface.
+        placeholderText: i18n("Search peers · ↑↓ results · Esc clears")
         text: searchRow.ctx.peerQuery
         onTextChanged: {
             if (text !== searchRow.ctx.peerQuery) {
                 searchRow.ctx.peerQuery = text
             }
         }
-        font: Kirigami.Theme.smallFont
+        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
         topPadding: Kirigami.Units.smallSpacing
         bottomPadding: Kirigami.Units.smallSpacing
+
+        // §V6-11: ↑ from the field focuses the first result row (the
+        // shell owns the focus index; rows render the ring).
+        Keys.onUpPressed: (event) => {
+            searchRow.requestFirstResult()
+            event.accepted = true
+        }
     }
 
     PC3.ToolButton {
@@ -49,7 +60,8 @@ RowLayout {
         flat: true
         icon.name: "edit-clear-all"
         display: PC3.AbstractButton.IconOnly
-        QQC2.ToolTip.text: i18n("Clear search")
+        // §V6-12: the ONLY ×-shaped control in the popup.
+        QQC2.ToolTip.text: i18n("Clear search (Esc)")
         QQC2.ToolTip.visible: hovered
         Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
         onClicked: {

@@ -166,17 +166,19 @@ test("§V-2: tab era is gone (no tabs/ dir, no lastTab config key, no TabBar)", 
 
 test("§W-2: v0.5 single-lane files exist and PopupShell composes them", () => {
   const ui = path.join(__dirname, "..", "contents", "ui")
+  // v0.6 (§V6-7): ExitStrip replaces RoutingBand
   for (const f of ["PopupShell.qml", "SearchRow.qml", "PeerRow.qml",
-                   "RoutingBand.qml", "SectionLabel.qml"]) {
+                   "ExitStrip.qml", "SectionLabel.qml"]) {
     assert.ok(fs.existsSync(path.join(ui, f)), f + " missing")
   }
-  // §W-16: v0.4 section files deleted (one list replaces them)
+  // §W-16: v0.4 section files deleted (one list replaces them);
+  // §V6-7: RoutingBand retired in v0.6.
   for (const f of ["ExitNodeSection.qml", "CensusSection.qml",
-                   "CensusCell.qml", "CandidateRow.qml"]) {
-    assert.equal(fs.existsSync(path.join(ui, f)), false, f + " must be deleted in v0.5")
+                   "CensusCell.qml", "CandidateRow.qml", "RoutingBand.qml"]) {
+    assert.equal(fs.existsSync(path.join(ui, f)), false, f + " must be deleted")
   }
   const shell = fs.readFileSync(path.join(ui, "PopupShell.qml"), "utf8")
-  for (const needle of ["RoutingBand", "SearchRow", "PeerRow",
+  for (const needle of ["ExitStrip", "SearchRow", "PeerRow",
                         "sortedOnline"]) {
     assert.ok(shell.includes(needle), "PopupShell must compose " + needle)
   }
@@ -203,5 +205,6 @@ test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () 
 
 test("metadata version bumped for the §W release", () => {
   const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "metadata.json"), "utf8"))
-  assert.equal((meta.KPlugin || meta).Version, "0.5.0")
+  // v0.6 (§V6-24): version moves with the slot-grid release
+  assert.equal((meta.KPlugin || meta).Version, "0.6.0")
 })

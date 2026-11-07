@@ -13,7 +13,7 @@
         "Id": "com.gdeyoung.plasma.tailfin",
         "License": "MIT",
         "Name": "Tailfin",
-        "Version": "0.5.0",
+        "Version": "0.6.0",
         "Website": "https://github.com/gdeyoung/omarchy-tailfin"
     },
     "X-Plasma-API-Minimum-Version": "6.0"

@@ -3,24 +3,48 @@ import QtQuick.Layouts
 import org.kde.plasma.components as PC3
 import org.kde.kirigami as Kirigami
 
-// §V-6 section label: smallFont size, bold, ALL CAPS, letterSpacing 0.4,
-// disabledTextColor. v0.3's 0.5·gu custom size was the microtype floor
-// violation — nothing renders below smallFont anywhere in v0.4.
-// NOTE: `font: Kirigami.Theme.smallFont` (whole-object bind) plus any
-// `font.x:` member bind in the same object throws "Property has already
-// been assigned a value" at load — so every member is bound individually
-// off the theme font's pixelSize.
-PC3.Label {
-    property string rawText: ""
+// §V6-15 section label: `ONLINE  19 ─────────────` — the count is data,
+// not a label (T3 bold textColor, tnum — the strongest thing in the
+// row), the word is T4 (smallFont bold caps, letterSpacing 0.4,
+// disabledTextColor — labels only, carried), and a hairline rule fills
+// to the right edge (Tailscale admin-console group-header pattern).
+// Members bound individually — whole-object font binds plus member
+// binds throw at load (SectionLabel law).
+RowLayout {
+    id: label
+
+    // e.g. "ONLINE" / "OFFLINE" / "MATCHES"
+    property string word: ""
+    // e.g. "19" / "2 OF 40" — "" hides the count block
+    property string countText: ""
 
     Layout.fillWidth: true
-    visible: rawText !== ""
-    text: rawText.toUpperCase()
-    color: Kirigami.Theme.disabledTextColor
-    font.pixelSize: Kirigami.Theme.smallFont.pixelSize
-    font.bold: true
-    font.capitalization: Font.AllUppercase
-    font.letterSpacing: 0.4
-    elide: Text.ElideRight
+    spacing: Kirigami.Units.smallSpacing
     Layout.topMargin: Kirigami.Units.smallSpacing
+
+    PC3.Label {
+        visible: label.word !== ""
+        text: label.word
+        color: Kirigami.Theme.disabledTextColor
+        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+        font.bold: true
+        font.capitalization: Font.AllUppercase
+        font.letterSpacing: 0.4
+    }
+
+    PC3.Label {
+        visible: label.countText !== ""
+        text: label.countText
+        color: Kirigami.Theme.textColor
+        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+        font.bold: true
+        font.features: ({ "tnum": 1 })
+    }
+
+    Item { Layout.preferredWidth: Kirigami.Units.largeSpacing - Kirigami.Units.smallSpacing }
+
+    Kirigami.Separator {
+        Layout.fillWidth: true
+        opacity: 0.5
+    }
 }
