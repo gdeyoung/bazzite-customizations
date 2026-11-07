@@ -406,7 +406,7 @@ PlasmoidItem {
 
         hoverEnabled: true
 
-        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 3
+        implicitWidth: chipRow.implicitWidth + Kirigami.Units.smallSpacing * 3 + 8
         implicitHeight: parent ? parent.height : Kirigami.Units.gridUnit * 2
 
         // Panel-squeeze floor: without this, a full panel allocates the
