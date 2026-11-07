@@ -4,12 +4,12 @@ import org.kde.plasma.components as PC3
 import org.kde.kirigami as Kirigami
 import QtQuick.Controls as QQC2
 
-// §V-3/§V-8 search row: edit-find icon + TextField (placeholder
+// §W-9 search row (v0.5 reveal/collapse contract): the field renders
+// ONLY while ctx.searchOpen — the checkable header button or Ctrl+F
+// reveals it; Esc-then-collapse, ✕, and popup close clear the query
+// (ctx.peerQuery stays the single source of truth for the QUERY; the
+// button owns VISIBILITY). edit-find icon + TextField (placeholder
 // `Search peers`) + trailing ✕ clear (visible iff text non-empty).
-// Ctrl+F (popup focused) → focus + select-all; Esc → clear if non-empty,
-// else blur. The popup wires those keys — this row renders and syncs the
-// ctx.peerQuery property (the single source of truth, so programmatic
-// clears — Esc, popup close — and typing stay in one place).
 RowLayout {
     id: searchRow
 

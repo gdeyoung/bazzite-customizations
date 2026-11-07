@@ -61,6 +61,11 @@ PlasmoidItem {
     // source of truth for search mode (typing, Esc, ✕, popup-close all
     // funnel through this property).
     property string peerQuery: ""
+    // §W-9: search reveal state (runtime, not config) — the checkable
+    // header button and Ctrl+F set it; popup close collapses it. The
+    // field itself lives in SearchRow; this is the single source of truth
+    // for revealed/collapsed.
+    property bool searchOpen: false
     // §V-8: results computed over ALL peers (offline included, rendered
     // muted by the row); empty query = sections mode.
     readonly property var searchResults: peerQuery !== ""
@@ -367,6 +372,20 @@ PlasmoidItem {
             out.push(entry)
         }
         return out
+    }
+
+    // v0.5 (§W) data derivations — direct path vs DERP relay, from the raw
+    // Peer map (CurAddr non-empty ⇒ direct connection; Relay = DERP region
+    // code, e.g. "dfw", present even when idle). Mirrors the admin console
+    // Connection column; see vault research note 2026-11-07 §4.
+    function peerIsDirect(peer) {
+        const raw = rawPeers[String(peer && peer.id)] || {}
+        return String(raw.CurAddr || "") !== ""
+    }
+
+    function peerRelay(peer) {
+        const raw = rawPeers[String(peer && peer.id)] || {}
+        return String(raw.Relay || "")
     }
 
     function exitBannerText() {

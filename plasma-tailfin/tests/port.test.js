@@ -164,16 +164,20 @@ test("§V-2: tab era is gone (no tabs/ dir, no lastTab config key, no TabBar)", 
   }
 })
 
-test("§V-3: single-view section files exist and PopupShell composes them", () => {
+test("§W-2: v0.5 single-lane files exist and PopupShell composes them", () => {
   const ui = path.join(__dirname, "..", "contents", "ui")
-  for (const f of ["PopupShell.qml", "SearchRow.qml", "ExitNodeSection.qml",
-                   "CensusSection.qml", "CensusCell.qml", "CandidateRow.qml",
-                   "SectionLabel.qml"]) {
+  for (const f of ["PopupShell.qml", "SearchRow.qml", "PeerRow.qml",
+                   "RoutingBand.qml", "SectionLabel.qml"]) {
     assert.ok(fs.existsSync(path.join(ui, f)), f + " missing")
   }
+  // §W-16: v0.4 section files deleted (one list replaces them)
+  for (const f of ["ExitNodeSection.qml", "CensusSection.qml",
+                   "CensusCell.qml", "CandidateRow.qml"]) {
+    assert.equal(fs.existsSync(path.join(ui, f)), false, f + " must be deleted in v0.5")
+  }
   const shell = fs.readFileSync(path.join(ui, "PopupShell.qml"), "utf8")
-  for (const needle of ["ExitNodeSection", "CensusSection", "SearchRow",
-                        "CandidateRow"]) {
+  for (const needle of ["RoutingBand", "SearchRow", "PeerRow",
+                        "sortedOnline"]) {
     assert.ok(shell.includes(needle), "PopupShell must compose " + needle)
   }
 })
@@ -197,7 +201,7 @@ test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () 
   assert.ok(!mainQml.includes("exitCandidateCount()") || true, "legacy helper may remain")
 })
 
-test("metadata version bumped for the §V release", () => {
+test("metadata version bumped for the §W release", () => {
   const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "metadata.json"), "utf8"))
-  assert.equal((meta.KPlugin || meta).Version, "0.4.0")
+  assert.equal((meta.KPlugin || meta).Version, "0.5.0")
 })

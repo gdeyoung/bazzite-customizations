@@ -4,26 +4,45 @@ import org.kde.plasma.components as PC3
 import org.kde.kirigami as Kirigami
 import QtQuick.Controls as QQC2
 
-// §V-3/§V-5 single-view popup: header → identity → message strip (§T-5
-// items 1–4, health restored) → search row → SCROLLING SECTION STACK
-// (edge row | search results | EXIT NODES + ONLINE + OFFLINE) → footer.
-// Tabs are gone (§V-2). ALL popup sizing lives here and nowhere else
-// (single-site rule): width 34·gu fixed; height min(38·gu, 0.9·available).
-// The ScrollView wraps the SECTION STACK ONLY — header, identity, strip,
-// search, footer stay pinned (§V-5).
+// §W-2 v0.5 popup: pinned chrome (header → message strip → routing band
+// → revealed search row) → ONE SCROLLING PEER LANE → pinned footer.
+// The v0.3 verdict IS the architecture: one big long list that scrolls.
+// No tabs, no exit section, no census grid — exit candidates are rows
+// (badge + use); the active exit node is a marked row AND the band.
+//
+// ALL popup sizing lives here and nowhere else (single-site rule):
+// width 34·gu fixed; height min(38·gu, 0.9·available). The frame NEVER
+// resizes on data, search, expand, or op flight — the lane is the
+// overflow valve, and everything between band and footer is lane (the
+// v0.4 121px dead band is structurally impossible here).
 Item {
     id: shell
 
     // The PlasmoidItem root (never named "root" here — shadowing trap).
     required property var ctx
 
-    // §V-8: search state lives on ctx (single source of truth; typing,
-    // Esc, ✕, and popup-close clears all funnel through it).
-    // (property declared on ctx in main.qml: peerQuery)
+    // §W-9 searchable: nothing to search on 0 peers or the
+    // down/missing/login/parse edge states.
+    function searchable() {
+        return ctx.edgeState === "ok" && !ctx.needsLogin && ctx.peers.length > 0
+    }
 
-    // §T-3/§T-5 popup open/close behavior: reopen dismisses the last op
-    // error; close disarms the confirm AND clears the query (§V-8 —
-    // fresh open = fresh view).
+    // §W-2 online rows alphabetical (one list, one order).
+    function sortedOnline() {
+        const list = ctx.onlinePeers.slice()
+        list.sort(function (a, b) {
+            return ctx.peerName(a).localeCompare(ctx.peerName(b))
+        })
+        return list
+    }
+
+    // Offline toggle: session-local state seeded from the showOffline
+    // config (v0.4 behavior carries; no new config keys).
+    property bool offlineExpanded: ctx.showOffline === true
+
+    // §T-3/§T-5 open/close: reopen dismisses the last op error; close
+    // disarms the confirm, clears the query AND collapses search
+    // (§W-9 — fresh open = fresh view).
     onVisibleChanged: {
         if (visible) {
             ctx.ctlError = ctx.ops.lastError = ""
@@ -31,29 +50,36 @@ Item {
         } else {
             ctx.disarmConfirm()
             ctx.peerQuery = ""
+            ctx.searchOpen = false
         }
     }
 
-    // §V-8 keys: Ctrl+F → focus + select-all; Esc → clear query if
-    // non-empty, else blur.
+    // §W-9 keys: Ctrl+F → reveal + focus + select-all; Esc → clear the
+    // query if non-empty, else collapse the revealed field, else blur.
     Keys.onPressed: (event) => {
         if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_F) {
-            searchRow.field.forceActiveFocus()
-            searchRow.field.selectAll()
+            if (shell.searchable()) {
+                ctx.searchOpen = true
+                searchRow.field.forceActiveFocus()
+                searchRow.field.selectAll()
+            }
             event.accepted = true
         } else if (event.key === Qt.Key_Escape) {
             if (ctx.peerQuery !== "") {
                 ctx.peerQuery = ""
-                event.accepted = true
+            } else if (ctx.searchOpen) {
+                ctx.searchOpen = false
+                shell.forceActiveFocus()
             } else {
                 searchRow.field.focus = false
             }
+            event.accepted = true
         }
     }
 
     // §R-10: no synchronous work in the open handler — stamp refresh
-    // defers ~150 ms; clockNow keeps ticking once per second while open
-    // so the provenance ●/◐ verdict stays honest.
+    // defers ~150 ms; clockNow ticks once per second while open so the
+    // provenance ●/◐ verdict stays honest.
     Timer {
         interval: 150
         running: shell.visible
@@ -66,7 +92,7 @@ Item {
         onTriggered: ctx.clockNow = Date.now()
     }
 
-    // ---- Frame (§V-5) ------------------------------------------------
+    // ---- Frame (§W-3; §V-5/§R-2 unchanged) ---------------------------
     Layout.minimumWidth: Kirigami.Units.gridUnit * 34
     Layout.preferredWidth: Kirigami.Units.gridUnit * 34
     Layout.minimumHeight: shellHeight()
@@ -83,20 +109,83 @@ Item {
         anchors.margins: Kirigami.Units.smallSpacing * 1.25
         spacing: Kirigami.Units.smallSpacing
 
-        // ---- Header (§V-3): hero selfName + §T-3 power toggle ------
+        // ---- HEADER (§W-7, 40px): self block + [search][power] -----
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: Kirigami.Units.gridUnit * 1.7
+            Layout.preferredHeight: Kirigami.Units.gridUnit * 2.2
             spacing: Kirigami.Units.smallSpacing
 
-            PC3.Label {
+            // Self identity block — single render site (dedup rule).
+            // Self is NOT a row in the list (its facts are the header),
+            // so lane counts equal chip counts exactly.
+            ColumnLayout {
                 Layout.fillWidth: true
-                text: shell.ctx.status && shell.ctx.status.selfName
-                      ? shell.ctx.status.selfName : "Tailscale"
-                color: Kirigami.Theme.textColor
-                font.bold: true
-                font.pixelSize: Kirigami.Units.gridUnit * 0.8
-                elide: Text.ElideRight
+                spacing: 0
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Rectangle {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 0.35
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 0.35
+                        radius: width / 2
+                        color: shell.ctx.running
+                               ? Kirigami.Theme.positiveTextColor
+                               : Kirigami.Theme.neutralTextColor
+                    }
+
+                    PC3.Label {
+                        Layout.fillWidth: true
+                        text: shell.ctx.status && shell.ctx.status.selfName
+                              ? shell.ctx.status.selfName : "Tailscale"
+                        color: Kirigami.Theme.textColor
+                        font.bold: true
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.8
+                        elide: Text.ElideRight
+                    }
+                }
+
+                PC3.Label {
+                    Layout.fillWidth: true
+                    visible: shell.ctx.status !== null
+                    text: {
+                        const st = shell.ctx.status
+                        const parts = [
+                            st && st.backendState ? st.backendState.toUpperCase() : "STOPPED",
+                            st && st.selfIp ? st.selfIp : "",
+                            st && st.selfDnsName ? st.selfDnsName : ""
+                        ]
+                        return parts.filter(function (p) { return p !== "" }).join(" · ")
+                    }
+                    color: Kirigami.Theme.textColor
+                    opacity: 0.62
+                    font: Kirigami.Theme.smallFont
+                    elide: Text.ElideMiddle
+                }
+            }
+            HoverHandler { id: selfHover }
+            QQC2.ToolTip.text: {
+                const st = shell.ctx.status
+                return st ? [st.selfDnsName, st.selfIp].filter(
+                            function (p) { return p }).join(" · ") : ""
+            }
+            QQC2.ToolTip.visible: selfHover.hovered
+
+            // §W-9: search revealed by this checkable button (or Ctrl+F)
+            // — the Trayscale/plasma-nm port. Hidden when nothing to
+            // search.
+            PC3.ToolButton {
+                visible: shell.searchable()
+                flat: true
+                checkable: true
+                checked: shell.ctx.searchOpen
+                icon.name: "edit-find"
+                display: PC3.AbstractButton.IconOnly
+                QQC2.ToolTip.text: i18n("Search peers (Ctrl+F)")
+                QQC2.ToolTip.visible: hovered
+                Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
+                onToggled: shell.ctx.searchOpen = checked
             }
 
             // §T-3 verbatim: normal textColor at rest, negative only
@@ -120,39 +209,7 @@ Item {
             }
         }
 
-        // ---- Identity line (§V-4): ● STATE · ip · dns ----------------
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Kirigami.Units.gridUnit * 1.1
-            visible: shell.ctx.status !== null
-            spacing: Kirigami.Units.smallSpacing
-
-            Rectangle {
-                Layout.preferredWidth: Kirigami.Units.gridUnit * 0.35
-                Layout.preferredHeight: Kirigami.Units.gridUnit * 0.35
-                radius: width / 2
-                color: shell.ctx.running ? Kirigami.Theme.positiveTextColor
-                                         : Kirigami.Theme.neutralTextColor
-            }
-
-            PC3.Label {
-                Layout.fillWidth: true
-                text: {
-                    const st = shell.ctx.status
-                    const parts = [
-                        st && st.backendState ? st.backendState.toUpperCase() : "STOPPED",
-                        st && st.selfIp ? st.selfIp : "",
-                        st && st.selfDnsName ? st.selfDnsName : ""
-                    ]
-                    return parts.filter(function (p) { return p !== "" }).join(" · ")
-                }
-                color: Kirigami.Theme.disabledTextColor
-                font: Kirigami.Theme.smallFont
-                elide: Text.ElideMiddle
-            }
-        }
-
-        // ---- Message strip (§T-5 items 1–4 + §V-10 login row) --------
+        // ---- MESSAGE STRIP (§W-8; §T-5 items 1–4, order verbatim) ---
         // 1. armed warning (§T-3)
         PC3.Label {
             Layout.fillWidth: true
@@ -180,19 +237,27 @@ Item {
             font: Kirigami.Theme.smallFont
             elide: Text.ElideRight
         }
-        // 4. health warnings (§V-2: restored here from the dead Health
-        // tab; one line each, wraps, order preserved)
+        // 4. health warnings — one row each, order preserved; wrap ≤2
+        // lines then elide, full text in tooltip (§W-8). neutral/orange:
+        // advisories, not failures (§W-15.5 deviation, ledgered).
         Repeater {
             model: shell.ctx.health
             Text {
+                readonly property string full: "⚠ " + modelData
                 Layout.fillWidth: true
-                text: "⚠ " + modelData
-                color: Kirigami.Theme.negativeTextColor
+                text: full
+                color: Kirigami.Theme.neutralTextColor
                 font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                 wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                HoverHandler { id: warnHover }
+                QQC2.ToolTip.text: full
+                QQC2.ToolTip.visible: warnHover.hovered
             }
         }
-        // §V-10 needs-login row (strip position, not the edge row)
+        // §V-10 needs-login strip row (edge string ALSO renders in the
+        // lane, §W-12 — the strip row is the standing reminder).
         PC3.Label {
             Layout.fillWidth: true
             visible: shell.ctx.needsLogin
@@ -202,45 +267,71 @@ Item {
             elide: Text.ElideRight
         }
 
-        // ---- Search row (§V-8) ---------------------------------------
-        // Hidden when there is nothing to search: 0 peers or any of the
-        // down/missing/login/parse edge states.
-        SearchRow {
-            id: searchRow
+        // ---- ROUTING BAND (§W-6): both modes, only while running ----
+        RoutingBand {
+            visible: shell.ctx.running
             Layout.fillWidth: true
-            visible: shell.ctx.edgeState === "ok" && !shell.ctx.needsLogin
-                     && shell.ctx.peers.length > 0
             ctx: shell.ctx
         }
 
-        // ---- Section stack (the ONLY scrolling region) ----------------
+        // ---- SEARCH ROW (§W-9): revealed only, above the lane -------
+        SearchRow {
+            id: searchRow
+            visible: shell.ctx.searchOpen && shell.searchable()
+            Layout.fillWidth: true
+            ctx: shell.ctx
+        }
+
+        // ---- LANE (§W-5): the ONLY scroll region --------------------
         PC3.ScrollView {
-            id: stack
+            id: lane
             Layout.fillWidth: true
             Layout.fillHeight: true
             QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
-            // §V-5: scrollbar lane reserved so it never covers a
-            // use/× button — right margin inside the content column.
+            // §V-5 carries: scrollbar lane reserved so it never covers a
+            // badge/use/× — measured: the floating Plasma scrollbar is
+            // ~10px at gu=18, so reserve 0.8·gu past the content margins
+            // (vision-audit of the first v0.5 run showed ACTIVE EXIT and
+            // CIDR badges clipped at smallSpacing*2).
             ColumnLayout {
-                id: stackContent
-                width: stack.width - Kirigami.Units.smallSpacing * 2
+                id: laneContent
+                width: lane.width - Kirigami.Units.gridUnit * 0.8
+                       - Kirigami.Units.smallSpacing * 2
                 spacing: 2
+                // Fold clearance: the last row always clears the footer
+                // hairline at full scroll (vision-audit polish).
+                Layout.bottomMargin: Kirigami.Units.smallSpacing
 
-                // -- edge row (§V-10): replaces sections, standing
-                //    header/strip/footer stay mounted outside.
-                Text {
+                // -- edge rows (§W-12): PlaceholderMessage anatomy —
+                //    32px status icon + one string, centered; header,
+                //    strip, footer stay mounted (never a bare screen).
+                RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.gridUnit * 2
                     Layout.bottomMargin: Kirigami.Units.gridUnit * 2
+                    Layout.alignment: Qt.AlignHCenter
                     visible: shell.ctx.edgeState !== "ok"
-                    text: shell.ctx.edgeOverlayText()
-                    color: Kirigami.Theme.negativeTextColor
-                    font.pixelSize: Kirigami.Theme.smallFont.pixelSize
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
+                             || shell.ctx.needsLogin
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Kirigami.Icon {
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+                        source: shell.ctx.needsLogin ? "network-unavailable"
+                                : shell.ctx.edgeState === "parseerror"
+                                  ? "dialog-cancel" : "network-offline-symbolic"
+                    }
+                    Text {
+                        text: shell.ctx.edgeOverlayText()
+                        color: Kirigami.Theme.negativeTextColor
+                        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
                 }
-                // 0 peers, running (§V-10): tailnet empty
+
+                // -- 0 peers, running (§W-12)
                 Text {
                     Layout.fillWidth: true
                     Layout.topMargin: Kirigami.Units.gridUnit * 2
@@ -254,70 +345,100 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                // -- search mode (§V-8): one 1-col result list replaces
-                //    the sections.
+                // -- search mode (§W-9): IN PLACE — label flips to
+                //    MATCHES, offline toggle hides, results render as
+                //    ordinary PeerRows. No replacement, no void.
                 ColumnLayout {
-                    visible: shell.ctx.peerQuery !== ""
-                             && shell.ctx.edgeState === "ok"
-                             && shell.ctx.peers.length > 0
+                    visible: shell.ctx.peerQuery !== "" && shell.searchable()
                     Layout.fillWidth: true
                     spacing: 2
 
                     SectionLabel {
                         rawText: shell.ctx.searchResults.length > 0
-                                 ? "Matches · " + shell.ctx.searchResults.length
-                                 : ""
+                                 ? "Matches · " + shell.ctx.searchResults.length : ""
                     }
                     Text {
                         Layout.fillWidth: true
+                        Layout.topMargin: Kirigami.Units.gridUnit
+                        Layout.bottomMargin: Kirigami.Units.gridUnit
                         visible: shell.ctx.searchResults.length === 0
                         text: "NO MATCHING PEERS"
                         color: Kirigami.Theme.disabledTextColor
                         font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                         horizontalAlignment: Text.AlignHCenter
-                        Layout.topMargin: Kirigami.Units.gridUnit
-                        Layout.bottomMargin: Kirigami.Units.gridUnit
                     }
                     Repeater {
                         model: shell.ctx.searchResults
-                        CandidateRow {
+                        PeerRow {
                             Layout.fillWidth: true
                             ctx: shell.ctx
                             peer: modelData
-                            result: true
                         }
                     }
                 }
 
-                // -- sections (normal mode)
+                // -- normal mode: the one list (§W-2)
                 ColumnLayout {
-                    visible: shell.ctx.peerQuery === ""
-                             && shell.ctx.edgeState === "ok"
-                             && !shell.ctx.needsLogin
-                             && shell.ctx.peers.length > 0
+                    visible: shell.ctx.peerQuery === "" && shell.searchable()
                     Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
+                    spacing: 2
 
-                    ExitNodeSection {
-                        Layout.fillWidth: true
-                        ctx: shell.ctx
+                    SectionLabel {
+                        rawText: "Online · " + shell.ctx.onlinePeers.length
                     }
-                    CensusSection {
+
+                    Text {
                         Layout.fillWidth: true
-                        ctx: shell.ctx
-                        mode: "online"
+                        Layout.topMargin: Kirigami.Units.gridUnit
+                        Layout.bottomMargin: Kirigami.Units.gridUnit
+                        visible: shell.ctx.onlinePeers.length === 0
+                        text: "NO ONLINE PEERS"
+                        color: Kirigami.Theme.disabledTextColor
+                        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                        horizontalAlignment: Text.AlignHCenter
                     }
-                    CensusSection {
-                        id: offlineSection
+
+                    Repeater {
+                        model: shell.sortedOnline()
+                        PeerRow {
+                            Layout.fillWidth: true
+                            ctx: shell.ctx
+                            peer: modelData
+                        }
+                    }
+
+                    // §W-10 offline toggle — standard (non-flat) Button,
+                    // full-width, copy byte-identical to v0.4; Breeze
+                    // chrome fixes the "SHOW looked like footer text"
+                    // defect. Hidden while a query is active.
+                    PC3.Button {
                         Layout.fillWidth: true
-                        ctx: shell.ctx
-                        mode: "offline"
+                        visible: shell.ctx.offlinePeers.length > 0
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 1.4
+                        topPadding: Kirigami.Units.smallSpacing * 0.5
+                        bottomPadding: Kirigami.Units.smallSpacing * 0.5
+                        text: shell.ctx.offlinePeers.length + " OFFLINE · "
+                              + (shell.offlineExpanded ? "HIDE" : "SHOW")
+                        onClicked: shell.offlineExpanded = !shell.offlineExpanded
+                    }
+
+                    // Offline rows — dimmed 0.62, only while expanded;
+                    // candidates keep their `exit` badge (role survives
+                    // the collapse) but never a use button (§W-10).
+                    Repeater {
+                        model: shell.ctx.offlinePeers
+                        PeerRow {
+                            visible: shell.offlineExpanded
+                            Layout.fillWidth: true
+                            ctx: shell.ctx
+                            peer: modelData
+                        }
                     }
                 }
             }
         }
 
-        // ---- Footer (§V-4): provenance + gate verdict ------------------
+        // ---- FOOTER (§W-13; v0.4 verbatim) + tnum -------------------
         RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: Kirigami.Units.gridUnit * 1.4
@@ -335,7 +456,8 @@ Item {
                     return stale ? "◐ STALE · " + stamp : "● AS OF " + stamp
                 }
                 color: Kirigami.Theme.disabledTextColor
-                font: Kirigami.Theme.smallFont
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                font.features: ({ "tnum": 1 })
                 QQC2.ToolTip.text: "POLL EVERY " + shell.ctx.pollSeconds + " S"
                 QQC2.ToolTip.visible: footHover.hovered
                 HoverHandler { id: footHover }

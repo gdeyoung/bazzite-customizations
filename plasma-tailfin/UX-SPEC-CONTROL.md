@@ -18,11 +18,25 @@ fucking list. It scrolls." §R supersedes the §T-9 wireframe; §T-1..§T-8
 (gates, allowlist, confirm, exit-node ops, busy/failure) carry forward
 unchanged.
 
-r4 (2026-11-04) appends §V-1..§V-14 — v0.4 single-view redesign. Verdict
-on v0.3: "NOPE, THE UX STILL FUCKING SUCKS… LOOK AT WHAT WE BUILT FOR
+r4 (2026-11-04) appends §V-1..§V-14 — v0.4 single-view redesign. Verdict on
+v0.3: "NOPE, THE UX STILL FUCKING SUCKS… LOOK AT WHAT WE BUILT FOR
 TAILFIN AND OMARCHY. THAT UX WAS OKAY. YOU CAN LOOK AT TRAYSCALE." Tabs
 are dead; §V supersedes §R-1..§R-12 (strings re-adopted where noted);
 §T-1..§T-8 carry forward unchanged, chip stays byte-identical.
+
+r5 (2026-11-07) — v0.4 REJECTED in desk use ("It's barely, barely, barely
+usable… a lot of information in an easy to understand, simplified
+interface"). The v0.5 redesign lives in `docs/UX-SPEC-V5.md` (§W-1..§W-19):
+one unified rich-row peer list (the v0.3 verdict's own architecture) with
+pinned glance chrome (header → §T-5 strip → routing band → revealed search →
+footer). §W supersedes §V-3..§V-14 (popup structure, rows, search surface,
+edge rendering); §V-8's search ENGINE and §V-10 edge strings carry verbatim;
+§T-1..§T-8 control semantics carry forward unchanged; chip stays
+byte-identical. Deliberate §T-9/§V deviations are ledgered in §W-15.
+Release stamp: 0.5.0 shipped 2026-11-07 — 68/68 tests, check_qml 0
+errors, harness matrix green (norm19/norm19h/zero19/empty × gate on/off
+× Breeze dark/light × scale 1/2), vision-audited rows/band/search,
+README Verified (v0.5).
 
 HARD invariants (not up for redesign):
 - Automation never executes control ops against the real `tailscale` binary.

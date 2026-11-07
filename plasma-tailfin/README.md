@@ -71,6 +71,21 @@ view plus a minimal, gated control surface (v0.2, `UX-SPEC-CONTROL.md`):
   (spec `§R-1..§R-12` in `UX-SPEC-CONTROL.md`): fixed frame, 2-column
   peer grid with computed offline collapse, four discriminated edge
   states, persisted last tab. Chip and control surface unchanged.
+- **v0.5** (*rejected in desk use: "barely, barely, barely usable…
+  the way you structure the tabs are trash"*) rebuilds the popup per
+  `docs/UX-SPEC-V5.md` (§W-1..§W-19): ONE scrollable peer lane under
+  pinned chrome — header (self identity + search toggle + §T-3 power),
+  §T-5 message strip, and a both-modes **routing band** ("▸ exit node:
+  X [×]" / "no exit node · direct · N available"). Exit sections and the
+  census grid are deleted; every peer is a full-width rich **PeerRow**
+  (state dot · name · badges `ACTIVE EXIT`/`exit`/subnet-CIDR · `use` on
+  candidates · subline `OS · IP · direct|via <relay> [· ↓rx ↑tx]` /
+  `last seen <t>`). Search is revealed by a header button (Ctrl+F),
+  filters in place (label flips to `MATCHES · N`), offline rows dim
+  0.62 behind a standard toggle row. The v0.4 `ACTIVE` tag (session
+  traffic, not exit selection) is deleted; liveliness is the ↓/↑
+  counters. §T-1..§T-8 control semantics and every §T string carry
+  byte-identical; chip untouched.
 - Not ported: Mullvad region picking, account switching, Taildrop
   send/receive, SSH launcher, health-warning acknowledgement, preference
   toggles, keyboard-driven cursor navigation. On KDE, Trayscale or the
@@ -189,6 +204,28 @@ python3 ../tools/check_qml.py .                      # static QML/metadata check
   footer. Scale-2 armed shot missed the 2.4 s transient (spectacle
   capture latency at 5120×2880) — armed-state pixels verified at
   scale 1; wire sequence verified at both scales.
+
+## Verified (v0.5)
+
+- 68/68 node tests (model + port + control + search; port.test §W-2
+  inventory updated to the v0.5 file set — control/model/search suites
+  byte-identical).
+- `tools/check_qml.py plasma-tailfin` → 0 errors (6 QML files).
+- `tools/popup-harness/run-tailfin-v5.sh` (fixture `norm19` = the real
+  tailnet shape 19/40): frame 612×685 pixel-stable across search,
+  offline-expand (lane content 733→1489 px absorbed by scroll; pinned
+  zones fixed); count invariants exact (online 19 + offline 21 = 40 =
+  chip; candidates 5 + census 13 + active-exit 1 = 19); search
+  host03→2 / zzz→0 / cleared→sections; offline toggle + dimmed rows;
+  gate-off run: no buttons, hint only. Fixtures `norm19h` (2 health ⚠,
+  orange, wrapped ≤2 lines), `zero19` (ONLINE · 0 + NO ONLINE PEERS),
+  `empty` (NO PEERS · TAILNET EMPTY), Breeze light, and scale 2 all
+  green. Vision-audited screenshots: rich rows, badges, routing band,
+  MATCHES search state, no scrollbar clipping (reserved 0.8·gu lane).
+- CC technology-architecture cross-check on the spec: 0 surviving
+  MATERIAL findings (its size-loop/fixed-px/lupdate concerns are
+  contradicted by the gu-derived frame/rows and the absence of
+  translations; scale matrix run green).
 
 ## License
 
