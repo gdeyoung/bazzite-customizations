@@ -1,0 +1,696 @@
+{
+ "categories": {
+  "Game": [
+   {
+    "name": "9 Kings",
+    "generic": "",
+    "icon": "steam_icon_2784470"
+   },
+   {
+    "name": "Ad Fundum",
+    "generic": "",
+    "icon": "steam_icon_2647820"
+   },
+   {
+    "name": "After Inc: Revival",
+    "generic": "",
+    "icon": "steam_icon_3337140"
+   },
+   {
+    "name": "Age of Mythology: Retold",
+    "generic": "",
+    "icon": "steam_icon_1934680"
+   },
+   {
+    "name": "Avorion",
+    "generic": "",
+    "icon": "steam_icon_445220"
+   },
+   {
+    "name": "Beyond All Reason",
+    "generic": "",
+    "icon": "info.beyondallreason.bar"
+   },
+   {
+    "name": "Boneraiser Minions",
+    "generic": "",
+    "icon": "steam_icon_1944570"
+   },
+   {
+    "name": "Brotato",
+    "generic": "",
+    "icon": "steam_icon_1942280"
+   },
+   {
+    "name": "Cemu AppImage",
+    "generic": "",
+    "icon": "/home/gdeyoung/.local/share/icons/emudeck/Cemu.png"
+   },
+   {
+    "name": "Dolphin Emulator",
+    "generic": "Wii/GameCube Emulator",
+    "icon": "org.DolphinEmu.dolphin-emu"
+   },
+   {
+    "name": "DOSVault",
+    "generic": "Steam Deck/Linux port of the eXoDOS using Pegasus as a frontend",
+    "icon": "com.yappari.DOSVault"
+   },
+   {
+    "name": "Driftland: The Magic Revival",
+    "generic": "",
+    "icon": "steam_icon_718650"
+   },
+   {
+    "name": "DuckStation",
+    "generic": "PlayStation 1 Emulator",
+    "icon": "org.duckstation.DuckStation"
+   },
+   {
+    "name": "EmuDeck",
+    "generic": "",
+    "icon": "/home/gdeyoung/.local/share/icons/emudeck/EmuDeck.png"
+   }
+  ],
+  "Utility": [
+   {
+    "name": "4KTUBE",
+    "generic": "4Ktube for Linux",
+    "icon": "com.warlordsoftwares.youtube-downloader-4ktube"
+   },
+   {
+    "name": "AnythingLLM Desktop",
+    "generic": "",
+    "icon": "/home/gdeyoung/.config/anythingllm-desktop/storage/icon.png"
+   },
+   {
+    "name": "Ark",
+    "generic": "Archiving Tool",
+    "icon": "ark"
+   },
+   {
+    "name": "balenaEtcher",
+    "generic": "balenaEtcher",
+    "icon": "balena-etcher"
+   },
+   {
+    "name": "Bazaar",
+    "generic": "App Store",
+    "icon": "io.github.kolunmi.Bazaar"
+   },
+   {
+    "name": "Bold Brew",
+    "generic": "",
+    "icon": "/usr/share/ublue-os/bbrew.png"
+   },
+   {
+    "name": "Bottles",
+    "generic": "",
+    "icon": "com.usebottles.bottles"
+   },
+   {
+    "name": "BoxBuddy",
+    "generic": "",
+    "icon": "io.github.dvlv.boxbuddyrs"
+   },
+   {
+    "name": "Claude",
+    "generic": "AI Assistant",
+    "icon": "com.anthropic.Claude"
+   },
+   {
+    "name": "CoolerControl",
+    "generic": "",
+    "icon": "org.coolercontrol.CoolerControl"
+   },
+   {
+    "name": "Discourse",
+    "generic": "",
+    "icon": "/usr/share/ublue-os/bazzite/discourse.svg"
+   },
+   {
+    "name": "Disks",
+    "generic": "",
+    "icon": "org.gnome.DiskUtility"
+   },
+   {
+    "name": "DistroShelf",
+    "generic": "",
+    "icon": "com.ranfdev.DistroShelf"
+   },
+   {
+    "name": "Emoji Selector",
+    "generic": "Emoji Selector",
+    "icon": "preferences-desktop-emoticons"
+   }
+  ],
+  "Network": [
+   {
+    "name": "Angry IP Scanner",
+    "generic": "",
+    "icon": "org.angryip.ipscan"
+   },
+   {
+    "name": "Brave",
+    "generic": "Web Browser",
+    "icon": "com.brave.Browser"
+   },
+   {
+    "name": "Chromium",
+    "generic": "Web Browser",
+    "icon": "org.chromium.Chromium"
+   },
+   {
+    "name": "Discord",
+    "generic": "Internet Messenger",
+    "icon": "com.discordapp.Discord"
+   },
+   {
+    "name": "Firefox",
+    "generic": "Web Browser",
+    "icon": "org.mozilla.firefox"
+   },
+   {
+    "name": "Google Chrome",
+    "generic": "Web Browser",
+    "icon": "com.google.Chrome"
+   },
+   {
+    "name": "Google Chrome (unstable)",
+    "generic": "Web Browser",
+    "icon": "com.google.ChromeDev"
+   },
+   {
+    "name": "Greenlight",
+    "generic": "",
+    "icon": "io.github.unknownskl.greenlight"
+   },
+   {
+    "name": "JDownloader",
+    "generic": "",
+    "icon": "org.jdownloader.JDownloader"
+   },
+   {
+    "name": "KDE Connect",
+    "generic": "Device Synchronization",
+    "icon": "kdeconnect"
+   },
+   {
+    "name": "KDE Connect SMS",
+    "generic": "Text Messaging",
+    "icon": "kdeconnect"
+   },
+   {
+    "name": "KRDC",
+    "generic": "Remote Desktop Client",
+    "icon": "krdc"
+   },
+   {
+    "name": "Krfb",
+    "generic": "Desktop Sharing (VNC)",
+    "icon": "krfb"
+   },
+   {
+    "name": "LibreWolf",
+    "generic": "",
+    "icon": "io.gitlab.librewolf-community"
+   }
+  ],
+  "System": [
+   {
+    "name": "Bazzite Portal",
+    "generic": "",
+    "icon": "io.github.ublue_os.yafti_gtk"
+   },
+   {
+    "name": "Bazzite Updater",
+    "generic": "",
+    "icon": "io.github.rfrench3.bazzite-updater"
+   },
+   {
+    "name": "Bitwarden",
+    "generic": "Password Manager",
+    "icon": "com.bitwarden.desktop"
+   },
+   {
+    "name": "Btrfs Assistant",
+    "generic": "",
+    "icon": "btrfs-assistant"
+   },
+   {
+    "name": "Cardwire",
+    "generic": "",
+    "icon": "preferences-system"
+   },
+   {
+    "name": "Dolphin",
+    "generic": "File Manager",
+    "icon": "org.kde.dolphin"
+   },
+   {
+    "name": "Fan Control",
+    "generic": "",
+    "icon": "io.github.wiiznokes.fan-control"
+   },
+   {
+    "name": "Fedora Media Writer",
+    "generic": "",
+    "icon": "org.fedoraproject.MediaWriter"
+   },
+   {
+    "name": "Firewall",
+    "generic": "",
+    "icon": "firewall-config"
+   },
+   {
+    "name": "Firmware",
+    "generic": "",
+    "icon": "org.gnome.Firmware"
+   },
+   {
+    "name": "Info Center",
+    "generic": "Info Center",
+    "icon": "hwinfo"
+   },
+   {
+    "name": "ISO Image Writer",
+    "generic": "Write an ISO Image to a USB Disk",
+    "icon": "org.kde.isoimagewriter"
+   },
+   {
+    "name": "Journald Browser",
+    "generic": "Journald Browser",
+    "icon": "org.kde.kjournaldbrowser"
+   },
+   {
+    "name": "Konsole",
+    "generic": "Terminal",
+    "icon": "utilities-terminal"
+   }
+  ],
+  "Office": [
+   {
+    "name": "Adobe Reader 9",
+    "generic": "PDF Viewer",
+    "icon": "com.adobe.Reader"
+   },
+   {
+    "name": "calibre",
+    "generic": "E-book library management",
+    "icon": "com.calibre_ebook.calibre"
+   },
+   {
+    "name": "Clearvoice",
+    "generic": "Meeting Intelligence",
+    "icon": "audio-input-microphone"
+   },
+   {
+    "name": "Collabora Office",
+    "generic": "Office",
+    "icon": "com.collaboraoffice.Office.startcenter"
+   },
+   {
+    "name": "E-book editor",
+    "generic": "Editor for E-books",
+    "icon": "com.calibre_ebook.calibre.ebook-edit"
+   },
+   {
+    "name": "E-book viewer",
+    "generic": "Viewer for E-books",
+    "icon": "com.calibre_ebook.calibre.ebook-viewer"
+   },
+   {
+    "name": "Joplin",
+    "generic": "",
+    "icon": "net.cozic.joplin_desktop"
+   },
+   {
+    "name": "LibreOffice",
+    "generic": "Office",
+    "icon": "org.libreoffice.LibreOffice.startcenter"
+   },
+   {
+    "name": "LibreOffice Base",
+    "generic": "Database Development",
+    "icon": "org.libreoffice.LibreOffice.base"
+   },
+   {
+    "name": "LibreOffice Calc",
+    "generic": "Spreadsheet",
+    "icon": "org.libreoffice.LibreOffice.calc"
+   },
+   {
+    "name": "LibreOffice Draw",
+    "generic": "Drawing Program",
+    "icon": "org.libreoffice.LibreOffice.draw"
+   },
+   {
+    "name": "LibreOffice Impress",
+    "generic": "Presentation",
+    "icon": "org.libreoffice.LibreOffice.impress"
+   },
+   {
+    "name": "LibreOffice Math",
+    "generic": "Formula Editor",
+    "icon": "org.libreoffice.LibreOffice.math"
+   },
+   {
+    "name": "LibreOffice Writer",
+    "generic": "Word Processor",
+    "icon": "org.libreoffice.LibreOffice.writer"
+   }
+  ],
+  "AudioVideo": [
+   {
+    "name": "Audacity",
+    "generic": "Sound Editor",
+    "icon": "org.audacityteam.Audacity"
+   },
+   {
+    "name": "Buzz",
+    "generic": "",
+    "icon": "io.github.chidiwilliams.Buzz"
+   },
+   {
+    "name": "Easy Effects",
+    "generic": "Equalizer, Compressor and Other Audio Effects",
+    "icon": "com.github.wwmm.easyeffects"
+   },
+   {
+    "name": "FileBot",
+    "generic": "",
+    "icon": "net.filebot.FileBot"
+   },
+   {
+    "name": "HandBrake",
+    "generic": "Media Transcoder",
+    "icon": "fr.handbrake.ghb"
+   },
+   {
+    "name": "Haruna",
+    "generic": "Media Player",
+    "icon": "org.kde.haruna"
+   },
+   {
+    "name": "JamesDSP",
+    "generic": "",
+    "icon": "me.timschneeberger.jdsp4linux"
+   },
+   {
+    "name": "Kdenlive",
+    "generic": "Video Editor",
+    "icon": "org.kde.kdenlive"
+   },
+   {
+    "name": "Media Downloader",
+    "generic": "",
+    "icon": "com.markopejic.downloader"
+   },
+   {
+    "name": "mpv Media Player",
+    "generic": "Multimedia player",
+    "icon": "io.mpv.Mpv"
+   },
+   {
+    "name": "MusicBrainz Picard",
+    "generic": "",
+    "icon": "org.musicbrainz.Picard"
+   },
+   {
+    "name": "OpenAudible",
+    "generic": "",
+    "icon": "/home/gdeyoung/AppImages/.icons/openaudible.png"
+   },
+   {
+    "name": "Shotcut",
+    "generic": "Video Editor",
+    "icon": "org.shotcut.Shotcut"
+   },
+   {
+    "name": "Strawberry",
+    "generic": "Strawberry Music Player",
+    "icon": "org.strawberrymusicplayer.strawberry"
+   }
+  ],
+  "Development": [
+   {
+    "name": "Antigravity",
+    "generic": "AI Agent Platform",
+    "icon": "antigravity"
+   },
+   {
+    "name": "EmuDeck",
+    "generic": "",
+    "icon": "/home/gdeyoung/AppImages/.icons/gearlever_emudeck_c3072f.png"
+   },
+   {
+    "name": "Goose",
+    "generic": "Goose",
+    "icon": "io.github.block.Goose"
+   },
+   {
+    "name": "Kate",
+    "generic": "Advanced Text Editor",
+    "icon": "kate"
+   },
+   {
+    "name": "KDebugSettings",
+    "generic": "Debug settings",
+    "icon": "debug-run"
+   },
+   {
+    "name": "LM-Studio",
+    "generic": "",
+    "icon": "/home/gdeyoung/AppImages/.icons/lmstudio"
+   },
+   {
+    "name": "Podman Desktop",
+    "generic": "",
+    "icon": "io.podman_desktop.PodmanDesktop"
+   },
+   {
+    "name": "Sysprof",
+    "generic": "Profiler",
+    "icon": "org.gnome.Sysprof"
+   },
+   {
+    "name": "Whaler",
+    "generic": "Docker Client",
+    "icon": "com.github.sdv43.whaler"
+   },
+   {
+    "name": "ZCode",
+    "generic": "",
+    "icon": "zcode"
+   }
+  ],
+  "Graphics": [
+   {
+    "name": "Blender",
+    "generic": "3D modeler",
+    "icon": "org.blender.Blender"
+   },
+   {
+    "name": "Comic Reader Ultimate",
+    "generic": "",
+    "icon": "uk.co.electronstudio.ComicReaderUltimate"
+   },
+   {
+    "name": "Gwenview",
+    "generic": "Image Viewer",
+    "icon": "org.kde.gwenview"
+   },
+   {
+    "name": "Inkscape",
+    "generic": "Vector Graphics Editor",
+    "icon": "org.inkscape.Inkscape"
+   },
+   {
+    "name": "Okular",
+    "generic": "Document Viewer",
+    "icon": "org.kde.okular"
+   },
+   {
+    "name": "Peek",
+    "generic": "Animated GIF recorder",
+    "icon": "com.uploadedlobster.peek"
+   }
+  ],
+  "Audio": [
+   {
+    "name": "Adobe Flash Player Standalone",
+    "generic": "",
+    "icon": "com.adobe.Flash-Player-Projector"
+   },
+   {
+    "name": "Chapterize",
+    "generic": "Audiobook editor",
+    "icon": "page.codeberg.snensmens.Chapterize"
+   },
+   {
+    "name": "Cider",
+    "generic": "Music Player",
+    "icon": "sh.cider.Cider"
+   },
+   {
+    "name": "Reco",
+    "generic": "Audio Recording App",
+    "icon": "com.github.ryonakano.reco"
+   },
+   {
+    "name": "Record Apps",
+    "generic": "",
+    "icon": "io.github.sigmasd.recordapps"
+   }
+  ],
+  "Other": [
+   {
+    "name": "Buzz",
+    "generic": "",
+    "icon": "/home/gdeyoung/AppImages/.icons/buzz"
+   },
+   {
+    "name": "Messages",
+    "generic": "",
+    "icon": "/home/gdeyoung/.var/app/com.brave.Browser/data/icons/hicolor/512x512/apps/brave-hpfldicfbfomlpcikngkocigghgafkph-Profile_3.png"
+   },
+   {
+    "name": "OpenGamepadUI",
+    "generic": "Game launcher and overlay",
+    "icon": "opengamepadui"
+   },
+   {
+    "name": "Unsloth",
+    "generic": "",
+    "icon": "/home/gdeyoung/AppImages/.icons/unsloth"
+   }
+  ],
+  "Settings": [
+   {
+    "name": "Configure lsfg-vk",
+    "generic": "",
+    "icon": "gay.pancake.lsfg-vk-ui"
+   },
+   {
+    "name": "Input Remapper",
+    "generic": "",
+    "icon": "input-remapper"
+   },
+   {
+    "name": "ROM Properties Page configuration",
+    "generic": "rp-config",
+    "icon": "media-flash"
+   },
+   {
+    "name": "System Settings",
+    "generic": "System Settings",
+    "icon": "preferences-system"
+   }
+  ],
+  "TextEditor": [
+   {
+    "name": "Cursor",
+    "generic": "Text Editor",
+    "icon": "/home/gdeyoung/AppImages/.icons/cursor"
+   },
+   {
+    "name": "Visual Studio Code",
+    "generic": "Text Editor",
+    "icon": "vscode"
+   },
+   {
+    "name": "Visual Studio Code",
+    "generic": "Text Editor",
+    "icon": "com.visualstudio.code"
+   },
+   {
+    "name": "Void",
+    "generic": "Text Editor",
+    "icon": "/home/gdeyoung/AppImages/.icons/void.png"
+   }
+  ]
+ },
+ "kcms": [
+  {
+   "name": "About this System",
+   "icon": "ktip"
+  },
+  {
+   "name": "Accessibility",
+   "icon": "preferences-desktop-accessibility"
+  },
+  {
+   "name": "Activities",
+   "icon": "preferences-desktop-activities"
+  },
+  {
+   "name": "Animations",
+   "icon": "preferences-desktop-animations"
+  },
+  {
+   "name": "Application Permissions",
+   "icon": "preferences-security"
+  },
+  {
+   "name": "Application Style",
+   "icon": "preferences-desktop-theme-applications"
+  },
+  {
+   "name": "Audio CDs",
+   "icon": "media-optical-audio"
+  },
+  {
+   "name": "Autostart",
+   "icon": "system-run"
+  },
+  {
+   "name": "Background Services",
+   "icon": "preferences-system-session-services"
+  },
+  {
+   "name": "Bluetooth",
+   "icon": "preferences-system-bluetooth"
+  },
+  {
+   "name": "Breeze Window Decoration",
+   "icon": "preferences-system-windows"
+  },
+  {
+   "name": "CDDB Retrieval",
+   "icon": "media-optical-audio"
+  },
+  {
+   "name": "Cellular Network",
+   "icon": "smartphone"
+  },
+  {
+   "name": "Color Management",
+   "icon": "preferences-desktop-color"
+  },
+  {
+   "name": "Colors",
+   "icon": "preferences-desktop-color"
+  },
+  {
+   "name": "Connection Preferences",
+   "icon": "preferences-system-network-connection"
+  },
+  {
+   "name": "Date & Time",
+   "icon": "preferences-system-time"
+  },
+  {
+   "name": "Day-Night Cycle",
+   "icon": "lighttable"
+  },
+  {
+   "name": "Default Applications",
+   "icon": "preferences-desktop-default-applications"
+  },
+  {
+   "name": "Desktop Effects",
+   "icon": "preferences-desktop-effects"
+  }
+ ],
+ "total_apps": 250
+}

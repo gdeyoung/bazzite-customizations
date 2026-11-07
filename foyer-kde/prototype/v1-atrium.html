@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foyer KDE — V1 Atrium</title>
+<style>
+:root{
+  --win:rgba(35,38,41,.96); --raised:#31363b; --raised2:#3b4045;
+  --hover:rgba(61,174,233,.13); --sel:rgba(30,146,255,.24);
+  --tx:#fcfcfc; --dim:#a1a9b1; --faint:#78828b;
+  --accent:#1e92ff; --accent-hi:#3daee9;
+  --pos:#27ae60; --neg:#da4453; --neu:#f67400;
+  --bd:rgba(255,255,255,.08); --bd2:rgba(255,255,255,.13);
+  --rw:14px; --rc:10px; --ri:7px;
+  --mono:'Noto Sans Mono',ui-monospace,monospace;
+  --sans:'Noto Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);font-size:17px;color:var(--tx);
+  background:
+    radial-gradient(1200px 700px at 30% 20%,#1c2733 0%,transparent 60%),
+    radial-gradient(900px 600px at 75% 80%,#232030 0%,transparent 55%),
+    #0c0f13;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+/* faint desktop suggestion behind the overlay */
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(1.4px 1.4px at 22% 34%,#ffffff26 50%,transparent 51%),
+  radial-gradient(1.4px 1.4px at 68% 61%,#ffffff1c 50%,transparent 51%),
+  radial-gradient(1.4px 1.4px at 45% 82%,#ffffff14 50%,transparent 51%);
+  opacity:.5;pointer-events:none}
+.window{
+  width:920px;height:640px;border-radius:var(--rw);
+  background:var(--win);border:1px solid var(--bd2);
+  box-shadow:0 30px 90px rgba(0,0,0,.6),0 4px 18px rgba(0,0,0,.45);
+  backdrop-filter:blur(22px);
+  display:flex;flex-direction:column;overflow:hidden;
+  animation:open .13s cubic-bezier(.2,.9,.3,1) both;
+}
+@keyframes open{from{opacity:0;transform:scale(.982)}to{opacity:1;transform:scale(1)}}
+/* ── header ─────────────────────────────────── */
+.hdr{display:flex;align-items:center;gap:12px;padding:14px 18px 10px}
+.hdr .lens{flex:0 0 auto;color:var(--faint)}
+.field{flex:1;display:flex;align-items:baseline;gap:8px;height:40px;
+  border-bottom:2px solid var(--bd2)}
+.field.focus{border-color:var(--accent)}
+#q{flex:1;background:none;border:none;outline:none;color:var(--tx);
+  font:400 17px/1 var(--mono);caret-color:var(--accent)}
+#q::placeholder{color:var(--faint)}
+.field .scope{font:500 13px/1 var(--mono);color:var(--accent-hi);
+  letter-spacing:.02em;white-space:nowrap}
+/* ── body split ─────────────────────────────── */
+.body{flex:1;display:flex;min-height:0}
+.rail{width:296px;flex:0 0 auto;border-right:1px solid var(--bd);
+  overflow-y:auto;padding:8px 8px 12px}
+.pane{flex:1;display:flex;flex-direction:column;min-width:0}
+/* ── rail tree ──────────────────────────────── */
+.grp{font:600 11px/1 var(--mono);color:var(--faint);letter-spacing:.14em;
+  padding:14px 10px 6px}
+.row{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;
+  border-radius:var(--ri);cursor:default;position:relative}
+.row:hover{background:var(--hover)}
+.row.sel{background:var(--sel)}
+.row.sel::before{content:'';position:absolute;left:0;top:8px;bottom:8px;
+  width:3px;border-radius:2px;background:var(--accent)}
+.row .ic{flex:0 0 22px;display:flex;justify-content:center;color:var(--dim)}
+.row.sel .ic{color:var(--accent-hi)}
+.row .lbl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:16px}
+.row .lbl small{display:block;font-size:12px;color:var(--faint);line-height:1.25;
+  margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n{font:500 12px/1 var(--mono);color:var(--faint);padding-left:6px}
+.kids{margin:2px 0 4px 15px;padding-left:12px;border-left:1px solid var(--bd)}
+.kids .row{height:36px}
+/* ── pane ───────────────────────────────────── */
+.pane-hdr{display:flex;align-items:center;gap:8px;height:46px;padding:0 18px;
+  border-bottom:1px solid var(--bd)}
+.crumbs{display:flex;align-items:center;gap:7px;font:500 13px/1 var(--mono);
+  color:var(--dim)}
+.crumbs b{color:var(--tx);font-weight:600;font-size:14px}
+.crumbs .sep{color:var(--faint)}
+.pane-hdr .cnt{margin-left:auto;font:500 12px/1 var(--mono);color:var(--faint)}
+.scroll{flex:1;overflow-y:auto;padding:10px 14px 16px}
+/* list rows in pane */
+.prow{display:flex;align-items:center;gap:12px;min-height:44px;padding:5px 10px;
+  border-radius:var(--ri)}
+.prow:hover{background:var(--hover)}
+.prow.sel{background:var(--sel);box-shadow:inset 0 0 0 1.5px rgba(30,146,255,.55)}
+.tile{flex:0 0 30px;height:30px;border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font:600 14px/1 var(--sans);color:#fff}
+.prow .meta{flex:1;min-width:0}
+.prow .meta .nm{font-size:16.5px;line-height:1.2;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.prow .meta .sub{font-size:12.5px;color:var(--dim);line-height:1.3;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .act{font:500 11.5px/1 var(--mono);color:var(--faint);letter-spacing:.06em;
+  white-space:nowrap}
+.prow.warn .act{color:var(--neu)}
+.footer-note{font:500 12px/1 var(--mono);color:var(--faint);text-align:center;
+  padding:14px 0 4px;letter-spacing:.08em}
+/* favorites strip */
+.favh{font:600 11px/1 var(--mono);color:var(--faint);letter-spacing:.14em;
+  padding:10px 10px 8px}
+.favs{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:0 4px 6px}
+.fav{display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 4px 9px;
+  border-radius:var(--ri);border:1px solid transparent}
+.fav:hover{background:var(--hover)}
+.fav .tile{width:34px;height:34px;font-size:16px}
+.fav .fn{font-size:12px;color:var(--dim);line-height:1.15;text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* category tiles */
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:6px 4px}
+.cat{display:flex;align-items:center;gap:10px;padding:9px 12px;
+  background:rgba(49,54,59,.55);border:1px solid var(--bd);border-radius:var(--ri)}
+.cat:hover{background:var(--hover)}
+.cat .ci{color:var(--dim)}
+.cat .cl{flex:1;font-size:15px}
+.cat .n{font:500 12px/1 var(--mono);color:var(--faint)}
+/* AI card */
+.ai-ask{display:flex;align-items:center;gap:10px;background:var(--raised);
+  border:1px solid var(--bd2);border-radius:var(--rc);padding:12px 14px;
+  font:400 15px/1.4 var(--mono);color:var(--dim)}
+.ai-ask .pf{color:var(--accent-hi);font-weight:600}
+.qcard{background:var(--raised);border:1px solid var(--bd2);border-radius:var(--rc);
+  padding:16px 18px;margin-top:12px}
+.qcard .q{font:600 14px/1.5 var(--mono);color:var(--accent-hi);margin-bottom:10px}
+.qcard .a{font-size:15.5px;line-height:1.55;color:var(--tx)}
+.qcard .a .cur{display:inline-block;width:8px;height:16px;background:var(--accent);
+  vertical-align:-2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.qcard .aa{display:flex;gap:8px;margin-top:14px}
+.chipbtn{font:500 12px/1 var(--mono);letter-spacing:.08em;color:var(--dim);
+  border:1px solid var(--bd2);border-radius:6px;padding:7px 12px}
+.chipbtn:hover{color:var(--tx);border-color:var(--accent)}
+.chipbtn.pri{color:#fff;background:var(--accent);border-color:transparent}
+.model-chip{display:inline-flex;align-items:center;gap:7px;font:500 12px/1 var(--mono);
+  color:var(--dim);border:1px solid var(--bd2);border-radius:99px;padding:6px 12px}
+.model-chip .dot{width:7px;height:7px;border-radius:99px;background:var(--pos)}
+/* peers */
+.prow .st{flex:0 0 8px;height:8px;border-radius:99px;margin-right:2px}
+.st.on{background:var(--pos)} .st.dimmed{background:var(--faint)}
+/* empty */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;color:var(--dim)}
+.empty .big{font-size:17px}
+.empty .kbd-hint{font:500 12px/1 var(--mono);color:var(--faint);letter-spacing:.1em}
+/* ── footer ─────────────────────────────────── */
+.ftr{display:flex;align-items:center;height:36px;padding:0 18px;gap:14px;
+  border-top:1px solid var(--bd);font:500 11.5px/1 var(--mono);
+  color:var(--faint);letter-spacing:.07em}
+.ftr .grow{flex:1}
+kbd{border:1px solid var(--bd2);border-radius:4px;padding:2.5px 5.5px;
+  color:var(--dim);font:500 10.5px/1 var(--mono);margin-right:2px}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+</style>
+</head>
+<body>
+<div class="window" id="win">
+  <div class="hdr">
+    <span class="lens"><svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14"/></svg></span>
+    <div class="field" id="field"><span class="scope" id="scope"></span><input id="q" placeholder="Type to search · apps, settings, system, ai, fleet…" autocomplete="off"></div>
+  </div>
+  <div class="body">
+    <nav class="rail" id="rail"></nav>
+    <section class="pane">
+      <div class="pane-hdr"><div class="crumbs" id="crumbs"></div><div class="cnt" id="cnt"></div></div>
+      <div class="scroll" id="scroll"></div>
+    </section>
+  </div>
+  <div class="ftr">
+    <span>FOYER · 250 APPS · 12 CATS · 83 MODULES · 12 PEERS</span>
+    <span class="grow"></span>
+    <span><kbd>↑↓</kbd>WALK</span><span><kbd>→</kbd>PANE</span><span><kbd>ENTER</kbd>OPEN</span><span><kbd>⌫</kbd>BACK</span><span><kbd>ESC</kbd>CLOSE</span>
+  </div>
+</div>
+<script>
+/* ── authored icon set (one stroke weight) ── */
+const I=(d,extra='')=>`<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+const IC={
+apps:I('<rect x="1.8" y="1.8" width="5" height="5" rx="1.4"/><rect x="9.2" y="1.8" width="5" height="5" rx="1.4"/><rect x="1.8" y="9.2" width="5" height="5" rx="1.4"/><rect x="9.2" y="9.2" width="5" height="5" rx="1.4"/>'),
+fav:I('<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.2L8 11.5l-3.8 2 .7-4.2-3.1-3 4.3-.6z"/>'),
+settings:I('<path d="M1.5 4h13M1.5 8h13M1.5 12h13"/><circle cx="5" cy="4" r="1.5" fill="#232629"/><circle cx="10.5" cy="8" r="1.5" fill="#232629"/><circle cx="6" cy="12" r="1.5" fill="#232629"/>'),
+system:I('<path d="M8 1.8v5M8 6.9a4.6 4.6 0 1 1-4.6 4.6"/>'),
+update:I('<path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3"/>'),
+about:I('<circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4"/><circle cx="8" cy="4.7" r=".2" fill="currentColor"/>'),
+ai:I('<path d="M8 1.5l1.7 4.8L14.5 8l-4.8 1.7L8 14.5 6.3 9.7 1.5 8l4.8-1.7z"/>'),
+fleet:I('<circle cx="8" cy="2.8" r="1.6"/><circle cx="2.8" cy="12.8" r="1.6"/><circle cx="13.2" cy="12.8" r="1.6"/><path d="M7 4.1 3.6 11.3M9 4.1l3.4 7.2M4.4 12.8h7.2"/>'),
+ssh:I('<rect x="1.5" y="2.5" width="13" height="11" rx="1.8"/><path d="M4.2 6l2.4 2-2.4 2M8.4 10.3h3.4"/>'),
+snip:I('<path d="M5.5 2.5c-1.8 0-2 1.2-2 2.6v1.6c0 1.2-.6 2-1.5 2.3.9.3 1.5 1.1 1.5 2.3v1.6c0 1.4.2 2.6 2 2.6M10.5 2.5c1.8 0 2 1.2 2 2.6v1.6c0 1.2.6 2 1.5 2.3-.9.3-1.5 1.1-1.5 2.3v1.6c0 1.4-.2 2.6-2 2.6"/>'),
+help:I('<circle cx="8" cy="8" r="6.2"/><path d="M6.2 6.2c.2-1.4 3.4-1.6 3.6 0 .2 1.4-1.8 1.5-1.8 3"/><circle cx="8" cy="11.6" r=".2" fill="currentColor"/>'),
+game:I('<path d="M5.4 4.5H3.6A2.1 2.1 0 0 0 1.5 6.6v2.8a2.1 2.1 0 0 0 2.1 2.1h1.8l1.2-1.6h2.8l1.2 1.6h1.8a2.1 2.1 0 0 0 2.1-2.1V6.6a2.1 2.1 0 0 0-2.1-2.1h-1.8L9.6 6.1H6.4z"/><path d="M4.4 7v2M3.4 8h2"/>'),
+net:I('<circle cx="8" cy="8" r="6.2"/><path d="M1.9 8h12.2M8 1.8c-3.6 3.8-3.6 8.6 0 12.4M8 1.8c3.6 3.8 3.6 8.6 0 12.4"/>'),
+dev:I('<path d="M4.5 3.5 1 8l3.5 4.5M11.5 3.5 15 8l-3.5 4.5M9.4 2.6l-2.8 10.8"/>'),
+media:I('<circle cx="8" cy="8" r="6.2"/><path d="M8 5.2 11 8 8 10.8 5 8z"/>'),
+office:I('<path d="M3 1.8h7l3 3v9.4H3z"/><path d="M10 1.8v3h3M5.4 8.4h5.2M5.4 11h5.2"/>'),
+util:I('<path d="M8 1.8v12.4M1.8 8h12.4" transform="rotate(45 8 8)"/><circle cx="8" cy="8" r="2"/>'),
+gfx:I('<circle cx="5.6" cy="5.6" r="2.6"/><circle cx="10.4" cy="10.4" r="2.6"/>'),
+sys2:I('<rect x="1.8" y="3" width="12.4" height="8" rx="1.6"/><path d="M5.5 13.5h5"/>'),
+lock:I('<rect x="3.2" y="7" width="9.6" height="7" rx="1.6"/><path d="M5.3 7V5.2a2.7 2.7 0 0 1 5.4 0V7"/>'),
+sleep:I('<path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z"/>'),
+out:I('<path d="M6 2.5H3A1.5 1.5 0 0 0 1.5 4v8A1.5 1.5 0 0 0 3 13.5h3M10.5 4.5 14 8l-3.5 3.5M14 8H6"/>'),
+reb:I('<path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c2.2 0 4 1.2 4.9 3M13.5 1.5v3.6h-3.6"/>'),
+off:I('<circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.6 1.6"/>'),
+copy:I('<rect x="5.5" y="5.5" width="9" height="9" rx="1.6"/><path d="M3.5 10.5h-2v-9h9v2"/>'),
+search:I('<circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14"/>'),
+star:I('<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.2L8 11.5l-3.8 2 .7-4.2-3.1-3 4.3-.6z"/>'),
+};
+/* ── real data (extracted from live .desktop scan + fleet) ── */
+const CATS={
+'Games':['9 Kings','Ad Fundum','After Inc: Revival','Age of Mythology: Retold','Avorion','Beyond All Reason','Boneraiser Minions','Brotato','Cemu AppImage','Dolphin Emulator','EmuDeck','Heroic Games Launcher','Lutris','Steam'],
+'Internet':['Angry IP Scanner','Brave','Chromium','Discord','Firefox','Google Chrome','Greenlight','JDownloader','KDE Connect','KopiaUI','Signal','Thunderbird','Transmission','Warp'],
+'Development':['Antigravity','Goose','Kate','KDebugSettings','LM-Studio','Podman Desktop','Sysprof','Whaler','ZCode','Builder'],
+'Audio & Video':['Audacity','Buzz','Easy Effects','FileBot','HandBrake','Haruna','JamesDSP','Kdenlive','Media Downloader','mpv Media Player','OBS Studio','pwvucontrol','Sonixd','VLC'],
+'Office':['Adobe Reader 9','calibre','Clearvoice','Collabora Office','E-book editor','E-book viewer','Joplin','LibreOffice','LibreOffice Base','LibreOffice Calc','LibreOffice Draw','LibreOffice Impress','LibreOffice Writer','OnlyOffice'],
+'System Tools':['Bazzite Portal','Bazzite Updater','Bitwarden','Btrfs Assistant','Cardwire','Dolphin','Fan Control','Fedora Media Writer','Firewall','Firmware','GParted','Htop','KDiskMark','Konsole'],
+'Graphics':['Blender','Comic Reader Ultimate','Gwenview','Inkscape','Okular','Peek'],
+'Utilities':['4KTUBE','AnythingLLM Desktop','Ark','balenaEtcher','Bazaar','Bold Brew','Bottles','BoxBuddy','Claude','CoolerControl']};
+const GEN={'Brotato':'Arena roguelite horde survival','Avorion':'Sandbox space sim','Beyond All Reason':'Large-scale RTS','Kdenlive':'Video editor','Dolphin':'File manager','Firefox':'Web browser','Brave':'Web browser','Kate':'Text editor','Bitwarden':'Password manager','Blender':'3D creation suite','Inkscape':'Vector graphics editor','Steam':'Game store and launcher','Konsole':'Terminal emulator','Discord':'Voice and chat','calibre':'E-book library','Joplin':'Note taking','OBS Studio':'Streaming and recording','HandBrake':'Video transcoder','Gwenview':'Image viewer','VLC':'Media player'};
+const FAVS=[['Dolphin','File manager'],['Firefox','Web browser'],['Konsole','Terminal emulator'],['Kdenlive','Video editor'],['Bitwarden','Password vault'],['Steam','Game launcher']];
+const KCMS=['About this System','Accessibility','Activities','Animations','Application Permissions','Application Style','Audio CDs','Autostart','Background Services','Bluetooth','Breeze Window Decoration','Colors and Themes','Cursors','Date and Time','Desktop Effects','Displays','Energy Saving','Fonts','Input Devices','KRunner','Keyboard Shortcuts'];
+const PEERS=[['AICube','Agent fleet · LiteLLM · MCP','on'],['AITower','2× RTX 3090 · ComfyUI · video','on'],['AI Box','Unraid · embeddings · STT/TTS','on'],['MediaServer','Qwen3.8-27B · Emby','on'],['Watertower','SearXNG · ES · knowledge','on'],['NAS','Bulk storage · TrueNAS','on'],['Spark GX10','Qwen3.8-Flash VELO','on'],['Spark GX13','VELO pool node','on'],['Spark2','GLM-5.3-Flash NVFP4','on'],['Node','General compute','dim'],['HomeServer','Unraid app host','on'],['Jellyfin','Media server :8096','dim']];
+const SSH=[['aitower','root@192.168.1.246'],['aicube','root@192.168.1.243'],['aibox','root@192.168.1.239'],['watertower','root@192.168.1.249'],['nas','root@192.168.1.252'],['mediaserver','root@192.168.1.250'],['jellyfin','gdeyoung@192.168.1.238'],['micro','gdeyoung@192.168.1.240'],['spark','gdeyoung@192.168.1.245']];
+const SNIPS=[[';gpush','git push origin kde-ports-batch'],[';rwatch','journalctl --user -f -u hermes-runner'],[';gpull','git pull --rebase origin kde-ports-batch'],[';ports','ss -tlnp | grep -E "4000|9120|8443"'],[';fl','fleet-status --all']];
+const POWER=[['Lock Screen','lock','ENTER LOCKS NOW'],['Sleep','sleep','ENTER SLEEPS NOW'],['Log Out','out','ENTER LOGS OUT NOW · CLOSES OPEN APPS'],['Reboot','reb','ENTER REBOOTS NOW · CLOSES OPEN APPS'],['Shut Down','off','ENTER SHUTS DOWN NOW · CLOSES OPEN APPS']];
+const RECENTS=['ask hermes about plasma 6.7 blur behind layer shell','ai summarize the omarchy menu format','hr check the fleet heartbeat and report gaps','ai which spark node has the lowest queue'];
+/* deterministic monogram tile */
+const HUES=['#1e92ff','#27ae60','#f67400','#9b59b6','#da4453','#1abc9c','#3daee9','#c9ce3b'];
+function tile(name){let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))>>>0;
+  return `<span class="tile" style="background:linear-gradient(145deg,${HUES[h%8]},${HUES[(h+3)%8]}cc)">${name[0].toUpperCase()}</span>`}
+const catIcon={'Games':'game','Internet':'net','Development':'dev','Audio & Video':'media','Office':'office','System Tools':'sys2','Graphics':'gfx','Utilities':'util'};
+/* ── tree model ── */
+const TREE=[
+ {id:'apps',lbl:'Apps',ic:'apps',n:250,sub:'FAVORITES · ALL CATEGORIES · THE FULL TREE'},
+ {id:'settings',lbl:'Settings',ic:'settings',n:83,sub:'SYSTEM SETTINGS MODULES'},
+ {id:'system',lbl:'System',ic:'system',n:5,sub:'LOCK · SLEEP · LOG OUT · REBOOT · SHUT DOWN'},
+ {id:'update',lbl:'Update',ic:'update',n:0,sub:'RUNS UJUST UPDATE IN KONSOLE'},
+ {id:'about',lbl:'About',ic:'about',n:0,sub:'SYSTEM SUMMARY · ENTER COPIES'}];
+const LANE=[
+ {id:'ai',lbl:'AI',ic:'ai',n:0,sub:'ASK · RECENTS · MODEL'},
+ {id:'fleet',lbl:'Fleet',ic:'fleet',n:12,sub:'PEERS · HANDOFFS'},
+ {id:'ssh',lbl:'SSH',ic:'ssh',n:9,sub:'HOST ALIASES · TYPE NAME TO CONNECT'},
+ {id:'snippets',lbl:'Snippets',ic:'snip',n:5,sub:';NAME · ENTER COPIES'},
+ {id:'help',lbl:'Help',ic:'help',n:0,sub:'LANE DOCS · EXAMPLES'}];
+let expanded={'apps':true};
+let sel={rail:'game',pane:null};   // selected rail row id / pane row index
+let drill=[];                       // breadcrumb: ['apps','Games']
+const $=id=>document.getElementById(id);
+function railRow(t,depth,selected,cat){
+ return `<div class="row ${selected?'sel':''}" data-id="${t.id}" ${depth?`data-cat="${t.lbl}"`:''} tabindex="-1">
+  <span class="ic">${IC[t.ic]}</span><span class="lbl">${t.lbl}</span><span class="n">${t.n||''}</span></div>`}
+function renderRail(filter){
+  const f=(filter||'').toLowerCase();
+  let h='<div class="grp">LAUNCHER</div>';
+  for(const t of TREE){
+    h+=railRow(t,0,sel.rail===t.id);
+    if(t.id==='apps'&&(expanded.apps||f)){
+      h+='<div class="kids">';
+      h+=`<div class="row ${sel.rail==='favs'?'sel':''}" data-id="favs"><span class="ic">${IC.star}</span><span class="lbl">Favorites</span><span class="n">27</span></div>`;
+      const cats=Object.keys(CATS).filter(c=>!f||c.toLowerCase().includes(f));
+      for(const c of cats)h+=`<div class="row ${sel.rail===c?'sel':''}" data-cat="${c}"><span class="ic">${IC[catIcon[c]]}</span><span class="lbl">${c}</span><span class="n">${CATS[c].length}</span></div>`;
+      h+=`<div class="row" data-id="more"><span class="ic">${IC.apps}</span><span class="lbl" style="color:var(--dim)">More categories</span><span class="n">4</span></div>`;
+      h+='</div>';
+    }
+  }
+  h+='<div class="grp">FLEET</div>';
+  for(const t of LANE)h+=railRow(t,0,sel.rail===t.id);
+  $('rail').innerHTML=h;
+}
+function paneCat(c){
+  const apps=CATS[c];
+  $('crumbs').innerHTML=`<span>Apps</span><span class="sep">›</span><b>${c}</b>`;
+  $('cnt').textContent=`${apps.length} OF ${apps.length}`;
+  $('scroll').innerHTML=apps.map((a,i)=>`<div class="prow ${i===0?'sel':''}">
+    ${tile(a)}<div class="meta"><div class="nm">${a}</div><div class="sub">${GEN[a]||c.replace(/s$/,'')+' application'}</div></div>
+    <div class="act">ENTER LAUNCHES</div></div>`).join('');
+}
+function paneApps(){
+  $('crumbs').innerHTML=`<b>Apps</b>`;
+  $('cnt').textContent='250 APPS · 12 CATS';
+  let h=`<div class="favh">FAVORITES · KICKOFF MIRROR</div><div class="favs">`+
+    FAVS.map(f=>`<div class="fav">${tile(f[0])}<span class="fn">${f[0]}</span></div>`).join('')+`</div>
+    <div class="favh" style="padding-top:14px">CATEGORIES</div><div class="cats">`+
+    Object.keys(CATS).map(c=>`<div class="cat" data-cat="${c}"><span class="ci">${IC[catIcon[c]]}</span><span class="cl">${c}</span><span class="n">${CATS[c].length}</span></div>`).join('')+`</div>
+    <div class="footer-note">MORE CATEGORIES · 4</div>`;
+  $('scroll').innerHTML=h;
+}
+function paneNode(id){
+  if(id==='favs'){$('crumbs').innerHTML=`<span>Apps</span><span class="sep">›</span><b>Favorites</b>`;$('cnt').textContent='27 FAVORITES';
+    $('scroll').innerHTML=FAVS.concat([['Steam','Game launcher'],['Brave','Web browser'],['Kate','Text editor'],['calibre','E-book library'],['Gwenview','Image viewer'],['OBS Studio','Streaming and recording'],['Signal','Private messenger'],['VLC','Media player'],['Inkscape','Vector graphics'],['Blender','3D creation'],['Discord','Voice and chat'],['Joplin','Note taking'],['HandBrake','Video transcoder'],['mpv Media Player','Media player'],['Lutris','Game launcher'],['Transmission','BitTorrent client'],['Thunderbird','Email'],['Ark','Archive manager'],['Bottles','Windows apps'],['Cemu AppImage','Emulator'],['Dolphin Emulator','Emulator'],['EmuDeck','Emulation frontend'],['Easy Effects','Audio effects'],['Haruna','Video player']]).slice(0,14).map((f,i)=>`<div class="prow ${i===0?'sel':''}">${tile(f[0])}<div class="meta"><div class="nm">${f[0]}</div><div class="sub">${f[1]}</div></div><div class="act">ENTER LAUNCHES</div></div>`).join('')+`<div class="footer-note">SHOWING 14 OF 27</div>`;return}
+  if(id==='settings'){$('crumbs').innerHTML=`<b>Settings</b>`;$('cnt').textContent='83 MODULES';
+    $('scroll').innerHTML=KCMS.map((k,i)=>`<div class="prow ${i===0?'sel':''}"><span class="ic" style="color:var(--dim)">${IC.settings}</span><div class="meta"><div class="nm">${k}</div></div><div class="act">ENTER OPENS MODULE</div></div>`).join('')+`<div class="footer-note">SHOWING 21 OF 83 · TYPE LETTERS TO FILTER</div>`;return}
+  if(id==='system'){$('crumbs').innerHTML=`<b>System</b>`;$('cnt').textContent='5 ACTIONS';
+    $('scroll').innerHTML=POWER.map((p,i)=>`<div class="prow ${i===0?'sel':''} warn"><span class="ic" style="color:var(--dim)">${IC[p[1]]}</span><div class="meta"><div class="nm">${p[0]}</div></div><div class="act">${p[2]}</div></div>`).join('');return}
+  if(id==='update'){$('crumbs').innerHTML=`<b>Update</b>`;$('cnt').textContent='ACTION';
+    $('scroll').innerHTML=`<div class="prow sel warn"><span class="ic" style="color:var(--dim)">${IC.update}</span><div class="meta"><div class="nm">Run ujust update</div><div class="sub">OPENS IN KONSOLE · SYSTEM-WIDE</div></div><div class="act">ENTER STARTS NOW</div></div>`;return}
+  if(id==='about'){$('crumbs').innerHTML=`<b>About</b>`;$('cnt').textContent='SUMMARY';
+    $('scroll').innerHTML=`<div class="qcard"><div class="q" style="color:var(--dim)">GDTOWER · BAZZITE 42 · PLASMA 6.7.5 · KERNEL 6.2.15-ogc1 · AMD RX 9070 XT · UP 3D 14H</div><div class="aa"><span class="chipbtn pri">ENTER COPIES</span></div></div>`;return}
+  if(id==='ai'){$('crumbs').innerHTML=`<b>AI</b>`;$('cnt').textContent='LOCAL-FAST';
+    $('scroll').innerHTML=`<div class="ai-ask"><span class="pf">ai</span><span id="aiq" style="color:var(--tx)">${$('q').value?($('q').value):'type a question — ENTER asks · local-fast'}</span></div>
+    <div class="qcard" id="ans" style="display:${$('q').value?'block':'none'}"><div class="q">ai ${$('q').value||''}</div><div class="a">On Plasma 6, a standalone QML window anchors as a Wayland overlay via LayerShellQt — the same path KRunner's own view uses. Blur comes from the KWin blur role on the window surface<span class="cur"></span></div><div class="aa"><span class="chipbtn pri">COPY</span><span class="chipbtn">CONTINUE IN CHAT</span><span class="chipbtn">MODEL · LOCAL-FAST ▾</span></div></div>
+    <div class="favh" style="padding-top:14px">RECENT QUESTIONS</div>`+
+    RECENTS.map(r=>`<div class="prow"><span class="ic" style="color:var(--dim)">${IC.ai}</span><div class="meta"><div class="nm" style="font-family:var(--mono);font-size:13.5px;color:var(--dim)">${r}</div></div><div class="act">ENTER RE-ASKS</div></div>`).join('');
+    return}
+  if(id==='fleet'){$('crumbs').innerHTML=`<b>Fleet</b>`;$('cnt').textContent='12 PEERS · 10 UP';
+    $('scroll').innerHTML=PEERS.map((p,i)=>`<div class="prow ${i===0?'sel':''}"><span class="st ${p[2]==='on'?'on':'dimmed'}"></span><div class="meta"><div class="nm">${p[0]}</div><div class="sub">${p[1]}</div></div><div class="act">${p[2]==='on'?'ENTER HANDS OFF':'OFFLINE'}</div></div>`).join('');return}
+  if(id==='ssh'){$('crumbs').innerHTML=`<b>SSH</b>`;$('cnt').textContent='9 ALIASES';
+    $('scroll').innerHTML=SSH.map((s,i)=>`<div class="prow ${i===0?'sel':''}"><span class="ic" style="color:var(--dim)">${IC.ssh}</span><div class="meta"><div class="nm" style="font-family:var(--mono)">${s[0]}</div><div class="sub">${s[1]}</div></div><div class="act">ENTER CONNECTS</div></div>`).join('');return}
+  if(id==='snippets'){$('crumbs').innerHTML=`<b>Snippets</b>`;$('cnt').textContent='5 SAVED';
+    $('scroll').innerHTML=SNIPS.map((s,i)=>`<div class="prow ${i===0?'sel':''}"><span class="ic" style="color:var(--dim)">${IC.snip}</span><div class="meta"><div class="nm" style="font-family:var(--mono)">${s[0]}</div><div class="sub">${s[1]}</div></div><div class="act">ENTER COPIES</div></div>`).join('');return}
+  if(id==='help'){$('crumbs').innerHTML=`<b>Help</b>`;$('cnt').textContent='LANES';
+    $('scroll').innerHTML=[['ai — ask a question','type a question or prefix with ai'],['hr — hand Hermes a task','hr <task> · replies as notification'],['ssh <alias>','connect to a fleet host'],[';name','copy a saved snippet'],['apps','browse the full tree']]
+    .map((s,i)=>`<div class="prow ${i===0?'sel':''}"><span class="ic" style="color:var(--dim)">${IC.help}</span><div class="meta"><div class="nm" style="font-family:var(--mono);font-size:14px">${s[0]}</div><div class="sub">${s[1]}</div></div></div>`).join('');return}
+}
+function paneFor(id){ if(CATS[id]){paneCat(id);return} paneNode(id)||0 }
+function filterAll(v){
+  const f=v.toLowerCase().trim();
+  if(!f){renderRail('');paneFor(sel.rail);return}
+  renderRail(f);
+  const hits=[];
+  for(const[c,arr]of Object.entries(CATS))for(const a of arr)if(a.toLowerCase().includes(f))hits.push(['APPS · '+c,a,'ENTER LAUNCHES']);
+  for(const k of KCMS)if(k.toLowerCase().includes(f))hits.push(['SETTINGS',k,'ENTER OPENS MODULE']);
+  for(const s of SSH)if(s[0].includes(f))hits.push(['SSH',s[0],'ENTER CONNECTS']);
+  for(const s of SNIPS)if(s[0].includes(f))hits.push(['SNIPPETS',s[0],'ENTER COPIES']);
+  hits.push(['AI','Ask Hermes: '+v,'ENTER ASKS · LOCAL-FAST']);
+  if(!hits.length){
+    $('crumbs').innerHTML=`<b>Search</b>`;$('cnt').textContent='';
+    $('scroll').innerHTML=`<div class="empty"><div class="big">No matches for “${v}”</div><div class="kbd-hint"><kbd>ESC</kbd> CLEARS · <kbd>ENTER</kbd> ASKS AI ANYWAY</div></div>`;
+    return}
+  const bySec={};for(const h of hits)(bySec[h[0]]=bySec[h[0]]||[]).push(h);
+  let h='';for(const[sec,arr]of Object.entries(bySec)){
+    h+=`<div class="favh">${sec} · ${arr.length}</div>`+arr.slice(0,8).map((x,i)=>`<div class="prow ${sec==='AI'?'sel':''}">${/APPS/.test(sec)?tile(x[1]):`<span class="ic" style="color:var(--dim)">${IC.ai}</span>`}<div class="meta"><div class="nm" ${/AI|SSH|SNIPPETS/.test(sec)?'style="font-family:var(--mono);font-size:14.5px"':''}>${x[1]}</div></div><div class="act">${x[2]}</div></div>`).join('');
+    if(arr.length>8)h+=`<div class="footer-note">SHOWING 8 OF ${arr.length}</div>`}
+  $('crumbs').innerHTML=`<b>Search</b>`;$('cnt').textContent=`${hits.length} RESULTS`;
+  $('scroll').innerHTML=h;
+}
+/* interactions */
+$('rail').addEventListener('click',e=>{
+  const r=e.target.closest('.row');if(!r)return;
+  const cat=r.dataset.cat,id=r.dataset.id;
+  if(cat){sel.rail=cat;renderRail($('q').value.trim());paneCat(cat)}
+  else if(id){sel.rail=id;renderRail('');paneNode(id);
+    if(id==='ai')filterAll($('q').value)}});
+$('scroll').addEventListener('click',e=>{
+  const c=e.target.closest('.cat');if(c){sel.rail=c.dataset.cat;renderRail('');paneCat(c.dataset.cat)}});
+$('q').addEventListener('input',e=>{
+  const v=e.target.value;
+  $('scope').textContent=v?'':'';
+  if(sel.rail==='ai')paneNode('ai');else filterAll(v)});
+$('q').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.target.value='';filterAll('');}});
+$('field').addEventListener('click',()=>$('q').focus());
+/* boot: Apps expanded, Games selected — shows fan-out + pane lens */
+sel.rail='Games';
+renderRail('');paneCat('Games');
+setTimeout(()=>$('q').focus(),50);
+</script>
+</body>
+</html>

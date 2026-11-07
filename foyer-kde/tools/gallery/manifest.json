@@ -1,0 +1,23 @@
+{
+  "subtitle": "Foyer for KDE · carded loop: 2 research lanes → design brief (concept-seed dealt hand) → 3 stance variants → 3-judge critique + CC council → converged build",
+  "iterations": [
+    {
+      "version": "R1",
+      "title": "Exploration — the dealt hand (concept-seed 35d933dc, indices 3·7·6)",
+      "verdict": "flight",
+      "commits": "",
+      "note": "Three materially different compositions, real fleet data (250 apps from the live .desktop scan, 12 peers, real KCMs/aliases/snippets), Breeze Dark token table, 17px base, mono for grammar only. In 3-judge critique now.",
+      "shots": [
+        {"file": "prototype/shots/v1-boot.png", "label": "V1 ATRIUM", "caption": "two-pane: foyer tree rail (inline fan-out, counts) + content lens. Games drilled."},
+        {"file": "prototype/shots/v1-typed.png", "label": "V1", "caption": "typed 'br' — cross-tree sectioned results in the lens pane"},
+        {"file": "prototype/shots/v1-ai.png", "label": "V1", "caption": "AI lane: ask card + streaming answer in place + recent questions"},
+        {"file": "prototype/shots/v2-boot.png", "label": "V2 FOUR CORNERS", "caption": "bento quadrants: Apps / System+Settings / AI / Fleet previews"},
+        {"file": "prototype/shots/v2-drilled-ai.png", "label": "V2", "caption": "AI quadrant drilled to full — answer streams in place"},
+        {"file": "prototype/shots/v2-typed.png", "label": "V2", "caption": "typed 'kod' — one results list overlays the whole window"},
+        {"file": "prototype/shots/v3-boot.png", "label": "V3 THRESHOLD", "caption": "query-first single column: foyer root as sectioned list, Apps fanned open"},
+        {"file": "prototype/shots/v3-expanded.png", "label": "V3", "caption": "accordion fan-out — Games expanded inline, indented children"},
+        {"file": "prototype/shots/v3-nomatch.png", "label": "V3", "caption": "no-match state — ESC clears, ENTER asks AI anyway"}
+      ]
+    }
+  ]
+}
