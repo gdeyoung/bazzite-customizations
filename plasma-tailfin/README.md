@@ -222,6 +222,8 @@ python3 ../tools/check_qml.py .                      # static QML/metadata check
   `empty` (NO PEERS · TAILNET EMPTY), Breeze light, and scale 2 all
   green. Vision-audited screenshots: rich rows, badges, routing band,
   MATCHES search state, no scrollbar clipping (reserved 0.8·gu lane).
+  Candidate rows render 40px (Breeze Button floor) — the §W-19
+  documented exception; plain rows 33px ±1; hit targets ≥ 1.4·gu kept.
 - CC technology-architecture cross-check on the spec: 0 surviving
   MATERIAL findings (its size-loop/fixed-px/lupdate concerns are
   contradicted by the gu-derived frame/rows and the absence of
