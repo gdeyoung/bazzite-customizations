@@ -1,12 +1,57 @@
-# DESIGN-BRIEF — Foyer for KDE, iteration loop v1
+# DESIGN-BRIEF — Foyer for KDE, iteration loop v1 (amended R1.1 after research)
 
-Surface: launcher overlay, 920×640, centered, KWin blur behind (prototype: HTML at
-exact dimensions, self-contained, system fonts, no CDN). Mode: Operate.
-Established world: Breeze Dark / Kirigami — inherited, not invented.
+**Fidelity target (research-verified):** "Foyer" = the owner's own fork
+`gdeyoung/omarchy-foyer` v0.4.2 (QML/Quickshell, 2314-line Runner.qml), itself
+a fork of Omarchy's `omarchy.menu`. The KDE port reimagines THAT, not stock
+Omarchy. Digest: scratch/foyer-kde/research-foyer.md (113 lines, sourced).
+
+Surface: launcher overlay, ~920×640, centered, KWin blur behind (prototype:
+HTML at exact dimensions, self-contained, system fonts, no CDN). Mode: Operate.
+Established world: Breeze-family dark (host scheme = Vapor; its color VALUES
+are identical to the Breeze Dark table below — verified) / Kirigami house.
+
+## Implementation contract (research-verified, host-checked)
+Standalone Qt6/QML resident daemon · LayerShellQt (org.kde.layershell QML
+module INSTALLED on host) Layer.Top, centered anchors, KeyboardInteractivity
+OnDemand · blur via KWindowEffects::enableBlurBehind (same call PlasmaCore.Dialog
+uses) · warm start = Type=dbus systemd user unit + dbus-activation file
+(krunner's own pattern) → sub-150ms warm show · hotkey = .desktop +
+kglobalaccel [services] (fleet precedent: hermes-ask.desktop Meta+H; Exec
+caches at registration, lands next login — accepted) · theme via
+QQuickStyle org.kde.breeze + KColorScheme at runtime (never hardcode; the
+fleet-design-language law) · NOT a plasmoid (PlasmaCore.Dialog is fused to
+plasmashell; no overlay layer) · build gap: KF6/layer-shell devel packages
+not yet layered on Bazzite — first native-build task.
+
+## Foyer fork DNA (port these verbatim — the product's soul)
+- Caret flow: typing keeps caret in the box; ENTER = top hit; ↓ enters
+  results; ↑ from first row returns to box. Esc: clear query → back a level
+  → close at root. Backspace/Left-on-empty = back.
+- Root on open (menu-on-start default ON): the root tree as a captioned
+  group + Favorites start group (★, Ctrl+P pins, 30 max, Kickoff mirror on
+  KDE) + optional Recents group. NO loose ungrouped leaf rows on root
+  (L-16 spirit, fork-compatible reading).
+- One-line rows: label + dimmed detail INLINE on the same line (detail
+  elides first). Mono type identity (fork uses monospace; KDE port: mono
+  row labels, sans for prose answers).
+- Category caption column (default ON): left ~120px right-aligned captions,
+  opacity .6, group divider INSIDE the first row of each group.
+- Tiered substring search (+ optional fuzzy ≥3 chars, 120ms debounce),
+  prefix-claimed sources (ai: > kill cb ; : ssh = web: loc:), grouped
+  results, web search FALLBACK ONLY.
+- Card mechanics: frozen top edge on first keystroke (grows downward only),
+  70% screen cap, mid-row fold with 55% row peek as the scroll affordance.
+- Ctrl+1..9 quick-launch hints (rows 0-8, opacity .45) · Ctrl+P pin ·
+  Ctrl+S Settings (in-launcher: width/rows/density/font/opacity/radius/
+  border/accent/location 6-way/fuzzy/categories/menu-on-start/hints/
+  per-source toggles) · Ctrl+, Sources · F1 Help · Delete = uninstall
+  (confirm dialog).
+- Guards (when/checked) batched async → Install/Remove state, ✓ rows.
 
 ## Pinned (do not relitigate)
 1. Root = branches ONLY that fan out "just like foyer" (L-16). Never loose
-   leaf apps on root.
+   leaf apps on root — amended reading per fork research: captioned start
+   GROUPS (Favorites ★, Recents) are not "loose"; ungrouped leaf rows are.
 2. Root branches: Apps · Settings · System · Update · About + Hermes lanes
    (AI · Fleet · SSH · Snippets · Help) as tree branches (L-18 r6 extended).
 3. Destructive rows name consequences in subtext ("CLOSES OPEN APPS") —

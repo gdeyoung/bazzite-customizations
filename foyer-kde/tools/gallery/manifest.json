@@ -6,7 +6,7 @@
       "title": "Exploration — the dealt hand (concept-seed 35d933dc, indices 3·7·6)",
       "verdict": "flight",
       "commits": "",
-      "note": "Three materially different compositions, real fleet data (250 apps from the live .desktop scan, 12 peers, real KCMs/aliases/snippets), Breeze Dark token table, 17px base, mono for grammar only. In 3-judge critique now.",
+      "note": "Three materially different compositions, real fleet data (250 apps from the live .desktop scan, 12 peers, real KCMs/aliases/snippets), Breeze Dark token table, 17px base, mono for grammar only. Judged next: scores 8/7/4 (V3/V1/V2).",
       "shots": [
         {"file": "prototype/shots/v1-boot.png", "label": "V1 ATRIUM", "caption": "two-pane: foyer tree rail (inline fan-out, counts) + content lens. Games drilled."},
         {"file": "prototype/shots/v1-typed.png", "label": "V1", "caption": "typed 'br' — cross-tree sectioned results in the lens pane"},
@@ -17,6 +17,25 @@
         {"file": "prototype/shots/v3-boot.png", "label": "V3 THRESHOLD", "caption": "query-first single column: foyer root as sectioned list, Apps fanned open"},
         {"file": "prototype/shots/v3-expanded.png", "label": "V3", "caption": "accordion fan-out — Games expanded inline, indented children"},
         {"file": "prototype/shots/v3-nomatch.png", "label": "V3", "caption": "no-match state — ESC clears, ENTER asks AI anyway"}
+      ]
+    },
+    {
+      "version": "R2",
+      "title": "Convergence — FOYER v4 (Atrium body · Threshold grammar · fork soul)",
+      "verdict": "ship-candidate",
+      "commits": "",
+      "note": "Judges: requirements 8/7/4 · interaction: Atrium base + Threshold grammar + V2 raises · craft: 5 fixes applied and vision-verified. Research: 'Foyer' = gdeyoung/omarchy-foyer v0.4.2 (fork DNA ported verbatim); KDE surface = LayerShellQt + enableBlurBehind + dbus warm start. Council (ai-tech): deterministic core first, AI lane explicit-Enter only, answers read-only — folded. All data real: live ICMP probe (13 UP · nas DOWN), .desktop scan, ssh config, hermes-runner config.",
+      "shots": [
+        {"file": "prototype/shots/v4-boot.png", "label": "BOOT", "caption": "root: 12-branch rail (Ctrl+1–9 hints, live counts) + category lens — fits without scroll"},
+        {"file": "prototype/shots/v4-games.png", "label": "DRILL", "caption": "APPS › GAMES — 14 apps flip to a 2-col grid, flat tiles + initials"},
+        {"file": "prototype/shots/v4-typed.png", "label": "TYPED", "caption": "'bro' — grouped results: Applications / Hermes / web fallback-only"},
+        {"file": "prototype/shots/v4-nomatch.png", "label": "NO MATCH", "caption": "'zzz' — inert Ask Hermes row: the model is never called without Enter"},
+        {"file": "prototype/shots/v4-ai.png", "label": "AI IDLE", "caption": "ask card: ai/hr grammar, model facts, recent questions only"},
+        {"file": "prototype/shots/v4-stream.png", "label": "STREAMING", "caption": "answer streams: caret, Copy disabled until done — state is distinct"},
+        {"file": "prototype/shots/v4-ready.png", "label": "ANSWERED", "caption": "real answer (live probe data), Copy = alt⏎, Continue in chat, questions-only history"},
+        {"file": "prototype/shots/v4-system.png", "label": "SYSTEM", "caption": "consequences are the confirmation — 'closes open apps' in orange, always visible"},
+        {"file": "prototype/shots/v4-fleet.png", "label": "FLEET", "caption": "live ICMP probe: 13 UP · 1 DOWN — nas dimmed, red dot, honest scroll"},
+        {"file": "prototype/shots/v4-settings.png", "label": "SETTINGS", "caption": "Ctrl+S in-launcher (fork parity): width/density/toggles/sources — compact mode = caption column"}
       ]
     }
   ]
