@@ -77,6 +77,7 @@ Window {
         Connections {
             target: bridge
             function onGotoState(s) { foyerRoot.gotoState(s) }
+            function onKeyDriven(k) { foyerRoot.navKey(k) }
         }
 
         // Card container: primary-screen center + ultrawide upscaling.

@@ -46,6 +46,7 @@ class Bridge(QObject):
     """QML↔daemon channel (signals out, dbus slots in)."""
 
     gotoState = Signal(str)
+    keyDriven = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -81,6 +82,13 @@ class Bridge(QObject):
     @Slot(str)
     def driveState(self, state):
         self.gotoState.emit(state)
+
+    @Slot(str)
+    def driveKey(self, key):
+        """Verification channel: routes a logical key (down/up/left/right/
+        enter) into the QML nav layer — same code path a real keypress
+        takes after the field's Keys handlers forward it."""
+        self.keyDriven.emit(key)
 
     # internal wiring signals (connected to the window by main())
     toggleRequested = Signal()
