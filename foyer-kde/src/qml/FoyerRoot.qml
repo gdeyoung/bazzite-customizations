@@ -937,8 +937,15 @@ Item {
 
     Component {
         id: typedComp
-        ColumnLayout {
-            spacing: 0
+        Flickable {
+            clip: true
+            contentHeight: typedCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: typedCol
+                width: parent.width
+                spacing: 0
             function forceFocus() {}
             SectionHead { title: "APPLICATIONS · " + typedResults.count }
             Repeater {
@@ -978,6 +985,7 @@ Item {
                 detail: "opens in default browser"; value: "↗"
                 focused: (root.zone !== "rail" && root.lensIndex === typedResults.count + 1) || root.navPulse === typedResults.count + 1
                 MouseArea { anchors.fill: parent; onClicked: root.activateLens("typed", typedResults.count + 1) }
+            }
             }
         }
     }
@@ -1218,8 +1226,15 @@ Item {
 
     Component {
         id: systemComp
-        ColumnLayout {
-            spacing: 0
+        Flickable {
+            clip: true
+            contentHeight: systemCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: systemCol
+                width: parent.width
+                spacing: 0
             SectionHead { title: "POWER & SESSION"; note: "consequences are the confirmation" }
             BackRow {}
             Repeater {
@@ -1237,6 +1252,7 @@ Item {
                     focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
                     MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                 }
+            }
             }
         }
     }
@@ -1307,8 +1323,15 @@ Item {
 
     Component {
         id: updateComp
-        ColumnLayout {
-            spacing: 0
+        Flickable {
+            clip: true
+            contentHeight: updateCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: updateCol
+                width: parent.width
+                spacing: 0
             SectionHead { title: "SYSTEM IMAGE"; note: "bazzite · rpm-ostree" }
             BackRow {}
             ListRow {
@@ -1334,6 +1357,7 @@ Item {
                 detail: "rpm-ostree status · last 5"; value: "→"
                 focused: (root.zone === "lens" && root.lensIndex === 3) || root.navPulse === 3
                 MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 3) }
+            }
             }
         }
     }
@@ -1445,8 +1469,15 @@ Item {
 
     Component {
         id: aboutComp
-        ColumnLayout {
-            spacing: 0
+        Flickable {
+            clip: true
+            contentHeight: aboutCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: aboutCol
+                width: parent.width
+                spacing: 0
             SectionHead { title: "FOYER FOR KDE" }
             BackRow {}
             Item { Layout.preferredHeight: 10 }
@@ -1461,6 +1492,7 @@ Item {
                 font.pixelSize: Math.round(14 * root.t)
                 lineHeight: 1.45
                 wrapMode: Text.Wrap
+            }
             }
         }
     }
