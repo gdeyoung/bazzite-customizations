@@ -64,6 +64,9 @@ EOF
 
   systemctl --user daemon-reload
   systemctl --user enable foyer.service >/dev/null 2>&1 || true
+  # Refresh the KDE service database so any fresh launch path (kioclient,
+  # kglobalaccel after relogin) resolves the NEW Exec, not a stale sycoca copy.
+  kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   echo "installed: dbus activation + systemd user unit + launcher desktop file"
   echo "summon:    systemctl --user start foyer.service   (or just call the bus)"
   echo "hotkey:    re-run with --take-hotkey to bind Meta+Space (removes it from hermes-menu)"

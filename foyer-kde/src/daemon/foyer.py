@@ -22,7 +22,7 @@ the live session first.
 import os
 import sys
 
-from PySide6.QtCore import QObject, Signal, Slot, QUrl
+from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtDBus import QDBusConnection
@@ -37,6 +37,17 @@ class Bridge(QObject):
     """QML↔daemon channel (signals out, dbus slots in)."""
 
     gotoState = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        # multi-monitor: horizontal shift so the card centers on the PRIMARY
+        # screen rather than the combined virtual desktop (see main()).
+        self._cardOffsetX = 0
+
+    def _read_cardOffsetX(self):
+        return self._cardOffsetX
+
+    cardOffsetX = Property(int, _read_cardOffsetX, constant=True)
 
     @Slot()
     def toggle(self):
@@ -67,6 +78,18 @@ def main():
     app.setApplicationVersion("0.2.0")
 
     bridge = Bridge()
+
+    # Multi-monitor fix: kwin assigns the layer surface the FULL combined
+    # output; an un-offset card would center on the monitor seam. Shift the
+    # card to the PRIMARY screen's center. Computed before QML loads so the
+    # constant property binds with the right value (single-monitor → 0).
+    try:
+        prim = app.primaryScreen()
+        if prim is not None:
+            vg = prim.virtualGeometry()
+            bridge._cardOffsetX = prim.geometry().center().x() - vg.center().x()
+    except Exception as exc:  # offset is cosmetic; never block startup
+        print(f"foyer: screen-offset fallback 0 ({exc})", file=sys.stderr)
 
     engine = QQmlApplicationEngine()
     engine.addImportPath("/usr/lib64/qt6/qml")  # system KDE QML modules

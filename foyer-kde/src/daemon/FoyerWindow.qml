@@ -40,10 +40,15 @@ Window {
             function onGotoState(s) { foyerRoot.gotoState(s) }
         }
 
+        // Center on the PRIMARY screen, not the combined virtual desktop —
+        // on multi-monitor setups kwin assigns the layer surface the full
+        // combined output and plain centerIn: parent would straddle the seam.
+        // Python computes the offset once at startup (bridge.cardOffsetX).
         FoyerRoot {
             id: foyerRoot
             objectName: "foyerRoot"
-            anchors.centerIn: parent
+            x: (parent.width - width) / 2 + bridge.cardOffsetX
+            y: (parent.height - height) / 2
         }
     }
 }
