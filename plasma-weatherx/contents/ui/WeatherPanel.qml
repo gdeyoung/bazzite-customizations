@@ -330,7 +330,7 @@ Item {
             model: panel.searchResults
 
             ResultRow {
-                panel: panel
+                ctx: panel
                 place: modelData
                 onPicked: panel.addPinned(modelData)
             }
@@ -368,7 +368,7 @@ Item {
                 model: panel.tabs
 
                 TabChip {
-                    panel: panel
+                    ctx: panel
                     tab: modelData
                     isActive: panel.activeKey === modelData.key
                     onChosen: {

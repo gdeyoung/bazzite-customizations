@@ -4,7 +4,8 @@ import org.kde.kirigami as Kirigami
 // One geocoding search result: name + region · country. Click pins the place.
 Rectangle {
     id: row
-    required property var panel
+    required property var ctx
+    required property var modelData
     required property var place
 
     signal picked()
@@ -26,7 +27,7 @@ Rectangle {
               + [row.place.admin1, row.place.country_code].filter(Boolean).join(" · ")
             : ""
         color: Kirigami.Theme.textColor
-        font.pixelSize: Kirigami.Units.gridUnit * 0.58 * panel.scaleF
+        font.pixelSize: Kirigami.Units.gridUnit * 0.58 * ctx.scaleF
         elide: Text.ElideRight
         width: parent.width - Kirigami.Units.largeSpacing * 2
     }

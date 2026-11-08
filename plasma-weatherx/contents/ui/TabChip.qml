@@ -5,7 +5,8 @@ import org.kde.kirigami as Kirigami
 // hint — clicking an already-active pinned tab removes it (as upstream).
 Item {
     id: chip
-    required property var panel
+    required property var ctx
+    required property var modelData
     required property var tab
     required property bool isActive
 
@@ -32,14 +33,14 @@ Item {
                 text: chip.tab ? chip.tab.name : ""
                 color: chip.isActive ? Kirigami.Theme.backgroundColor
                                      : Kirigami.Theme.textColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * ctx.scaleF
                 font.bold: chip.isActive
             }
             Text {
                 visible: chip.tab && chip.tab.pinned && chip.isActive
                 text: "✕"
                 color: Kirigami.Theme.backgroundColor
-                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * panel.scaleF
+                font.pixelSize: Kirigami.Units.gridUnit * 0.55 * ctx.scaleF
             }
         }
     }
