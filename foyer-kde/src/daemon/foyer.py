@@ -22,12 +22,21 @@ the live session first.
 import os
 import sys
 
-from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl
+from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl, QPointF
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtDBus import QDBusConnection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# --- environment pinning (must precede QGuiApplication construction) --------
+# Fractional scaling on a layer-shell surface produced a ~5% hit-test skew
+# on the 5120x1440@105% host (clicks landed one row low): run physical 1:1
+# and scale the card ourselves (bridge.cardScale). setdefault so a harness
+# may still override explicitly.
+os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "0")
+os.environ.setdefault("QT_SCALE_FACTOR", "1")
+os.environ.setdefault("QT_QPA_PLATFORMTHEME", "kde")
 
 BUS_NAME = "gdeyoung.foyer"
 BUS_PATH = "/gdeyoung/foyer"
@@ -43,11 +52,19 @@ class Bridge(QObject):
         # multi-monitor: horizontal shift so the card centers on the PRIMARY
         # screen rather than the combined virtual desktop (see main()).
         self._cardOffsetX = 0
+        # super-ultrawide (aspect >= 2.6): upscale the 920x640 card so it
+        # doesn't read tiny on a 5120-wide panel; 1.0 elsewhere.
+        self._cardScale = 1.0
 
     def _read_cardOffsetX(self):
         return self._cardOffsetX
 
     cardOffsetX = Property(int, _read_cardOffsetX, constant=True)
+
+    def _read_cardScale(self):
+        return self._cardScale
+
+    cardScale = Property(float, _read_cardScale, constant=True)
 
     @Slot()
     def toggle(self):
@@ -88,8 +105,12 @@ def main():
         if prim is not None:
             vg = prim.virtualGeometry()
             bridge._cardOffsetX = prim.geometry().center().x() - vg.center().x()
-    except Exception as exc:  # offset is cosmetic; never block startup
-        print(f"foyer: screen-offset fallback 0 ({exc})", file=sys.stderr)
+            # With QT_ENABLE_HIGHDPI_SCALING=0 these are PHYSICAL pixels.
+            w, h = vg.width(), vg.height()
+            if w / h >= 2.6:
+                bridge._cardScale = 1.45
+    except Exception as exc:  # cosmetic; never block startup
+        print(f"foyer: screen geometry fallback ({exc})", file=sys.stderr)
 
     engine = QQmlApplicationEngine()
     engine.addImportPath("/usr/lib64/qt6/qml")  # system KDE QML modules
@@ -137,6 +158,21 @@ def _dump(win, tag):
     print("foyer[%s] vis=%s w=%s h=%s x=%s y=%s" % (
         tag, win.isVisible(), win.width(), win.height(), win.x(), win.y()),
         file=sys.stderr, flush=True)
+    # card geometry in WINDOW coordinates (diagnostics; exact, no pixels)
+    try:
+        from PySide6.QtQuick import QQuickItem
+        box = win.findChild(QQuickItem, "cardBox")
+        r = win.findChild(QQuickItem, "foyerRoot")
+        if box is not None and r is not None:
+            bp = box.mapToScene(QPointF(0, 0))
+            print("foyer[%s] cardBox %.0fx%.0f at (%.0f,%.0f) | foyerRoot "
+                  "%.0fx%.0f u=%.2f t=%.2f" % (
+                      tag, box.width(), box.height(), bp.x(), bp.y(),
+                      r.width(), r.height(),
+                      float(r.property("u") or 0), float(r.property("t") or 0)),
+                  file=sys.stderr, flush=True)
+    except Exception as exc:
+        print(f"foyer[{tag}] cardBox probe failed: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

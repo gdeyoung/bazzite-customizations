@@ -13,8 +13,26 @@ import "FoyerData.js" as Data
 
 Item {
     id: root
-    implicitWidth: 920
-    implicitHeight: 640
+    implicitWidth: 920 * u
+    implicitHeight: 640 * u
+    width: implicitWidth
+    height: implicitHeight
+
+    // ---- adaptive scale (host sets; ultrawide: u=1.45, t<=1.18) ----------
+    // u = STRUCTURE (header, field, rows, tiles, rail, margins): the
+    // interface grows fully — bigger targets, more visible rows.
+    // t = TYPE, clamped, so the hierarchy SPREADS at scale instead of a
+    // uniform zoom: field > row names > meta > labels. The field (primary
+    // surface) gets its own larger factor (fxText).
+    property real u: 1.0
+    property real t: 1.0
+    readonly property real headerH: Math.round(60 * u)
+    readonly property real fieldH:  Math.round(44 * u)
+    readonly property real rowH:    Math.round(38 * u)
+    readonly property real tileS:   Math.round(26 * u)
+    readonly property real dotS:    Math.max(8, Math.round(8 * u))
+    readonly property real railW:   Math.round(300 * u)
+    readonly property int  fxText:  Math.round(17 * Math.min(t * 1.1, 1.35))
 
     // ---- tokens (runtime-resolved from the active color scheme) ----------
     readonly property color cBg:     Kirigami.Theme.backgroundColor
@@ -146,15 +164,15 @@ Item {
             // ===== header =====
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 60
-                Layout.leftMargin: 20
-                Layout.rightMargin: 20
-                spacing: 14
+                Layout.preferredHeight: root.headerH
+                Layout.leftMargin: Math.round(20 * root.u)
+                Layout.rightMargin: Math.round(20 * root.u)
+                spacing: Math.round(14 * root.u)
 
                 Rectangle {
                     id: fieldBox
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 38
+                    Layout.preferredHeight: root.fieldH
                     radius: 8
                     color: Qt.rgba(1, 1, 1, 0.04)
                     border.color: field.activeFocus ? root.cAccent : Qt.rgba(1, 1, 1, 0.14)
@@ -162,20 +180,20 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 14
-                        spacing: 12
+                        anchors.leftMargin: Math.round(14 * root.u)
+                        anchors.rightMargin: Math.round(14 * root.u)
+                        spacing: Math.round(12 * root.u)
 
                         Text {
                             text: "▸"
                             color: root.cDim
-                            font.pixelSize: 14
+                            font.pixelSize: Math.round(14 * root.t)
                             font.family: root.mono
                         }
                         TextInput {
                             id: field
                             Layout.fillWidth: true
-                            font.pixelSize: 17
+                            font.pixelSize: root.fxText
                             font.family: root.mono
                             color: root.cText
                             cursorVisible: root.fieldHasCaret
@@ -195,10 +213,17 @@ Item {
                                 var it = lensLoader.item;
                                 if (it && it.forceFocus) it.forceFocus();
                             }
-                            Keys.onEscapePressed: {
-                                if (text.length) { field.remove(0, text.length); }
-                                else if (root.state !== "boot") root.gotoState("boot");
-                                // daemon: second Esc at root closes the window
+                            Keys.onEscapePressed: function(event) {
+                                if (text.length) {
+                                    field.remove(0, text.length);
+                                } else if (root.state !== "boot") {
+                                    root.gotoState("boot");
+                                } else {
+                                    // At root with empty field: do nothing HERE and
+                                    // let the event propagate — the daemon host's
+                                    // surface handler closes the window on it.
+                                    event.accepted = false;
+                                }
                             }
                             Keys.onBackPressed: {
                                 if (!text.length && root.state !== "boot") root.gotoState("boot");
@@ -211,7 +236,7 @@ Item {
                                   Data.meta.kcmTotal + " modules · " + Data.sshHosts.length +
                                   " hosts — or just ask"
                             color: root.cDim
-                            font.pixelSize: 15
+                            font.pixelSize: Math.round(15 * root.t)
                             font.family: root.mono
                             Layout.fillWidth: true
                             elide: Text.ElideRight
@@ -221,7 +246,7 @@ Item {
                 Text {
                     text: "ctrl s   ctrl ,   f1"
                     color: root.cDim
-                    font.pixelSize: 10
+                    font.pixelSize: Math.round(10 * root.t)
                     font.family: root.mono
                     opacity: 0.75
                 }
@@ -237,7 +262,7 @@ Item {
 
                 // ---- rail ----
                 Rectangle {
-                    Layout.preferredWidth: 300
+                    Layout.preferredWidth: root.railW
                     Layout.fillHeight: true
                     color: "transparent"
 
@@ -265,7 +290,7 @@ Item {
                                 anchors.baselineOffset: -8
                                 text: modelData.group !== undefined ? modelData.group.toUpperCase() : ""
                                 color: root.cDim
-                                font.pixelSize: 11
+                                font.pixelSize: Math.round(11 * root.t)
                                 font.family: root.mono
                             }
 
@@ -298,14 +323,14 @@ Item {
                                             anchors.centerIn: parent
                                             text: modelData.group === undefined ? modelData.tag : ""
                                             color: root.cDim
-                                            font.pixelSize: 9
+                                            font.pixelSize: Math.round(9 * root.t)
                                             font.family: root.mono
                                         }
                                     }
                                     Text {
                                         text: modelData.group === undefined ? modelData.label : ""
                                         color: root.railIndex === index ? root.cText : root.cDim
-                                        font.pixelSize: 15
+                                        font.pixelSize: Math.round(15 * root.t)
                                         font.bold: root.railIndex === index
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -315,13 +340,13 @@ Item {
                                         text: modelData.slot !== undefined ? modelData.slot : ""
                                         color: root.cDim
                                         opacity: 0.45
-                                        font.pixelSize: 10
+                                        font.pixelSize: Math.round(10 * root.t)
                                         font.family: root.mono
                                     }
                                     Text {
                                         text: modelData.value !== undefined ? modelData.value : ""
                                         color: modelData.label === "Fleet" ? root.cPos : root.cDim
-                                        font.pixelSize: 12
+                                        font.pixelSize: Math.round(12 * root.t)
                                         font.family: root.mono
                                     }
                                 }
@@ -354,7 +379,7 @@ Item {
                             spacing: 9
 
                             Text {
-                                font.pixelSize: 12
+                                font.pixelSize: Math.round(12 * root.t)
                                 font.family: root.mono
                                 color: root.cDim
                                 text: ({
@@ -371,8 +396,8 @@ Item {
                             Row {
                                 visible: root.state === "fleet"
                                 spacing: 8
-                                Text { text: root.upCount + " UP";  color: root.cPos; font.pixelSize: 12; font.family: root.mono }
-                                Text { text: "· 1 DOWN · PINGED " + Data.meta.probedAt; color: root.cNeg; font.pixelSize: 12; font.family: root.mono }
+                                Text { text: root.upCount + " UP";  color: root.cPos; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
+                                Text { text: "· 1 DOWN · PINGED " + Data.meta.probedAt; color: root.cNeg; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                             }
                         }
 
@@ -414,19 +439,19 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
-                Layout.leftMargin: 20
-                Layout.rightMargin: 20
-                spacing: 14
+                Layout.leftMargin: Math.round(20 * root.u)
+                Layout.rightMargin: Math.round(20 * root.u)
+                spacing: Math.round(14 * root.u)
 
                 Text {
                     text: "⏎ open    → drill    ⌫ back    ctrl 1–9 jump    alt⏎ secondary    ctrl s settings"
                     color: root.cDim
-                    font.pixelSize: 10
+                    font.pixelSize: Math.round(10 * root.t)
                     font.family: root.mono
                 }
                 Item { Layout.fillWidth: true }
-                Text { text: "SUPER+SPACE"; color: root.cDim; font.pixelSize: 10; font.family: root.mono }
-                Text { text: "FOYER · KDE v4"; color: root.cHover; font.pixelSize: 10; font.family: root.mono }
+                Text { text: "SUPER+SPACE"; color: root.cDim; font.pixelSize: Math.round(10 * root.t); font.family: root.mono }
+                Text { text: "FOYER · KDE v4"; color: root.cHover; font.pixelSize: Math.round(10 * root.t); font.family: root.mono }
             }
         }
     }
@@ -443,7 +468,7 @@ Item {
         Text {
             text: sh.title
             color: root.cDim
-            font.pixelSize: 12
+            font.pixelSize: Math.round(12 * root.t)
             font.family: root.mono
         }
         Text {
@@ -451,20 +476,20 @@ Item {
             text: sh.note
             color: root.cDim
             opacity: 0.75
-            font.pixelSize: 11
+            font.pixelSize: Math.round(11 * root.t)
         }
     }
 
     component Tile: Rectangle {
         property string tag: ""
-        width: 26; height: 26; radius: 6
+        width: root.tileS; height: root.tileS; radius: 6
         color: root.cRaised
         border.color: Qt.rgba(1, 1, 1, 0.12)
         Text {
             anchors.centerIn: parent
             text: parent.tag
             color: root.cText
-            font.pixelSize: 11
+            font.pixelSize: Math.round(11 * root.t)
             font.bold: true
             font.family: root.mono
         }
@@ -482,7 +507,7 @@ Item {
         property bool focused: false
         property bool monoName: false
         property string dot: ""   // "", "ok", "down"
-        height: 38
+        height: root.rowH
         radius: 8
         color: "transparent"
         border.width: focused ? 2 : 0
@@ -491,13 +516,13 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 12
+            anchors.leftMargin: Math.round(12 * root.u)
+            anchors.rightMargin: Math.round(12 * root.u)
+            spacing: Math.round(12 * root.u)
             Rectangle {
                 visible: lr.dot.length > 0
-                Layout.preferredWidth: 8; Layout.preferredHeight: 8
-                radius: 4
+                Layout.preferredWidth: root.dotS; Layout.preferredHeight: root.dotS
+                radius: root.dotS / 2
                 color: lr.dot === "ok" ? root.cPos : root.cNeg
             }
             Loader {
@@ -516,14 +541,14 @@ Item {
                 Layout.fillWidth: true
                 text: lr.detail
                 color: lr.warn ? root.cWarn : root.cDim
-                font.pixelSize: 13
+                font.pixelSize: Math.round(13 * root.t)
                 elide: Text.ElideRight
             }
             Text {
                 visible: lr.value.length > 0
                 text: lr.value
                 color: root.cDim
-                font.pixelSize: 12
+                font.pixelSize: Math.round(12 * root.t)
                 font.family: root.mono
             }
         }
@@ -604,7 +629,7 @@ Item {
                                         anchors.centerIn: parent
                                         text: gcell.modelData ? gcell.modelData.name.substring(0, 2).toUpperCase() : ""
                                         color: root.cText
-                                        font.pixelSize: 12
+                                        font.pixelSize: Math.round(12 * root.t)
                                         font.bold: true
                                         font.family: root.mono
                                     }
@@ -616,14 +641,14 @@ Item {
                                         Layout.fillWidth: true
                                         text: modelData ? modelData.name : ""
                                         color: root.cText
-                                        font.pixelSize: 14
+                                        font.pixelSize: Math.round(14 * root.t)
                                         elide: Text.ElideRight
                                     }
                                     Text {
                                         Layout.fillWidth: true
                                         text: modelData ? modelData.detail : ""
                                         color: root.cDim
-                                        font.pixelSize: 12
+                                        font.pixelSize: Math.round(12 * root.t)
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -686,13 +711,13 @@ Item {
             Text {
                 Layout.leftMargin: 28
                 text: "No matches for “" + root.fieldText + "”"
-                color: root.cText; font.pixelSize: 15; font.bold: true
+                color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true
             }
             Text {
                 Layout.leftMargin: 28
                 Layout.topMargin: 6
                 text: "The query stays yours — esc clears, typing rewrites."
-                color: root.cDim; font.pixelSize: 13
+                color: root.cDim; font.pixelSize: Math.round(13 * root.t)
             }
             SectionHead { title: "HERMES" }
             ListRow {
@@ -722,9 +747,9 @@ Item {
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     spacing: 10
                     Text { text: Data.ai.answerPrefix + "   ask a question — the answer streams here, ⏎ copies it"
-                           color: root.cDim; font.pixelSize: 14; font.family: root.mono }
+                           color: root.cDim; font.pixelSize: Math.round(14 * root.t); font.family: root.mono }
                     Text { text: Data.ai.taskPrefix + "   hand a task to Hermes — it runs, you get notified"
-                           color: root.cDim; font.pixelSize: 14; font.family: root.mono }
+                           color: root.cDim; font.pixelSize: Math.round(14 * root.t); font.family: root.mono }
                 }
                 SectionHead { title: "MODEL" }
                 ListRow {
@@ -775,17 +800,17 @@ Item {
                         spacing: 12
                         RowLayout {
                             spacing: 10
-                            Text { text: "STREAMING"; color: root.cHover; font.pixelSize: 11; font.family: root.mono }
-                            Text { text: "·"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
-                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "STREAMING"; color: root.cHover; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: "·"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Item { Layout.fillWidth: true }
-                            Text { text: "4.2s"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "4.2s"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                         Text {
                             Layout.fillWidth: true
                             text: Data.aiAnswer.streamingText + " ▌"
                             color: root.cText
-                            font.pixelSize: 15
+                            font.pixelSize: Math.round(15 * root.t)
                             wrapMode: Text.Wrap
                             lineHeight: 1.25
                         }
@@ -795,15 +820,15 @@ Item {
                             Rectangle {
                                 width: 90; height: 30; radius: 7
                                 border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
-                                Text { anchors.centerIn: parent; text: "Copy"; color: root.cDim; font.pixelSize: 13 }
+                                Text { anchors.centerIn: parent; text: "Copy"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
                             }
                             Rectangle {
                                 width: 140; height: 30; radius: 7
                                 border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
-                                Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: 13 }
+                                Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: "COPY ARMED WHEN STREAM ENDS"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "COPY ARMED WHEN STREAM ENDS"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                     }
                 }
@@ -834,17 +859,17 @@ Item {
                         spacing: 12
                         RowLayout {
                             spacing: 10
-                            Text { text: "ANSWERED"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
-                            Text { text: "·"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
-                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "ANSWERED"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: "·"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Item { Layout.fillWidth: true }
-                            Text { text: "7.8s"; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "7.8s"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                         Text {
                             Layout.fillWidth: true
                             text: Data.aiAnswer.body[0]
                             color: root.cText
-                            font.pixelSize: 15
+                            font.pixelSize: Math.round(15 * root.t)
                             wrapMode: Text.Wrap
                             lineHeight: 1.25
                         }
@@ -852,7 +877,7 @@ Item {
                             Layout.fillWidth: true
                             text: Data.aiAnswer.body[1]
                             color: root.cText
-                            font.pixelSize: 15
+                            font.pixelSize: Math.round(15 * root.t)
                             wrapMode: Text.Wrap
                             lineHeight: 1.25
                         }
@@ -864,17 +889,17 @@ Item {
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 6
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Copy"; color: root.cHover; font.pixelSize: 13 }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: "alt ⏎"; color: root.cHover; font.pixelSize: 10; font.family: root.mono }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Copy"; color: root.cHover; font.pixelSize: Math.round(13 * root.t) }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; text: "alt ⏎"; color: root.cHover; font.pixelSize: Math.round(10 * root.t); font.family: root.mono }
                                 }
                             }
                             Rectangle {
                                 width: 140; height: 30; radius: 7
                                 border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
-                                Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: 13 }
+                                Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: "MODEL  " + Data.ai.model; color: root.cDim; font.pixelSize: 11; font.family: root.mono }
+                            Text { text: "MODEL  " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                     }
                 }
@@ -1026,8 +1051,8 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: 28; Layout.rightMargin: 28
                         Layout.preferredHeight: 38
-                        Text { text: modelData.k; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.v; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                        Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                     }
                 }
                 SectionHead { title: "SEARCH" }
@@ -1043,8 +1068,8 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: 28; Layout.rightMargin: 28
                         Layout.preferredHeight: 38
-                        Text { text: modelData.k; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.v; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                        Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                     }
                 }
                 SectionHead { title: "SOURCES" }
@@ -1052,30 +1077,30 @@ Item {
                     Layout.fillWidth: true
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     Layout.preferredHeight: 38
-                    Text { text: "Applications · Hermes AI · Fleet · SSH · Snippets"; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true; elide: Text.ElideRight }
-                    Text { text: "on"; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                    Text { text: "Applications · Hermes AI · Fleet · SSH · Snippets"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
+                    Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     Layout.preferredHeight: 38
-                    Text { text: "Web search"; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true }
-                    Text { text: "fallback only · off"; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                    Text { text: "Web search"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
+                    Text { text: "fallback only · off"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
                 SectionHead { title: "AI" }
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     Layout.preferredHeight: 38
-                    Text { text: "Endpoint · Model"; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true }
-                    Text { text: "192.168.1.243:4000/v1 · " + Data.ai.model; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                    Text { text: "Endpoint · Model"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
+                    Text { text: "192.168.1.243:4000/v1 · " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     Layout.preferredHeight: 38
-                    Text { text: "Copy answers on ⏎"; color: root.cText; font.pixelSize: 14; Layout.fillWidth: true }
-                    Text { text: "on"; color: root.cDim; font.pixelSize: 12; font.family: root.mono }
+                    Text { text: "Copy answers on ⏎"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
+                    Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
             }
         }
@@ -1110,8 +1135,8 @@ Item {
                         Layout.leftMargin: 28; Layout.rightMargin: 28
                         Layout.preferredHeight: 34
                         spacing: 10
-                        Text { text: modelData.k; color: root.cDim; font.pixelSize: 11; font.family: root.mono; Layout.preferredWidth: 180 }
-                        Text { text: modelData.d; color: root.cText; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { text: modelData.k; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono; Layout.preferredWidth: 180 }
+                        Text { text: modelData.d; color: root.cText; font.pixelSize: Math.round(13 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
                     }
                 }
             }
@@ -1132,7 +1157,7 @@ Item {
                       "Tokens resolve from the live color scheme at runtime —\n" +
                       "every pixel derives from it."
                 color: root.cText
-                font.pixelSize: 14
+                font.pixelSize: Math.round(14 * root.t)
                 lineHeight: 1.45
                 wrapMode: Text.Wrap
             }
@@ -1145,11 +1170,11 @@ Item {
             spacing: 0
             SectionHead { title: "RECENTS" }
             Item { Layout.preferredHeight: 12 }
-            Text { Layout.leftMargin: 28; text: "Nothing recent yet"; color: root.cText; font.pixelSize: 15; font.bold: true }
+            Text { Layout.leftMargin: 28; text: "Nothing recent yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
                 text: "KDE activity feeds this on first use — files, apps, documents.\nRecents show what and when, never content."
-                color: root.cDim; font.pixelSize: 13; lineHeight: 1.5
+                color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }
     }
@@ -1160,11 +1185,11 @@ Item {
             spacing: 0
             SectionHead { title: "FAVORITES" }
             Item { Layout.preferredHeight: 12 }
-            Text { Layout.leftMargin: 28; text: "No pins yet"; color: root.cText; font.pixelSize: 15; font.bold: true }
+            Text { Layout.leftMargin: 28; text: "No pins yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
                 text: "ctrl p pins any row — app, host, snippet, question.\nFavorites mirror Kickoff favorites; prune there, this follows. Max 30."
-                color: root.cDim; font.pixelSize: 13; lineHeight: 1.5
+                color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }
     }
@@ -1175,11 +1200,11 @@ Item {
             spacing: 0
             SectionHead { title: "SNIPPETS" }
             Item { Layout.preferredHeight: 12 }
-            Text { Layout.leftMargin: 28; text: "No snippets yet"; color: root.cText; font.pixelSize: 15; font.bold: true }
+            Text { Layout.leftMargin: 28; text: "No snippets yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
                 text: "Type ; in the field to search snippets once they exist.\nSnippets live in ~/.config/foyer/snippets.jsonc — same merge rules\nas the menu tree: your extensions win."
-                color: root.cDim; font.pixelSize: 13; lineHeight: 1.5
+                color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }
     }
