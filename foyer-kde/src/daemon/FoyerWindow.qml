@@ -21,25 +21,29 @@ Window {
     visible: false
     color: "transparent"
 
-    // ---- layer-shell contract ------------------------------------------------
-    LayerShell.Window.layer: LayerShell.Window.Layer.Top
+    // ---- layer-shell contract (flat enum members — see qmldir qmltypes) -----
+    LayerShell.Window.layer: LayerShell.Window.LayerTop
     LayerShell.Window.scope: "foyer"
-    // unanchored Layer.Top overlay; on-demand keyboard, focused on show
-    LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivity.OnDemand
+    LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityOnDemand
     LayerShell.Window.activateOnShow: true
 
-    // Esc at root = close (host duty; FoyerRoot never sees this as a state)
-    Keys.onEscapePressed: bridge.hideRequested()
+    // Window is not an Item — Keys must live on a focusable child
+    Item {
+        objectName: "foyerSurface"
+        anchors.fill: parent
+        focus: true
+        Keys.onEscapePressed: bridge.hideRequested()
 
-    // daemon → UI state channel (harness driver + tests)
-    Connections {
-        target: bridge
-        function onGotoState(s) { foyerRoot.gotoState(s) }
-    }
+        // daemon → UI state channel (harness driver + tests)
+        Connections {
+            target: bridge
+            function onGotoState(s) { foyerRoot.gotoState(s) }
+        }
 
-    FoyerRoot {
-        id: foyerRoot
-        objectName: "foyerRoot"
-        anchors.centerIn: parent
+        FoyerRoot {
+            id: foyerRoot
+            objectName: "foyerRoot"
+            anchors.centerIn: parent
+        }
     }
 }
