@@ -52,6 +52,7 @@ Item {
     property string zone: "field"      // keyboard zone: field | rail | lens
     property int lensIndex: 0
     property int lensCount: 1
+    property int lensCols: 1   // lens grid columns (games = 2)
     property int navPulse: -1
     Timer { id: navPulseT; interval: 450; onTriggered: root.navPulse = -1 }
     property string fieldText: ""
@@ -101,7 +102,8 @@ Item {
     }
 
     function gotoState(s) {
-        lensCount = 1;                    // views override on load
+        var ng = navFor(s);
+        lensCount = ng[0]; lensCols = ng[1];
         lensIndex = (s === "boot" || s === "typed" || s === "nomatch" ||
                      s === "stream" || s === "ready") ? 0 : 1;
         navPulse = -1;
@@ -158,6 +160,27 @@ Item {
     Timer { id: streamTimer; interval: 2600; onTriggered: root.gotoState("ready") }
 
     // ---- keyboard navigation (minimum bar: arrows + enter + back) ---------
+    // Nav geometry per view — SINGLE SOURCE OF TRUTH. gotoState reads this
+    // on EVERY entry (views used to publish counts only on first load, so
+    // re-entering a view kept the clobbered defaults — caught by check-nav).
+    function navFor(s) {
+        switch (s) {
+        case "boot":     return [Data.categories.length, 1];
+        case "games":    return [1 + Data.games.length, 2];
+        case "typed":    return [2, 1];   // apps added live via onCountChanged
+        case "nomatch":  return [1, 1];
+        case "ai":       return [2 + Data.ai.recentQuestions.length, 1];
+        case "stream":   return [3, 1];
+        case "ready":    return [3 + Math.min(2, Data.ai.recentQuestions.length), 1];
+        case "system":   return [1 + Data.systemRows.length, 1];
+        case "fleet":    return [1 + Data.fleet.length, 1];
+        case "ssh":      return [1 + Data.sshHosts.length, 1];
+        case "update":   return [4, 1];
+        case "settings": return [14, 1];
+        case "help":     return [11, 1];
+        default:         return [1, 1];   // about, favs, recents, snippets
+        }
+    }
     function moveRail(d) {
         var step = railIndex + d;
         while (step >= 0 && step < root.railModel.length) {
@@ -170,35 +193,39 @@ Item {
             gotoState(root.railModel[step].state);
         }
     }
-    function lensStep(d) {
-        var step = (state === "games") ? 2 : 1;   // 2-column grid
-        var ni = lensIndex + d * step;
-        if (ni > lensCount - 1) {
-            // past the end: keep scrolling the view instead of clamping
-            var it = lensLoader.item;
-            if (it && it.contentY !== undefined && it.contentHeight > it.height)
-                it.contentY = Math.min(it.contentY + root.rowH,
-                                       it.contentHeight - it.height);
-            return;
-        }
-        lensIndex = Math.max(0, ni);
-    }
     function navKey(k) {
         if (k === "down") {
             if (zone === "field") { zone = "lens"; if (state === "boot") lensIndex = 0; }
             else if (zone === "rail") moveRail(1);
-            else lensStep(1);
+            else {
+                // spatial: one grid ROW down (cols=1 in lists)
+                var ni = lensIndex + lensCols;
+                if (ni < lensCount) lensIndex = ni;
+                else {
+                    var it = lensLoader.item;
+                    if (it && it.contentY !== undefined && it.contentHeight > it.height)
+                        it.contentY = Math.min(it.contentY + root.rowH,
+                                               it.contentHeight - it.height);
+                }
+            }
         } else if (k === "up") {
-            if (zone === "lens") { if (lensIndex <= 0) zone = "field"; else lensStep(-1); }
+            if (zone === "lens") {
+                var pi = lensIndex - lensCols;
+                if (pi >= 0) lensIndex = pi; else zone = "field";
+            }
             else if (zone === "rail") moveRail(-1);
             else zone = "rail";
         } else if (k === "left") {
-            if (zone === "lens") { if (state === "games" && lensIndex > 1) lensIndex--; else zone = "rail"; }
-            else if (zone === "rail") zone = "lens";   // wrap: ← from rail enters the lens
-            else zone = "rail";
+            // FULL NAV: ← steps one column left in a grid; from the
+            // leftmost column (every list) it lands in the far-left
+            // rail. No exceptions. (user directive 2026-11-08)
+            if (zone === "lens") {
+                if (lensIndex % lensCols > 0) lensIndex--;
+                else zone = "rail";
+            } else if (zone === "field") zone = "rail";
         } else if (k === "right") {
             if (zone === "field" || zone === "rail") zone = "lens";
-            else if (state === "games") lensIndex = Math.min(lensIndex + 1, Math.max(1, lensCount - 1));
+            else if (lensIndex % lensCols < lensCols - 1 && lensIndex + 1 < lensCount) lensIndex++;
         } else if (k === "enter") {
             if (zone === "field") {
                 if (state === "typed" || state === "nomatch") activateLens(state, lensIndex);
@@ -221,9 +248,10 @@ Item {
                                    it.contentHeight - it.height);
     }
     function activateLens(st, i) {
-        // slot 0 is the BackRow in every drill view
-        if (i === 0 && st !== "boot" && st !== "typed" && st !== "nomatch" &&
-                st !== "stream" && st !== "ready") { gotoState("boot"); return; }
+        // slot 0 is the BackRow in every drill view (incl. stream/ready)
+        if (i === 0 && st !== "boot" && st !== "typed" && st !== "nomatch") {
+            gotoState("boot"); return;
+        }
         if (st === "boot") { gotoState("games"); return; }
         if (st === "typed") { gotoState("stream"); return; }
         if (st === "nomatch") { gotoState("stream"); return; }
@@ -238,6 +266,25 @@ Item {
         detail: "⏎ returns up a level · esc closes"
         focused: root.zone === "lens" && root.lensIndex === 0
         MouseArea { anchors.fill: parent; onClicked: root.gotoState("boot") }
+    }
+
+    // Focusable row for plain label rows (settings, help): accent-tinted
+    // DARK fill when active — never a light box (contrast law).
+    component NavRow: Rectangle {
+        id: nr
+        property int slot: 0
+        readonly property bool active:
+            (root.zone === "lens" && root.lensIndex === slot) || root.navPulse === slot
+        Layout.fillWidth: true
+        Layout.leftMargin: 28; Layout.rightMargin: 28
+        Layout.preferredHeight: 38
+        radius: 8
+        color: active ? Qt.rgba(root.cAccent.r, root.cAccent.g, root.cAccent.b, 0.10) : "transparent"
+        border.width: active ? 2 : 0
+        border.color: root.cAccent
+        default property alias content: nrl.children
+        RowLayout { id: nrl; anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10 }
+        MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, nr.slot) }
     }
 
     // ---- chrome ------------------------------------------------------------
@@ -547,7 +594,7 @@ Item {
                 spacing: Math.round(14 * root.u)
 
                 Text {
-                    text: "⏎ open    → drill    ⌫ back    ctrl 1–9 jump    alt⏎ secondary    ctrl s settings"
+                    text: "⏎ open    ← menu    ⌫ back    ctrl 1–9 jump    alt⏎ secondary    ctrl s settings"
                     color: root.cDim
                     font.pixelSize: Math.round(10 * root.t)
                     font.family: root.mono
@@ -661,7 +708,6 @@ Item {
     Component {
         id: bootComp
         Flickable {
-            Component.onCompleted: root.lensCount = Data.categories.length
             clip: true
             contentHeight: bootCol.height + 28
             boundsBehavior: Flickable.StopAtBounds
@@ -697,7 +743,6 @@ Item {
     Component {
         id: gamesComp
         Flickable {
-            Component.onCompleted: root.lensCount = 1 + Data.games.length
             clip: true
             contentHeight: gamesCol.height + 28
             ColumnLayout {
@@ -710,7 +755,7 @@ Item {
                     columns: 2
                     Layout.leftMargin: 24; Layout.rightMargin: 24
                     Layout.topMargin: 4
-                    columnSpacing: 8; rowSpacing: 8
+                    columnSpacing: Math.round(8 * root.u); rowSpacing: Math.round(8 * root.u)
                     Repeater {
                         model: Data.games
                         delegate: Rectangle {
@@ -718,17 +763,22 @@ Item {
                             required property var modelData
                             required property int index
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 52
+                            Layout.preferredHeight: Math.round(52 * root.u)
                             radius: 8
+                            // DARK FILL ONLY — a Rectangle without color defaults
+                            // to white; that bug shipped the condemned white
+                            // cells. Contrast: cText on cRaised ≈ 10.9:1,
+                            // cDim on cRaised ≈ 5.6:1 (AA small-text pass).
+                            color: root.cRaised
                             border.width: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1 ? 2 : 0
                             border.color: root.cAccent
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 12
+                                anchors.leftMargin: Math.round(12 * root.u)
+                                anchors.rightMargin: Math.round(12 * root.u)
+                                spacing: Math.round(12 * root.u)
                                 Rectangle {
-                                    width: 30; height: 30; radius: 7
+                                    width: Math.round(30 * root.u); height: Math.round(30 * root.u); radius: 7
                                     color: root.cRaised
                                     border.color: Qt.rgba(1, 1, 1, 0.12)
                                     Text {
@@ -759,6 +809,7 @@ Item {
                                     }
                                 }
                             }
+                            MouseArea { anchors.fill: parent; onClicked: root.activateLens("games", gcell.index + 1) }
                         }
                     }
                 }
@@ -807,6 +858,8 @@ Item {
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "w"; name: "Search the web"
                 detail: "opens in default browser"; value: "↗"
+                focused: (root.zone !== "rail" && root.lensIndex === typedResults.count + 1) || root.navPulse === typedResults.count + 1
+                MouseArea { anchors.fill: parent; onClicked: root.activateLens("typed", typedResults.count + 1) }
             }
         }
     }
@@ -814,7 +867,6 @@ Item {
     Component {
         id: nomatchComp
         ColumnLayout {
-            Component.onCompleted: root.lensCount = 1
             spacing: 0
             function forceFocus() {}
             Item { Layout.preferredHeight: 18 }
@@ -846,7 +898,6 @@ Item {
     Component {
         id: aiComp
         Flickable {
-            Component.onCompleted: root.lensCount = 2 + Data.ai.recentQuestions.length
             clip: true
             contentHeight: aiCol.height + 28
             ColumnLayout {
@@ -902,6 +953,7 @@ Item {
                 width: parent.width
                 spacing: 0
                 SectionHead { title: "" }
+                BackRow {}
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.leftMargin: 24; Layout.rightMargin: 24
@@ -935,13 +987,17 @@ Item {
                             opacity: 0.38
                             Rectangle {
                                 width: 90; height: 30; radius: 7
-                                border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
+                                border.color: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1 ? root.cAccent : Qt.rgba(1, 1, 1, 0.14)
+                                color: "transparent"
                                 Text { anchors.centerIn: parent; text: "Copy"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
+                                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 1) }
                             }
                             Rectangle {
                                 width: 140; height: 30; radius: 7
-                                border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
+                                border.color: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2 ? root.cAccent : Qt.rgba(1, 1, 1, 0.14)
+                                color: "transparent"
                                 Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
+                                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
                             }
                             Item { Layout.fillWidth: true }
                             Text { text: "COPY ARMED WHEN STREAM ENDS"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
@@ -961,6 +1017,7 @@ Item {
                 id: readyCol
                 width: parent.width
                 spacing: 0
+                BackRow {}
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.leftMargin: 24; Layout.rightMargin: 24
@@ -1001,7 +1058,9 @@ Item {
                             spacing: 8
                             Rectangle {
                                 width: 118; height: 30; radius: 7
-                                border.color: root.cHover; color: "transparent"
+                                border.color: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1 ? root.cAccent : root.cHover
+                                color: "transparent"
+                                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 1) }
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 6
@@ -1011,8 +1070,10 @@ Item {
                             }
                             Rectangle {
                                 width: 140; height: 30; radius: 7
-                                border.color: Qt.rgba(1, 1, 1, 0.14); color: "transparent"
+                                border.color: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2 ? root.cAccent : Qt.rgba(1, 1, 1, 0.14)
+                                color: "transparent"
                                 Text { anchors.centerIn: parent; text: "Continue in chat"; color: root.cDim; font.pixelSize: Math.round(13 * root.t) }
+                                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
                             }
                             Item { Layout.fillWidth: true }
                             Text { text: "MODEL  " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
@@ -1029,6 +1090,8 @@ Item {
                         Layout.leftMargin: 24; Layout.rightMargin: 24
                         hasTile: false; name: ""; detail: modelData
                         value: index === 0 ? "asked " + Data.meta.probedAt : ""
+                        focused: (root.zone === "lens" && root.lensIndex === index + 3) || root.navPulse === index + 3
+                        MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 3) }
                     }
                 }
             }
@@ -1038,7 +1101,6 @@ Item {
     Component {
         id: systemComp
         ColumnLayout {
-            Component.onCompleted: root.lensCount = 1 + Data.systemRows.length
             spacing: 0
             SectionHead { title: "POWER & SESSION"; note: "consequences are the confirmation" }
             BackRow {}
@@ -1064,7 +1126,6 @@ Item {
     Component {
         id: fleetComp
         Flickable {
-            Component.onCompleted: root.lensCount = 1 + Data.fleet.length
             clip: true
             contentHeight: fleetCol.height + 28
             ColumnLayout {
@@ -1099,7 +1160,6 @@ Item {
     Component {
         id: sshComp
         Flickable {
-            Component.onCompleted: root.lensCount = 1 + Data.sshHosts.length
             clip: true
             contentHeight: sshCol.height + 28
             ColumnLayout {
@@ -1107,6 +1167,7 @@ Item {
                 width: parent.width
                 spacing: 0
                 SectionHead { title: "ALIASES · " + Data.sshHosts.length; note: "⏎ opens a terminal tab · from ~/.ssh/config" }
+                BackRow {}
                 Repeater {
                     model: Data.sshHosts
                     delegate: ListRow {
@@ -1129,7 +1190,6 @@ Item {
     Component {
         id: updateComp
         ColumnLayout {
-            Component.onCompleted: root.lensCount = 2
             spacing: 0
             SectionHead { title: "SYSTEM IMAGE"; note: "bazzite · rpm-ostree" }
             BackRow {}
@@ -1146,12 +1206,16 @@ Item {
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "⇧"; name: "Apply staged deployment"
                 detail: "closes open apps · reboots into new image"; warn: true; value: "⏎"
+                focused: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2
+                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
             }
             ListRow {
                 Layout.fillWidth: true
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "i"; name: "Deployment history"
                 detail: "rpm-ostree status · last 5"; value: "→"
+                focused: (root.zone === "lens" && root.lensIndex === 3) || root.navPulse === 3
+                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 3) }
             }
         }
     }
@@ -1159,7 +1223,6 @@ Item {
     Component {
         id: settingsComp
         Flickable {
-            Component.onCompleted: root.lensCount = 1
             clip: true
             contentHeight: setCol.height + 28
             ColumnLayout {
@@ -1176,11 +1239,10 @@ Item {
                         { k: "Opacity · Radius", v: "96% · 14" },
                         { k: "Location", v: "↧ top   ◈ [center]   ↥ bottom" }
                     ]
-                    delegate: RowLayout {
+                    delegate: NavRow {
                         required property var modelData
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 28; Layout.rightMargin: 28
-                        Layout.preferredHeight: 38
+                        required property int index
+                        slot: index + 1
                         Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
                         Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                     }
@@ -1193,42 +1255,33 @@ Item {
                         { k: "Menu on start", v: "on" },
                         { k: "Ctrl-number hints", v: "on" }
                     ]
-                    delegate: RowLayout {
+                    delegate: NavRow {
                         required property var modelData
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 28; Layout.rightMargin: 28
-                        Layout.preferredHeight: 38
+                        required property int index
+                        slot: index + 6
                         Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
                         Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                     }
                 }
                 SectionHead { title: "SOURCES" }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28; Layout.rightMargin: 28
-                    Layout.preferredHeight: 38
+                NavRow {
+                    slot: 10
                     Text { text: "Applications · Hermes AI · Fleet · SSH · Snippets"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
                     Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28; Layout.rightMargin: 28
-                    Layout.preferredHeight: 38
+                NavRow {
+                    slot: 11
                     Text { text: "Web search"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
                     Text { text: "fallback only · off"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
                 SectionHead { title: "AI" }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28; Layout.rightMargin: 28
-                    Layout.preferredHeight: 38
+                NavRow {
+                    slot: 12
                     Text { text: "Endpoint · Model"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
                     Text { text: "192.168.1.243:4000/v1 · " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28; Layout.rightMargin: 28
-                    Layout.preferredHeight: 38
+                NavRow {
+                    slot: 13
                     Text { text: "Copy answers on ⏎"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
                     Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                 }
@@ -1239,7 +1292,6 @@ Item {
     Component {
         id: helpComp
         Flickable {
-            Component.onCompleted: root.lensCount = 1
             clip: true
             contentHeight: helpCol.height + 28
             ColumnLayout {
@@ -1251,8 +1303,8 @@ Item {
                 Repeater {
                     model: [
                         { k: "type",   d: "filter — the field keeps the caret; ⏎ runs the top hit" },
-                        { k: "↓ ↑",    d: "walk results / rail — ↑ from first row returns to the field" },
-                        { k: "→ ←",    d: "drill in · back out — ← from rail enters the lens" },
+                        { k: "↓ ↑",    d: "walk rows — ↑ from the first row returns to the field" },
+                        { k: "→ ←",    d: "→ into the options · ← always to the far-left menu" },
                         { k: "⌫",      d: "pop a level first, then clear the query" },
                         { k: "esc",    d: "clear query → back a level → close at root" },
                         { k: "ctrl 1–9", d: "jump to a branch — numbers are pinned to the rail" },
@@ -1261,12 +1313,10 @@ Item {
                         { k: "ctrl s · ctrl ,", d: "settings · sources" },
                         { k: "del",    d: "uninstall an app — always asks first" }
                     ]
-                    delegate: RowLayout {
+                    delegate: NavRow {
                         required property var modelData
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 28; Layout.rightMargin: 28
-                        Layout.preferredHeight: 34
-                        spacing: 10
+                        required property int index
+                        slot: index + 1
                         Text { text: modelData.k; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono; Layout.preferredWidth: 180 }
                         Text { text: modelData.d; color: root.cText; font.pixelSize: Math.round(13 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
                     }
@@ -1279,7 +1329,6 @@ Item {
         id: aboutComp
         ColumnLayout {
             spacing: 0
-            Component.onCompleted: root.lensCount = 1
             SectionHead { title: "FOYER FOR KDE" }
             BackRow {}
             Item { Layout.preferredHeight: 10 }
@@ -1303,6 +1352,7 @@ Item {
         ColumnLayout {
             spacing: 0
             SectionHead { title: "RECENTS" }
+            BackRow {}
             Item { Layout.preferredHeight: 12 }
             Text { Layout.leftMargin: 28; text: "Nothing recent yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
@@ -1318,6 +1368,7 @@ Item {
         ColumnLayout {
             spacing: 0
             SectionHead { title: "FAVORITES" }
+            BackRow {}
             Item { Layout.preferredHeight: 12 }
             Text { Layout.leftMargin: 28; text: "No pins yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
@@ -1333,6 +1384,7 @@ Item {
         ColumnLayout {
             spacing: 0
             SectionHead { title: "SNIPPETS" }
+            BackRow {}
             Item { Layout.preferredHeight: 12 }
             Text { Layout.leftMargin: 28; text: "No snippets yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {

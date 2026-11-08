@@ -92,4 +92,14 @@ $BC toggle >/dev/null; sleep 0.8
 $BC driveState s boot >/dev/null; sleep 0.6
 timeout 20 spectacle -b -n -o "$HOME/shots/d-reshown.png" >/dev/null 2>&1
 echo "CKPT-5 toggle-roundtrip"
+
+# --- UI LAW gate: no light box fills behind text, in any rendered view -----
+python3 "$(dirname "$0")/check-contrast.py" --shots "$HOME/shots" || {
+  echo "CKPT-5b CONTRAST-FAIL"; exit 1; }
+echo "CKPT-5b contrast-gate PASS"
+
+# --- FULL-NAV gate: every option in every view reachable by arrows --------
+python3 "$(dirname "$0")/check-nav.py" || {
+  echo "CKPT-5c NAV-FAIL"; exit 1; }
+echo "CKPT-5c nav-gate PASS"
 echo "CKPT-6 done"

@@ -90,6 +90,14 @@ class Bridge(QObject):
         takes after the field's Keys handlers forward it."""
         self.keyDriven.emit(key)
 
+    # set by main() once the window exists: () -> "state zone i n cols rail"
+    stateReader = None  # type: ignore[assignment]
+
+    @Slot(result=str)
+    def navState(self):
+        """QA introspection: full keyboard-nav state as one string."""
+        return self.stateReader() if self.stateReader else ""  # type: ignore[misc]
+
     # internal wiring signals (connected to the window by main())
     toggleRequested = Signal()
     showRequested = Signal()
@@ -128,6 +136,17 @@ def main():
         print("foyer: FoyerWindow.qml failed to load", file=sys.stderr)
         return 1
     win = engine.rootObjects()[0]
+
+    def _read_nav():
+        from PySide6.QtQuick import QQuickItem
+        r = win.findChild(QQuickItem, "foyerRoot")
+        if r is None:
+            return "no-root"
+        vals = [str(r.property(p)) for p in
+                ("state", "zone", "lensIndex", "lensCount", "lensCols", "railIndex")]
+        return " ".join(v if v not in ("None", "") else "?" for v in vals)
+
+    bridge.stateReader = _read_nav
 
     bridge.toggleRequested.connect(
         lambda: win.hide() if win.isVisible() else _show(win))
