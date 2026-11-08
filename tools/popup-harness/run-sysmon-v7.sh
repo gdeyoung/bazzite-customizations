@@ -117,12 +117,16 @@ else
 fi
 
 kill $SHELL_PID 2>/dev/null; sleep 2; kill $KWIN_PID 2>/dev/null
-# proc-exact cleanup (never pattern-kill)
+# environ-gated cleanup ONLY (2026-11-08): argv/name globs are forbidden —
+# the REAL shell runs `plasmashell --no-respawn`, argv-identical to the
+# harness shell; a glob kill TERMs it and (SIGTERM = clean exit) the unit
+# never auto-restarts. Identity = the process's OWN environ HOME.
 for d in /proc/[0-9]*; do
-  c=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
-  case "$c" in
-    /usr/bin/kwin_wayland*--virtual*|*plasmashell*--no-respawn*) kill "${d#/proc/}" 2>/dev/null ;;
-  esac
+  pid=${d#/proc/}
+  [ "$pid" = "$$" ] && continue
+  readlink "$d/exe" 2>/dev/null | grep -q dbus-daemon && continue
+  tr "\0" "\n" < "$d/environ" 2>/dev/null | grep -q "^HOME=$ROOT/home$" || continue
+  kill "$pid" 2>/dev/null
 done
 echo "HARNESS-LOG-BEGIN"
 grep -a "HARNESS" $ROOT/shell-v7-s$SCALE-$TAG.log || echo "(no HARNESS lines in shell log — check journal)"

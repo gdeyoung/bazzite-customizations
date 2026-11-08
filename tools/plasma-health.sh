@@ -15,7 +15,13 @@
 # need a full session recycle and user consent.
 # Exit 0 healthy, 1 degraded. Output is one status line + failure reasons.
 
-SOCK=/run/user/1000/wayland-0
+# Resolve the compositor socket dynamically (2026-11-08): do NOT hardcode
+# wayland-0 — this session's socket is wayland-1, and the hardcode
+# false-FAILED every 5 min since Nov 3, drowning real signals. Harness
+# kwins live in /tmp/stk-harness/run with unique names, so any numeric
+# wayland-N here belongs to the real session.
+SOCK=$(ls /run/user/1000/ 2>/dev/null | grep -E '^wayland-[0-9]+$' | head -1)
+SOCK=${SOCK:+/run/user/1000/$SOCK}
 HEAL_TS=/tmp/plasma-health-heal.ts
 issues=0; reasons=""
 
@@ -25,7 +31,7 @@ loginctl list-sessions --no-legend 2>/dev/null | grep -q "gdeyoung" \
 
 fail() { issues=1; reasons="$reasons|$1"; echo "PLASMA-HEALTH FAIL: $1"; }
 
-[ -S "$SOCK" ] || fail "compositor socket $SOCK missing — new Wayland clients cannot connect; session recycle required (ask user; NEVER auto-restart kwin)"
+[ -S "$SOCK" ] || fail "no compositor wayland-N socket in /run/user/1000 (resolved: '${SOCK:-none}') — new Wayland clients cannot connect; session recycle required (ask user; NEVER auto-restart kwin)"
 
 systemctl --user is-active --quiet plasma-kwin_wayland.service \
   || fail "plasma-kwin_wayland.service not active"

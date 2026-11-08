@@ -401,9 +401,17 @@ echo "STUB-ARGV:"; cat "$STUBLOG"
 # A11: no frozen popupWidth/Height keys on the applet
 grep -c "popupWidth\|popupHeight" "$XDG_CONFIG_HOME/plasma-org.kde.plasma.desktop-appletsrc" 2>/dev/null | sed 's/^/POPUPKEYS=/'
 echo "DONE-$FIXTURE-s$SCALE$LIGHT"
-# Nuke our whole process group (dbus-run-session's): session bus daemon,
-# portal strays, everything. The REAL session bus is a systemd user unit
-# in a different group — untouchable by this.
-KILLPG=$(ps -o pgid= -p $$ | tr -d ' ')
-[ -n "$KILLPG" ] && kill -- -"$KILLPG" 2>/dev/null
+# Teardown (2026-11-08 incident fix): the PGID nuke is BANNED — it killed
+# the invoking agent's wrapper (terminal -15 noise), which pushed agents
+# into pattern-killing "strays" — and a pattern kill TERMs the REAL shell
+# (argv-identical `plasmashell --no-respawn`; SIGTERM counts as a clean
+# exit so plasma-plasmashell.service does NOT auto-restart). Kill ONLY
+# processes whose OWN environ says they belong to this harness:
+for d in /proc/[0-9]*; do
+  pid=${d#/proc/}
+  [ "$pid" = "$$" ] && continue
+  readlink "$d/exe" 2>/dev/null | grep -q dbus-daemon && continue
+  tr "\0" "\n" < "$d/environ" 2>/dev/null | grep -q "^HOME=$ROOT/home$" || continue
+  kill "$pid" 2>/dev/null
+done
 exit 0
