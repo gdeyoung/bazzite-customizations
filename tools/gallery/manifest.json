@@ -4,7 +4,7 @@
   {
    "version": "v0.8 \u2014 Omarchy-layout rebuild (CONNECTION \u00b7 EXIT NODES \u00b7 MACHINES)",
    "verdict": "candidate \u2014 owner verdict pending",
-   "commits": "(pending commit)",
+   "commits": "c8cd127",
    "note": "Owner-driven rebuild: Omarchy layout DNA + fleet design language. 40\u00b7gu popup, two-line rows, real toggles (hero connect + 4 prefs), selectable text + one-gesture copy (closed-charset wl-copy), Mullvad exit regions (dedicated Model lane; same allowlisted exit-set op; hidden when add-on off). Fresh-open law fixed (dead seed: fullRepresentation created visible \u21d2 onVisibleChanged never fired on first open). 7-config matrix green 2026-11-08 AM; CC build-gate adjudicated 2 accepts / 3 declines w/ code evidence. Harness gap: virtual-session light scheme ignored (Plasma bump) \u2014 app is token-only styling.",
    "shots": [
     {
