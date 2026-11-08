@@ -100,6 +100,8 @@ Window {
                 // instead of zooming. FoyerRoot sizes itself 920u × 640u.
                 u: bridge.cardScale
                 t: Math.min(bridge.cardScale, 1.18)
+                appsJson: bridge.appsJson   // live .desktop scan
+                onLaunchApp: (exec) => bridge.launchRequested(exec)
             }
         }
     }

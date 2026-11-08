@@ -27,6 +27,7 @@ SOCKET="foyer-d-$$"
 
 teardown() {
   echo "=== daemon.log tail ==="; tail -15 "$HARNESS/daemon.log" 2>/dev/null
+  cp -f "$HARNESS/daemon.log" /var/home/gdeyoung/.hermes/cache/scratch/foyer-last-daemon.log 2>/dev/null
   for p in ${DAEMON_PID:-} ${KWIN_PID:-}; do
     [ -n "$p" ] || continue
     if tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -q "^HOME=$HOME$"; then
@@ -83,6 +84,13 @@ for s in games typed nomatch ai stream ready system fleet ssh settings; do
   sleep 1.0
   timeout 20 spectacle -b -n -o "$HOME/shots/d-$s.png" >/dev/null 2>&1
   echo "SHOT $s $([ -s "$HOME/shots/d-$s.png" ] && echo OK || echo EMPTY)"
+done
+# live-data category views (contrast gate must cover them too)
+for s in "category:Internet" "category:Games" "category:Utilities"; do
+  $BC driveState s "$s" >/dev/null
+  sleep 1.0
+  timeout 20 spectacle -b -n -o "$HOME/shots/d-$(echo "$s" | tr ':' '_').png" >/dev/null 2>&1
+  echo "SHOT $s $([ -s "$HOME/shots/d-$(echo "$s" | tr ':' '_').png" ] && echo OK || echo EMPTY)"
 done
 
 # --- toggle round-trip: hide → desktop-only, show → UI again ----------------

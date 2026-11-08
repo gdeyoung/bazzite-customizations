@@ -53,6 +53,19 @@ Item {
 
     // ---- state ------------------------------------------------------------
     property string state: "boot"
+    // live launcher data (.desktop scan, pushed by the daemon's appsJson
+    // property; null in the applet build → frozen FoyerData fallback)
+    property string appsJson: ""
+    property var liveCats: null
+    onAppsJsonChanged: {
+        try { liveCats = JSON.parse(appsJson); }
+        catch (e) { liveCats = null; }
+    }
+    // QA mirrors of the field's caret/query (real-key forensics)
+    property int caret: field.cursorPosition
+    property int queryLen: field.length
+    property string activeCatId: ""
+    property string activeCatLabel: ""
     property int railIndex: 0
     property string zone: "field"      // keyboard zone: field | rail | lens
     property int lensIndex: 0
@@ -81,7 +94,8 @@ Item {
         help:     { field: "",            rail: 11 },
         about:    { field: "",            rail: 6 },
         recents:  { field: "",            rail: 2 },
-        favs:     { field: "",            rail: 1 }
+        favs:     { field: "",            rail: 1 },
+        category: { field: "",            rail: 0 }
     })
 
     readonly property var railModel: [
@@ -106,18 +120,50 @@ Item {
         return n;
     }
 
+    // live-first category model (frozen fallback for the applet build)
+    function bootModel() {
+        return (liveCats && liveCats.length > 0) ? liveCats : Data.categories;
+    }
+    function catList() {
+        if (!liveCats) return [];
+        for (var i = 0; i < liveCats.length; i++)
+            if (liveCats[i].id === activeCatId) return liveCats[i].apps;
+        return [];
+    }
+    function catSample(cat) {
+        var out = [];
+        for (var i = 0; i < Math.min(3, cat.apps.length); i++)
+            out.push(cat.apps[i].name);
+        return out.join(" · ");
+    }
+
     function gotoState(s) {
-        var ng = navFor(s);
+        var target = s;
+        if (s.indexOf("category:") === 0) {
+            activeCatId = s.substring(9);
+            activeCatLabel = activeCatId;
+            var bl = bootModel();
+            for (var bi = 0; bi < bl.length; bi++)
+                if (bl[bi].id === activeCatId) activeCatLabel = bl[bi].label;
+            target = "category";
+        }
+        var ng = navFor(target);
         lensCount = ng[0]; lensCols = ng[1];
-        lensIndex = (s === "boot" || s === "typed" || s === "nomatch" ||
-                     s === "stream" || s === "ready") ? 0 : 1;
+        lensIndex = (target === "boot" || target === "typed" ||
+                     target === "nomatch" || target === "stream" ||
+                     target === "ready") ? 0 : 1;
+        if (lensIndex > lensCount - 1) lensIndex = lensCount - 1;   // empty views
         navPulse = -1;
-        var p = presets[s];
+        var p = presets[target];
         if (!p) return;
-        state = s;
+        state = target;
         fieldText = p.field;
         field.text = p.field;
-        railIndex = p.rail;
+        // railIndex must point at the row that OWNS this state — computed
+        // from the model, never from hand-maintained preset numbers (they
+        // drifted off-by-one against the group-header rows).
+        for (var ri = 0; ri < railModel.length; ri++)
+            if (railModel[ri].state === target) { railIndex = ri; break; }
         var lensItem = lensLoader.item;
         if (lensItem && lensItem.forceFocus) lensItem.forceFocus();
         else field.forceActiveFocus();
@@ -161,6 +207,16 @@ Item {
         if (state === "stream") streamTimer.restart();
     }
 
+    // Cold-open init: a fresh summon must have nav geometry BEFORE any
+    // state transition — without this, lensCount stays 1 and arrows are
+    // dead until the user changes views once. (caught live 2026-11-08)
+    Component.onCompleted: {
+        var ng = navFor(state);
+        lensCount = ng[0]; lensCols = ng[1];
+        for (var ri = 0; ri < railModel.length; ri++)
+            if (railModel[ri].state === state) { railIndex = ri; break; }
+    }
+
     // Enter on the Ask row → stream → ready (the demo streaming machine)
     Timer { id: streamTimer; interval: 2600; onTriggered: root.gotoState("ready") }
 
@@ -170,7 +226,8 @@ Item {
     // re-entering a view kept the clobbered defaults — caught by check-nav).
     function navFor(s) {
         switch (s) {
-        case "boot":     return [Data.categories.length, 1];
+        case "boot":     return [bootModel().length, 1];
+        case "category": return [1 + catList().length, 1];
         case "games":    return [1 + Data.games.length, 2];
         case "typed":    return [2, 1];   // apps added live via onCountChanged
         case "nomatch":  return [1, 1];
@@ -200,7 +257,7 @@ Item {
     }
     function navKey(k) {
         if (k === "down") {
-            if (zone === "field") { zone = "lens"; if (state === "boot") lensIndex = 0; }
+            if (zone === "field") { zone = "lens"; lensIndex = 0; }
             else if (zone === "rail") moveRail(1);
             else {
                 // spatial: one grid ROW down (cols=1 in lists)
@@ -222,14 +279,15 @@ Item {
             else if (zone === "rail") moveRail(-1);
             else zone = "rail";
         } else if (k === "left") {
-            // ← walks options horizontally in reading order — ANY column,
-            // crossing rows; only from the FIRST option does it land in
-            // the far-left rail. (user directive 2026-11-08)
-            if (zone === "lens") {
-                if (lensIndex > 0) lensIndex--;
-                else zone = "rail";
-            } else if (zone === "field") zone = "rail";
+            // ← ALWAYS escapes to the far-left rail — from ANY option,
+            // ANY zone. It never scrolls through the options (user
+            // directive 2026-11-08: "arrow over to it", "not just
+            // scroll through the submenu options"). Option-walking is
+            // → (next) plus ↑/↓ (rows).
+            if (zone === "lens" || zone === "field") zone = "rail";
         } else if (k === "right") {
+            // → walks options FORWARD in reading order (any column,
+            // crossing rows); from field/rail it enters the options.
             if (zone === "field" || zone === "rail") zone = "lens";
             else if (lensIndex < lensCount - 1) lensIndex++;
         } else if (k === "enter") {
@@ -258,13 +316,24 @@ Item {
         if (i === 0 && st !== "boot" && st !== "typed" && st !== "nomatch") {
             gotoState("boot"); return;
         }
-        if (st === "boot") { gotoState("games"); return; }
+        if (st === "boot") {
+            // every category opens ITS OWN contents — never a stand-in
+            var cs = bootModel();
+            if (i < cs.length) { gotoState("category:" + cs[i].id); return; }
+        }
+        if (st === "category") {
+            // app rows launch for real (gio launch via the daemon;
+            // harness records the desktop-file path instead)
+            var lst = catList();
+            if (i - 1 >= 0 && i - 1 < lst.length) { launchApp(lst[i - 1].path); return; }
+        }
         if (st === "typed") { gotoState("stream"); return; }
         if (st === "nomatch") { gotoState("stream"); return; }
         if (st === "ai" && i === 1) { gotoState("stream"); return; }
         // remaining rows: action wiring is the live-data phase — pulse ⏎ feedback
         navPulse = i; navPulseT.restart();
     }
+    signal launchApp(string exec)
     component BackRow: ListRow {
         Layout.fillWidth: true
         Layout.leftMargin: 24; Layout.rightMargin: 24
@@ -358,11 +427,19 @@ Item {
                             Keys.onDownPressed: root.navKey("down")
                             Keys.onUpPressed: root.navKey("up")
                             Keys.onLeftPressed: function(event) {
-                                if (field.length === 0 && field.cursorPosition === 0) root.navKey("left");
+                                // While browsing options (lens/rail) arrows
+                                // are ALWAYS nav keys. In the field, ←
+                                // escapes to the rail only once the caret
+                                // is at the start of the query.
+                                if (root.zone !== "field" ||
+                                        field.cursorPosition === 0)
+                                    root.navKey("left");
                                 else event.accepted = false;
                             }
                             Keys.onRightPressed: function(event) {
-                                if (field.cursorPosition >= field.length) root.navKey("right");
+                                if (root.zone !== "field" ||
+                                        field.cursorPosition >= field.length)
+                                    root.navKey("right");
                                 else event.accepted = false;
                             }
                             Keys.onReturnPressed: root.navKey("enter")
@@ -565,6 +642,7 @@ Item {
                             sourceComponent: {
                                 switch (root.state) {
                                 case "boot":     return bootComp;
+                                case "category": return categoryComp;
                                 case "games":    return gamesComp;
                                 case "typed":    return typedComp;
                                 case "nomatch":  return nomatchComp;
@@ -723,11 +801,12 @@ Item {
                 width: parent.width
                 spacing: 0
                 SectionHead {
-                    title: "ALL CATEGORIES · " + Data.categories.length
-                    note: Data.meta.totalApps + " apps · alphabetical within category"
+                    title: "ALL CATEGORIES · " + root.bootModel().length
+                    note: root.liveCats ? "from installed applications · alphabetical"
+                                       : Data.meta.totalApps + " apps · alphabetical within category"
                 }
                 Repeater {
-                    model: Data.categories
+                    model: root.bootModel()
                     delegate: ListRow {
                         required property var modelData
                         required property int index
@@ -736,10 +815,43 @@ Item {
                         tag: modelData.label.length > 8 ? modelData.label.substring(0, 2).toUpperCase()
                                                         : modelData.label.substring(0, 1).toUpperCase()
                         name: modelData.label
-                        detail: modelData.sample
-                        value: String(modelData.count)
+                        detail: modelData.apps ? root.catSample(modelData) : modelData.sample
+                        value: String(modelData.apps ? modelData.apps.length : modelData.count)
                         focused: (root.zone === "lens" && root.lensIndex === index) || root.navPulse === index
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens("boot", index) }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: categoryComp
+        Flickable {
+            clip: true
+            contentHeight: catCol.height + 28
+            ColumnLayout {
+                id: catCol
+                width: parent.width
+                spacing: 0
+                SectionHead {
+                    title: root.activeCatLabel.toUpperCase() + " · " + root.catList().length
+                    note: "installed apps · ⏎ launches"
+                }
+                BackRow {}
+                Repeater {
+                    model: root.catList()
+                    delegate: ListRow {
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 24; Layout.rightMargin: 24
+                        hasTile: false
+                        name: modelData.name
+                        detail: modelData.generic
+                        value: ""
+                        focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
+                        MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                     }
                 }
             }
@@ -1310,7 +1422,7 @@ Item {
                     model: [
                         { k: "type",   d: "filter — the field keeps the caret; ⏎ runs the top hit" },
                         { k: "↓ ↑",    d: "walk rows — ↑ from the first row returns to the field" },
-                        { k: "→ ←",    d: "walk options in reading order — ← from the first reaches the menu rail" },
+                        { k: "→ ←",    d: "→ next option · ← jumps to the menu rail" },
                         { k: "⌫",      d: "pop a level first, then clear the query" },
                         { k: "esc",    d: "clear query → back a level → close at root" },
                         { k: "ctrl 1–9", d: "jump to a branch — numbers are pinned to the rail" },
