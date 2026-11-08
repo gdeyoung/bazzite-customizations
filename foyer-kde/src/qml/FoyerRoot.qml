@@ -8,7 +8,6 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
-import org.kde.kirigami as Kirigami
 import "FoyerData.js" as Data
 
 Item {
@@ -35,15 +34,21 @@ Item {
     readonly property int  fxText:  Math.round(17 * Math.min(t * 1.1, 1.35))
 
     // ---- tokens (runtime-resolved from the active color scheme) ----------
-    readonly property color cBg:     Kirigami.Theme.backgroundColor
-    readonly property color cRaised: Kirigami.Theme.alternateBackgroundColor
-    readonly property color cText:   Kirigami.Theme.textColor
-    readonly property color cDim:    Kirigami.Theme.disabledTextColor
-    readonly property color cAccent: Kirigami.Theme.highlightColor
-    readonly property color cHover:  Kirigami.Theme.hoverColor
-    readonly property color cNeg:    Kirigami.Theme.negativeTextColor
-    readonly property color cPos:    Kirigami.Theme.positiveTextColor
-    readonly property color cWarn:   Kirigami.Theme.neutralTextColor
+    // Pinned v4 palette — LITERAL. Kirigami ambient/attached resolution
+    // proved environment-dependent on this host (standalone probe, systemd
+    // session, and live session each resolved different colors for the same
+    // role). Literal constants render identically everywhere. Change colors
+    // HERE and only here. (UI law: fills stay dark; text on cRaised 10.9:1,
+    // cDim on cRaised 5.6:1 — WCAG AA with margin.)
+    readonly property color cBg:     "#232629"
+    readonly property color cRaised: "#31363b"
+    readonly property color cText:   "#fcfcfc"
+    readonly property color cDim:    "#a1a9b1"
+    readonly property color cAccent: "#1e92ff"
+    readonly property color cHover:  "#3daee9"
+    readonly property color cNeg:    "#da4453"
+    readonly property color cPos:    "#27ae60"
+    readonly property color cWarn:   "#f67400"
     readonly property string mono:   "Noto Sans Mono"
 
     // ---- state ------------------------------------------------------------
@@ -201,6 +206,7 @@ Item {
                 // spatial: one grid ROW down (cols=1 in lists)
                 var ni = lensIndex + lensCols;
                 if (ni < lensCount) lensIndex = ni;
+                else if (lensCount - 1 > lensIndex) lensIndex = lensCount - 1;
                 else {
                     var it = lensLoader.item;
                     if (it && it.contentY !== undefined && it.contentHeight > it.height)
@@ -216,16 +222,16 @@ Item {
             else if (zone === "rail") moveRail(-1);
             else zone = "rail";
         } else if (k === "left") {
-            // FULL NAV: ← steps one column left in a grid; from the
-            // leftmost column (every list) it lands in the far-left
-            // rail. No exceptions. (user directive 2026-11-08)
+            // ← walks options horizontally in reading order — ANY column,
+            // crossing rows; only from the FIRST option does it land in
+            // the far-left rail. (user directive 2026-11-08)
             if (zone === "lens") {
-                if (lensIndex % lensCols > 0) lensIndex--;
+                if (lensIndex > 0) lensIndex--;
                 else zone = "rail";
             } else if (zone === "field") zone = "rail";
         } else if (k === "right") {
             if (zone === "field" || zone === "rail") zone = "lens";
-            else if (lensIndex % lensCols < lensCols - 1 && lensIndex + 1 < lensCount) lensIndex++;
+            else if (lensIndex < lensCount - 1) lensIndex++;
         } else if (k === "enter") {
             if (zone === "field") {
                 if (state === "typed" || state === "nomatch") activateLens(state, lensIndex);
@@ -1304,7 +1310,7 @@ Item {
                     model: [
                         { k: "type",   d: "filter — the field keeps the caret; ⏎ runs the top hit" },
                         { k: "↓ ↑",    d: "walk rows — ↑ from the first row returns to the field" },
-                        { k: "→ ←",    d: "→ into the options · ← always to the far-left menu" },
+                        { k: "→ ←",    d: "walk options in reading order — ← from the first reaches the menu rail" },
                         { k: "⌫",      d: "pop a level first, then clear the query" },
                         { k: "esc",    d: "clear query → back a level → close at root" },
                         { k: "ctrl 1–9", d: "jump to a branch — numbers are pinned to the rail" },

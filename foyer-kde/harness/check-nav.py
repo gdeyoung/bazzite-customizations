@@ -77,6 +77,18 @@ for v in VIEWS:
         if st["state"] != v or st["zone"] != "lens" or st["i"] != s:
             fails.append(f"{v}: slot {s}/{n} UNREACHABLE (ended {st})")
             break
+        # → must advance to the NEXT option in reading order (any column)
+        if s < n - 1:
+            key("right"); st = nav()
+            if st["zone"] == "lens" and st["i"] == s + 1:
+                checked += 1
+            else:
+                fails.append(f"{v}: → from slot {s} did not reach {s+1} ({st})")
+            key("left"); st = nav()
+            if st["zone"] == "lens" and st["i"] == s:
+                checked += 1
+            else:
+                fails.append(f"{v}: ← from slot {s+1} did not return to {s} ({st})")
     # ← from a col-0 slot lands in the far-left rail
     st = reset_to_entry(v)
     for m in path_to(st["i"], (st["i"] // cols) * cols, cols):
