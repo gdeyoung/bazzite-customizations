@@ -5,6 +5,48 @@ const test = require("node:test")
 const assert = require("node:assert")
 const Model = require("../Model.js")
 
+// ---- V8-2c: mullvad nodes feed the regions lane, never the machines ----
+
+test("parseStatusPlus: mullvad peers excluded from peers, exported to mullvadExitNodes, active exit recorded", () => {
+  const mul = (h, exitNode) => ({
+    ID: "m" + h, HostName: h, DNSName: h + ".mullvad.ts.net.", OS: "linux",
+    Online: true, ExitNodeOption: true, ExitNode: exitNode === true,
+    TailscaleIPs: ["10.64.0.1"], AllowedIPs: ["0.0.0.0/0", "::/0"],
+    RxBytes: 1, TxBytes: 1, LastSeen: "2026-11-01T00:00:00Z", CurAddr: "",
+    Relay: "", LastHandshake: "0001-01-01T00:00:00Z",
+  })
+  const plain = {
+    ID: "p1", HostName: "host01", DNSName: "host01.horse-frog.ts.net.", OS: "linux",
+    Online: true, ExitNodeOption: false, TailscaleIPs: ["100.64.3.2"],
+    AllowedIPs: ["100.64.3.2/32"], RxBytes: 1, TxBytes: 1,
+    LastSeen: "2026-11-01T00:00:00Z", CurAddr: "192.168.1.1", Relay: "",
+    LastHandshake: "2026-11-07T03:00:00Z",
+  }
+  const st = Model.parseStatusPlus(JSON.stringify({
+    BackendState: "Running",
+    Self: { HostName: "gdtower", DNSName: "gdtower.horse-frog.ts.net.",
+            TailscaleIPs: ["100.71.87.72"] },
+    Peer: { "m-de": mul("de-fra-wg-001", true), "m-nl": mul("nl-ams-wg-001", false), p1: plain },
+  }))
+  assert.equal(st.ok, true)
+  assert.equal(st.peers.length, 1)                    // machines lane: host01 only
+  assert.equal(st.peers[0].HostName, "host01")
+  assert.equal(st.mullvadExitNodes.length, 2)         // both regions selectable
+  assert.equal(st.activeMullvadExit, "de-fra-wg-001") // Frankfurt active
+})
+
+// ---- V8-4: mullvad node classification ------------------------------------
+
+test("isMullvadPeer: mullvad.ts.net suffix in DNS or HostName", () => {
+  assert.equal(Model.isMullvadPeer({ HostName: "de-fra-wg-001",
+    DNSName: "de-fra-wg-001.mullvad.ts.net." }), true)
+  assert.equal(Model.isMullvadPeer({ HostName: "de-fra-wg-001.mullvad.ts.net",
+    DNSName: "" }), true)
+  assert.equal(Model.isMullvadPeer({ HostName: "gdtower",
+    DNSName: "gdtower.horse-frog.ts.net." }), false)
+  assert.equal(Model.isMullvadPeer(null), false)
+})
+
 // ---- stock behavior must not regress -------------------------------------
 
 test("parseStatus handles the real 61-peer tailnet payload", () => {

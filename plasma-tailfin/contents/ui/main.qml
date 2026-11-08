@@ -142,6 +142,9 @@ PlasmoidItem {
     // censusPeers = online, not exit-capable — alphabetical.
     property var exitNodes: []
     property var censusPeers: []
+    // §V8-2c: mullvad region nodes (Model excludes them from peers; they
+    // live ONLY in EXIT NODES › MULLVAD REGIONS).
+    property var mullvadExitNodes: []
 
     function recomputeSections() {
         const cands = []
@@ -224,6 +227,15 @@ PlasmoidItem {
 
     function pollNow() {
         execSource.connectSource(statusCommand())
+    }
+
+    // V8-2 one-gesture copy (Trayscale parity): closed-charset guard in
+    // Control.clipboardArg, then the existing read-only exec engine.
+    function copyToClipboard(text) {
+        const a = Control.clipboardArg(text)
+        if (a === null) return false
+        execSource.connectSource(a.join(" "))
+        return true
     }
 
     // §T-2/§T-5: the ONLY place control argv reach the engine. Never driven
@@ -337,6 +349,7 @@ PlasmoidItem {
             rawPeers = ({})
             selfIp6 = ""
         }
+        mullvadExitNodes = (status && status.mullvadExitNodes) || []
         recomputeSections()
         updateRates()
     }

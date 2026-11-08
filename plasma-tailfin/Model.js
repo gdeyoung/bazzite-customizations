@@ -348,6 +348,7 @@ function parseStatusPlus(raw) {
     var selfIps = filterIPv4(self.TailscaleIPs || data.TailscaleIPs || [])
     var all = []
     var exitNodes = []
+    var mullvadExits = []
     var onlineCount = 0
     var activeMullvadExit = ""
     var rawPeers = data.Peer || {}
@@ -356,10 +357,11 @@ function parseStatusPlus(raw) {
       var peer = rawPeers[id] || {}
       var normalized = peerPlusFromStatus(id, peer)
       if (normalized.Mullvad) {
-        // Mullvad nodes are excluded from the peer list, but if one is the
-        // active exit node its name must still surface for the banner /
-        // "None" row state.
+        // Mullvad nodes are excluded from the machines list, but surface
+        // for the EXIT NODES › MULLVAD REGIONS picker (§V8-2c) and, when
+        // active, for the banner / "None" row state.
         if (normalized.ExitNode) activeMullvadExit = String(normalized.HostName || "")
+        if (normalized.Online && normalized.ExitNodeOption) mullvadExits.push(normalized)
         continue
       }
       all.push(normalized)
@@ -392,6 +394,7 @@ function parseStatusPlus(raw) {
       peers: all,
       onlineCount: onlineCount,
       exitNodes: exitNodes,
+      mullvadExitNodes: mullvadExits,
       activeMullvadExit: activeMullvadExit,
       health: healthList(data.Health)
     }

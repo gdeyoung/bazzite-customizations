@@ -9,17 +9,20 @@ const Control = require("../Control.js")
 
 // ---- §T-2: closed allowlist ----------------------------------------------
 
-test("op set is exactly the five allowlisted ops", () => {
-  assert.deepEqual(Control.ops(), ["up", "down", "exit-set", "exit-clear", "probe"])
+test("op set is exactly the six allowlisted ops", () => {
+  assert.deepEqual(Control.ops(),
+    ["up", "down", "exit-set", "exit-clear", "probe", "pref-set"])
 })
 
-test("argv is byte-exact per the §T-2 table", () => {
+test("argv is byte-exact per the §T-2/V8-2 table", () => {
   assert.deepEqual(Control.argv("up"), ["tailscale", "up"])
   assert.deepEqual(Control.argv("down"), ["tailscale", "down"])
   assert.deepEqual(Control.argv("exit-set", "tower.horse-frog.ts.net"),
     ["tailscale", "set", "--exit-node=tower.horse-frog.ts.net"])
   assert.deepEqual(Control.argv("exit-clear"), ["tailscale", "set", "--exit-node="])
   assert.deepEqual(Control.argv("probe"), ["tailscale", "debug", "prefs"])
+  assert.deepEqual(Control.argv("pref-set", "shields-up:false"),
+    ["tailscale", "set", "--shields-up=false"])
 })
 
 test("unknown ops yield null — no free-form argv path", () => {
@@ -27,20 +30,22 @@ test("unknown ops yield null — no free-form argv path", () => {
   assert.equal(Control.argv(""), null)
   assert.equal(Control.argv("up; rm -rf /"), null)
   assert.equal(Control.argv("exit-set; reboot"), null)
+  assert.equal(Control.argv("pref-set", "make-me-operator:true"), null)
 })
 
 test("no op carries flags beyond the table shapes", () => {
   for (const op of Control.ops()) {
-    const a = Control.argv(op, "x").join(" ")
+    const target = op === "pref-set" ? "accept-routes:true" : "x"
+    const a = Control.argv(op, target).join(" ")
     assert.match(
       a,
-      /^tailscale (up|down|debug prefs|set --exit-node=(x)?)$/,
+      /^tailscale (up|down|debug prefs|set --exit-node=(x)?|set --accept-routes=true)$/,
       "unexpected shape for " + op + ": " + a
     )
   }
 })
 
-test("target is ignored for every op except exit-set", () => {
+test("target is ignored for every op except exit-set/pref-set", () => {
   for (const op of ["up", "down", "exit-clear", "probe"]) {
     assert.deepEqual(Control.argv(op, "--evil"), Control.argv(op))
   }
@@ -49,6 +54,30 @@ test("target is ignored for every op except exit-set", () => {
 test("TS_BIN substitutes the binary for tests/harness", () => {
   assert.deepEqual(Control.argv("up", null, { TS_BIN: "/tmp/stub/tailscale" }),
     ["/tmp/stub/tailscale", "up"])
+})
+
+// ---- V8-2: clipboard argv (closed charset) --------------------------------
+
+test("clipboardArg: IPs/IPv6/DNS names pass, everything else null", () => {
+  assert.deepEqual(Control.clipboardArg("100.71.87.72"), ["wl-copy", "--", "100.71.87.72"])
+  assert.deepEqual(Control.clipboardArg("fd7a:115c:a1e0::1"), ["wl-copy", "--", "fd7a:115c:a1e0::1"])
+  assert.deepEqual(Control.clipboardArg("gdtower.horse-frog.ts.net"),
+    ["wl-copy", "--", "gdtower.horse-frog.ts.net"])
+  assert.equal(Control.clipboardArg(""), null)
+  assert.equal(Control.clipboardArg(null), null)
+  assert.equal(Control.clipboardArg("a; rm -rf /"), null)
+  assert.equal(Control.clipboardArg("back`cmd`tick"), null)
+  assert.equal(Control.clipboardArg("with spaces"), null)
+  assert.equal(Control.clipboardArg("A".repeat(256)), null)  // CC build-gate: length cap
+  assert.deepEqual(Control.clipboardArg("A".repeat(255)), ["wl-copy", "--", "A".repeat(255)])
+  assert.equal(Control.clipboardArg("quote'inject"), null)
+})
+
+test("clipboardArg: leading-dash strings pass charset and ride behind --", () => {
+  // "-x" matches the charset; the "--" separator keeps wl-copy from
+  // reading it as a flag. (CC build-gate hardening test.)
+  assert.deepEqual(Control.clipboardArg("-x"), ["wl-copy", "--", "-x"])
+  assert.deepEqual(Control.clipboardArg("--"), ["wl-copy", "--", "--"])
 })
 
 // ---- §T-1: operator-gate probe parser -------------------------------------

@@ -167,36 +167,75 @@ test("§V7-2: tabbed shell — no TabBar/SwipeView, no tabs/ dir, StackLayout al
   }
 })
 
-test("§W-2/v0.7: v0.7 files exist and the shell composes the three tabs", () => {
+test("§W-2/v0.8: v0.8 files exist and the shell composes the three tabs", () => {
   const ui = path.join(__dirname, "..", "contents", "ui")
-  // v0.7 (§V7-12): tab set + picker + detail replace the single lane
-  for (const f of ["PopupShell.qml", "PeersTab.qml", "ExitTab.qml",
-                   "DeviceTab.qml", "PeerDetailPage.qml", "PickerRow.qml",
-                   "SearchRow.qml", "PeerRow.qml"]) {
+  // v0.8 (§V8-7): Omarchy-layout set
+  for (const f of ["PopupShell.qml", "ConnectionTab.qml", "ExitTab.qml",
+                   "MachinesTab.qml", "PeerDetailPage.qml", "PickerRow.qml",
+                   "SearchRow.qml", "MachineRow.qml", "ToggleRow.qml",
+                   "HeroCard.qml"]) {
     assert.ok(fs.existsSync(path.join(ui, f)), f + " missing")
   }
-  // §W-16/v0.6/v0.7: retired components stay deleted
+  // §W-16/v0.6/v0.7/v0.8: retired components stay deleted
   for (const f of ["ExitNodeSection.qml", "CensusSection.qml",
                    "CensusCell.qml", "CandidateRow.qml", "RoutingBand.qml",
-                   "ExitStrip.qml", "SectionLabel.qml"]) {
+                   "ExitStrip.qml", "SectionLabel.qml",
+                   "PeersTab.qml", "DeviceTab.qml", "PeerRow.qml"]) {
     assert.equal(fs.existsSync(path.join(ui, f)), false, f + " must be deleted")
   }
   const shell = fs.readFileSync(path.join(ui, "PopupShell.qml"), "utf8")
-  for (const needle of ["PeersTab", "ExitTab", "DeviceTab", "StackLayout"]) {
+  for (const needle of ["ConnectionTab", "ExitTab", "MachinesTab", "StackLayout"]) {
     assert.ok(shell.includes(needle), "PopupShell must compose " + needle)
   }
-  const peers = fs.readFileSync(path.join(ui, "PeersTab.qml"), "utf8")
-  for (const needle of ["PeerDetailPage", "PeerRow", "SearchRow", "StackView"]) {
-    assert.ok(peers.includes(needle), "PeersTab must compose " + needle)
+  assert.ok(shell.includes('"CONNECTION", "EXIT NODES", "MACHINES"'),
+            "tab titles must be the Omarchy set")
+  assert.ok(shell.includes("gridUnit * 40"), "§V8-3 width must be 40·gu")
+  const machines = fs.readFileSync(path.join(ui, "MachinesTab.qml"), "utf8")
+  for (const needle of ["PeerDetailPage", "MachineRow", "SearchRow", "StackView",
+                        "online · "]) {
+    assert.ok(machines.includes(needle), "MachinesTab must compose " + needle)
   }
   const exitTab = fs.readFileSync(path.join(ui, "ExitTab.qml"), "utf8")
   assert.ok(exitTab.includes("PickerRow"), "ExitTab must compose PickerRow")
+  assert.ok(exitTab.includes("ROUTE ALL TRAFFIC THROUGH"),
+            "§V8-1.4 caps header missing")
 })
 
-test("§V7-7: health renders on DEVICE (header pill points there)", () => {
-  const device = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "DeviceTab.qml"), "utf8")
-  assert.ok(/Repeater\s*\{[\s\S]*?ctx\.health|model:\s*tab\.health/.test(device),
-            "health warnings must render in the Device tab")
+test("§V8-2: CONNECTION tab composes hero + four writable toggles", () => {
+  const ui = path.join(__dirname, "..", "contents", "ui")
+  const conn = fs.readFileSync(path.join(ui, "ConnectionTab.qml"), "utf8")
+  assert.ok(conn.includes("HeroCard"), "hero card missing")
+  for (const needle of ["accept-routes", "accept-dns", "shields-up",
+                        "exit-node-allow-lan-access"]) {
+    assert.ok(conn.includes(needle), "pref toggle " + needle + " missing")
+    assert.ok(conn.includes('runControlOp("pref-set"'), "pref-set op wiring missing")
+  }
+  const hero = fs.readFileSync(path.join(ui, "HeroCard.qml"), "utf8")
+  assert.ok(hero.includes("powerClicked"), "hero must drive §T-3 power")
+})
+
+test("§V8-2: pref-set argv allowlist — exactly four flags, bool values", () => {
+  const C = require(path.join(__dirname, "..", "contents", "ui", "Control.js"))
+  assert.deepEqual(C.argv("pref-set", "accept-routes:true"),
+                   ["tailscale", "set", "--accept-routes=true"])
+  assert.deepEqual(C.argv("pref-set", "accept-dns:false"),
+                   ["tailscale", "set", "--accept-dns=false"])
+  assert.deepEqual(C.argv("pref-set", "shields-up:true"),
+                   ["tailscale", "set", "--shields-up=true"])
+  assert.deepEqual(C.argv("pref-set", "exit-node-allow-lan-access:false"),
+                   ["tailscale", "set", "--exit-node-allow-lan-access=false"])
+  // Closed allowlist: unknown flags, malformed targets → null
+  assert.equal(C.argv("pref-set", "accept-routes"), null)
+  assert.equal(C.argv("pref-set", "evil-flag:true"), null)
+  assert.equal(C.argv("pref-set", "accept-routes:yes"), null)
+  assert.equal(C.argv("pref-set", "accept-routes:true;rm -rf"), null)
+  assert.ok(C.ops().includes("pref-set"), "ops() must list pref-set")
+})
+
+test("§V7-7/v0.8: health renders on CONNECTION (header pill points there)", () => {
+  const conn = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "ConnectionTab.qml"), "utf8")
+  assert.ok(/Repeater\s*\{[\s\S]*?ctx\.health|model:\s*tab\.health/.test(conn),
+            "health warnings must render in the Connection tab")
   const shell = fs.readFileSync(path.join(__dirname, "..", "contents", "ui", "PopupShell.qml"), "utf8")
   assert.ok(shell.includes("⚠ ") || shell.includes("health"), "header health pill present")
 })
@@ -223,8 +262,8 @@ test("§V-4: main.qml computes exitNodes/censusPeers (Trayscale exclusion)", () 
   assert.ok(!mainQml.includes("exitCandidateCount()") || true, "legacy helper may remain")
 })
 
-test("metadata version bumped for the §V7 release", () => {
+test("metadata version bumped for the §V8 release", () => {
   const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "metadata.json"), "utf8"))
-  // v0.7 (§V7): the tabbed release
-  assert.equal((meta.KPlugin || meta).Version, "0.7.0")
+  // v0.8 (§V8): the Omarchy-layout release
+  assert.equal((meta.KPlugin || meta).Version, "0.8.0")
 })

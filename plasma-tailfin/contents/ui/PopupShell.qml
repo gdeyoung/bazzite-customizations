@@ -48,12 +48,21 @@ Item {
     }
 
     // ---- open/close lifecycle (§T-3/§T-5/§V7-2) --------------------
+    function seedFreshOpen() {
+        ctx.ctlError = ctx.ops.lastError = ""
+        // §V8-2 fresh-open law: MACHINES when running (the glance
+        // target), CONNECTION when not (hero is the recovery path).
+        ctx.selectedTab = ctx.running ? 2 : 0
+        forceActiveFocus()
+    }
+    // fullRepresentation is CREATED on first open with visible already
+    // true — onVisibleChanged never fires for that open (harness-proven
+    // 2026-11-08: v8j opened on CONNECTION with running=true). Seed on
+    // completion too; re-opens still ride onVisibleChanged.
+    Component.onCompleted: seedFreshOpen()
     onVisibleChanged: {
         if (visible) {
-            ctx.ctlError = ctx.ops.lastError = ""
-            // §V7-2 fresh-open law: PEERS when running, DEVICE when not.
-            ctx.selectedTab = ctx.running ? 0 : 2
-            forceActiveFocus()
+            seedFreshOpen()
         } else {
             ctx.disarmConfirm()
             ctx.peerQuery = ""
@@ -66,9 +75,9 @@ Item {
     Keys.onPressed: (event) => {
         if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_F) {
             if (shell.searchable()) {
-                ctx.selectedTab = 0           // search means "find a peer"
+                ctx.selectedTab = 2           // search means "find a machine"
                 ctx.searchOpen = true
-                peersTab.searchRowFocus()
+                machinesTab.searchRowFocus()
             }
             event.accepted = true
         } else if ((event.modifiers & Qt.ControlModifier)
@@ -80,12 +89,12 @@ Item {
                 ctx.detailPeer = null
             } else if (ctx.peerQuery !== "") {
                 ctx.peerQuery = ""
-                peersTab.focusIndex = -1
+                machinesTab.focusIndex = -1
             } else if (ctx.searchOpen) {
                 ctx.searchOpen = false
                 shell.forceActiveFocus()
             } else {
-                peersTab.searchRowBlur()
+                machinesTab.searchRowBlur()
             }
             event.accepted = true
         } else if (event.key === Qt.Key_Left && ctx.detailPeer === null) {
@@ -95,22 +104,22 @@ Item {
             if (ctx.selectedTab < 2) ctx.selectedTab++
             event.accepted = true
         } else if (event.key === Qt.Key_Down && ctx.peerQuery !== "") {
-            peersTab.focusStep(1)
-            event.accepted = peersTab.focusIndex >= 0
+            machinesTab.focusStep(1)
+            event.accepted = machinesTab.focusIndex >= 0
         } else if (event.key === Qt.Key_Up && ctx.peerQuery !== "") {
-            if (peersTab.focusIndex <= 0) {
-                peersTab.focusIndex = -1
-                peersTab.searchRowFocus()
+            if (machinesTab.focusIndex <= 0) {
+                machinesTab.focusIndex = -1
+                machinesTab.searchRowFocus()
             } else {
-                peersTab.focusStep(-1)
+                machinesTab.focusStep(-1)
             }
             event.accepted = true
         } else if (event.key === Qt.Key_Return && ctx.peerQuery !== "") {
-            // §V7-9: Enter on the focused result opens DETAIL.
-            if (peersTab.focusIndex >= 0) {
-                const list = peersTab.resultsList()
-                if (peersTab.focusIndex < list.length) {
-                    peersTab.openDetail(list[peersTab.focusIndex])
+            // Enter on the focused result opens DETAIL.
+            if (machinesTab.focusIndex >= 0) {
+                const list = machinesTab.resultsList()
+                if (machinesTab.focusIndex < list.length) {
+                    machinesTab.openDetail(list[machinesTab.focusIndex])
                     event.accepted = true
                     return
                 }
@@ -132,9 +141,10 @@ Item {
         onTriggered: ctx.clockNow = Date.now()
     }
 
-    // ---- Frame (§V7-3 = §V-5/§W-3 carried) -------------------------
-    Layout.minimumWidth: Kirigami.Units.gridUnit * 34
-    Layout.preferredWidth: Kirigami.Units.gridUnit * 34
+    // ---- Frame (§V8-3 = §V-5/§W-3 carried; 40·gu — owner: text was
+    // cut off at 34·gu) --------------------------------------------
+    Layout.minimumWidth: Kirigami.Units.gridUnit * 40
+    Layout.preferredWidth: Kirigami.Units.gridUnit * 40
     Layout.minimumHeight: shellHeight()
     Layout.preferredHeight: shellHeight()
 
@@ -227,7 +237,7 @@ Item {
                 }
             }
 
-            // §W-9 search toggle — switching to PEERS on reveal (§V7-4)
+            // §W-9 search toggle — switching to MACHINES on reveal (§V8)
             PC3.ToolButton {
                 visible: shell.searchable() && !shell.edgeMode
                 flat: true
@@ -235,17 +245,17 @@ Item {
                 checked: shell.ctx.searchOpen
                 icon.name: "edit-find"
                 display: PC3.AbstractButton.IconOnly
-                QQC2.ToolTip.text: "Search peers (Ctrl+F)"
+                QQC2.ToolTip.text: "Search machines (Ctrl+F)"
                 QQC2.ToolTip.visible: hovered
                 Layout.minimumHeight: Kirigami.Units.gridUnit * 1.4
                 onToggled: {
                     shell.ctx.searchOpen = checked
-                    if (checked) shell.ctx.selectedTab = 0
+                    if (checked) shell.ctx.selectedTab = 2
                 }
             }
 
             // §V7-3 HEALTH PILL — count + pointer; text renders once,
-            // on DEVICE (dedup law). Click → DEVICE.
+            // on CONNECTION (dedup law). Click → CONNECTION.
             PC3.ToolButton {
                 visible: (shell.ctx.health || []).length > 0
                 flat: true
@@ -254,29 +264,13 @@ Item {
                 font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                 font.bold: true
                 QQC2.ToolTip.text: shell.ctx.health.length
-                                   + " health warnings — open the Device tab"
+                                   + " health warnings — open the Connection tab"
                 QQC2.ToolTip.visible: hovered
-                onClicked: shell.ctx.selectedTab = 2
+                onClicked: shell.ctx.selectedTab = 0
             }
 
-            // §T-3 power — §V6-8 button relocated to the header
-            // ([TS] StatusSwitch site; v0.6 footer Disconnect deleted).
-            PC3.Button {
-                visible: shell.ctx.controlsEnabled
-                enabled: !shell.ctx.ctlBusy
-                text: shell.ctx.ctlBusy ? "working…"
-                      : shell.ctx.ctlArmed ? "Confirm disconnect"
-                      : shell.ctx.running ? "Disconnect" : "Connect"
-                palette.windowText: shell.ctx.ctlArmed
-                                    ? Kirigami.Theme.negativeTextColor
-                                    : Kirigami.Theme.textColor
-                Layout.preferredHeight: Kirigami.Units.gridUnit * 1.4
-                topPadding: Kirigami.Units.smallSpacing * 0.5
-                bottomPadding: Kirigami.Units.smallSpacing * 0.5
-                leftPadding: Kirigami.Units.smallSpacing * 1.5
-                rightPadding: Kirigami.Units.smallSpacing * 1.5
-                onClicked: shell.ctx.powerClicked()
-            }
+            // §T-3 power moved to the CONNECTION hero card (§V8-1.5,
+            // Omarchy PanelHero grammar). No header button.
         }
 
         // ---- MESSAGE STRIP (§V7-3: §T-5 items 1–3 ONLY) -------------
@@ -315,7 +309,7 @@ Item {
             spacing: 0
 
             Repeater {
-                model: ["PEERS", "EXIT NODES", "DEVICE"]
+                model: ["CONNECTION", "EXIT NODES", "MACHINES"]
                 PC3.AbstractButton {
                     required property int index
                     required property var modelData
@@ -330,21 +324,16 @@ Item {
                     onClicked: shell.ctx.selectedTab = index
 
                     background: Rectangle {
-                        color: tabCell.pressed
-                               ? Kirigami.Theme.highlightColor
-                               : tabCell.hovered
-                                 ? Kirigami.Theme.highlightColor : "transparent"
-                        opacity: tabCell.pressed ? 0.12
+                        // §V8-1.1 Omarchy active-tab grammar: raised
+                        // rounded fill + bright text (underline retired).
+                        radius: Kirigami.Units.smallSpacing
+                        color: tabCell.pressed ? Kirigami.Theme.highlightColor
+                               : tabCell.checked ? Kirigami.Theme.highlightColor
+                               : tabCell.hovered ? Kirigami.Theme.highlightColor
+                               : "transparent"
+                        opacity: tabCell.pressed ? 0.16
+                                : tabCell.checked ? 0.12
                                 : tabCell.hovered ? 0.06 : 1
-                        // §V7-2 active underline: 2px, full cell width
-                        Rectangle {
-                            visible: tabCell.checked
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            height: 2
-                            color: Kirigami.Theme.highlightColor
-                        }
                     }
                     contentItem: Text {
                         text: tabCell.modelData
@@ -377,14 +366,14 @@ Item {
             currentIndex: shell.edgeMode ? -1 : shell.ctx.selectedTab
             visible: !shell.edgeMode
 
-            PeersTab {
-                id: peersTab
+            ConnectionTab {
                 ctx: shell.ctx
             }
             ExitTab {
                 ctx: shell.ctx
             }
-            DeviceTab {
+            MachinesTab {
+                id: machinesTab
                 ctx: shell.ctx
             }
         }

@@ -128,21 +128,30 @@ Item {
                         opacity: 0.62
                         font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                     }
-                    PC3.Label {
+                    // V8-2: SELECTABLE value — selectByMouse gives real
+                    // highlight + Ctrl+C (a Label can never be selected;
+                    // the v0.7 I-beam cursor was a lie).
+                    QQC2.TextField {
                         Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignRight
+                        horizontalAlignment: TextInput.AlignRight
                         text: modelData.value
-                        textFormat: Text.AutoText
+                        readOnly: true
+                        selectByMouse: true
+                        background: null
                         color: Kirigami.Theme.textColor
                         font.pixelSize: Kirigami.Theme.smallFont.pixelSize
                         font.features: ({ "tnum": 1 })
-                        elide: Text.ElideMiddle
-                        // selectable per §V7-5 #4 (no clipboard API)
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.IBeamCursor
-                            acceptedButtons: Qt.NoButton
-                        }
+                    }
+                    // V8-2: one-gesture copy (Trayscale parity)
+                    PC3.ToolButton {
+                        flat: true
+                        icon.name: "edit-copy-symbolic"
+                        display: PC3.AbstractButton.IconOnly
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 1.6
+                        opacity: 0.55
+                        QQC2.ToolTip.text: qsTr("Copy ") + modelData.label
+                        QQC2.ToolTip.visible: hovered
+                        onClicked: ctx.copyToClipboard(modelData.value)
                     }
                 }
             }

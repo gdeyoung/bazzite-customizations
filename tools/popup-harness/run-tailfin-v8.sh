@@ -72,6 +72,36 @@ if fx == "norm19" or fx == "norm19h":
             "SELinux is preventing tailscaled from opening the SSH server on the tailnet.",
             "accept-routes is disabled on this node while other nodes advertise routes",
         ]
+elif fx == "mullvad":
+    # norm19h base + mullvad exit nodes (add-on ON): 9 regions, one ACTIVE.
+    # Region set mirrors real Mullvad naming (country-city-wg-NNN).
+    for i in range(1, 20):
+        peers[f"p{i}"] = peer(i, True, exitc=(i % 3 == 0),
+                              active=(i % 2 == 0), routes=(["192.168.1.0/24"] if i % 4 == 0 else None))
+    peers["p3"]["ExitNode"] = False  # mullvad active ⇒ tailnet exit NOT active
+    for i in range(100, 121):
+        peers[f"p{i}"] = peer(i, False)
+    health = [
+        "SELinux is preventing tailscaled from opening the SSH server on the tailnet.",
+        "accept-routes is disabled on this node while other nodes advertise routes",
+    ]
+    regions = ["de-fra-wg-001", "de-fra-wg-002", "nl-ams-wg-001", "se-sto-wg-002",
+               "uk-lon-wg-003", "us-nyc-wg-001", "us-chi-wg-002", "jp-tyo-wg-001",
+               "au-syd-wg-001"]
+    for j, r in enumerate(regions):
+        p = peer(200 + j, True, exitc=True)
+        p["HostName"] = r
+        p["DNSName"] = r + ".mullvad.ts.net."
+        p["OS"] = "linux"
+        p["Relay"] = ""
+        p["CurAddr"] = ""
+        p["RxBytes"] = 1
+        p["TxBytes"] = 1
+        p["LastHandshake"] = "0001-01-01T00:00:00Z"
+        if j == 0:
+            p["ExitNode"] = True  # Frankfurt is the active mullvad exit
+        peers["m" + r] = p
+    doc_self_mullvad = "de-fra-wg-001.mullvad.ts.net."
 elif fx == "zero19":
     for i in range(100, 121):
         peers[f"p{i}"] = peer(i, False)
@@ -92,6 +122,7 @@ doc = {
         "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
         "UserID": 1, "TailscaleIPs": ["100.71.87.72", "fd7a:115c:a1e0::1"],
         "Capabilities": [],
+        "ActiveMullvadExit": (doc_self_mullvad if fx == "mullvad" else ""),
     },
     "Peer": peers,
 }
@@ -172,7 +203,7 @@ fi
 python3 - "$PKG/contents/ui/main.qml" <<'PY'
 import sys
 p = sys.argv[1]; s = open(p).read()
-hook = "\n    Timer { interval: 6000; running: true; onTriggered: { root.expanded = true; console.error(\"HARNESSGate \" + root.gateState + \" edge=\" + root.edgeState) } }\n"
+hook = "\n    Timer { interval: 12000; running: true; onTriggered: { root.expanded = true; console.error(\"HARNESSGate \" + root.gateState + \" edge=\" + root.edgeState) } }\n"
 anchor = "    // ---- Data plumbing"
 assert anchor in s, "data-plumbing anchor missing"
 s = s.replace(anchor, hook + anchor, 1)
@@ -209,10 +240,10 @@ drv = """    Timer {
             console.error("HARNESSSTEP " + step + " tab=" + shell.ctx.selectedTab)
             const ok = shell.ctx.edgeState === "ok" && !shell.ctx.needsLogin
                        && shell.ctx.peers.length > 0
-            if (step === 2) {
+            if (step === 4) {
                 console.error("HARNESSGEO t0 " + Math.round(shell.width) + "x" + Math.round(shell.height))
             }
-            if (ok && step >= 2 && step <= 9) {
+            if (ok && step >= 4 && step <= 12) {
                 const online = shell.ctx.onlinePeers.length
                 const off = shell.ctx.offlinePeers.length
                 const sumOk = (online + off === shell.ctx.peers.length) ? "ok" : "BAD"
@@ -224,57 +255,60 @@ drv = """    Timer {
                     + " total=" + shell.ctx.peers.length
                     + " rateReady=" + ready + " sum=" + sumOk)
             }
-            if (step === 7 && ok && shell.ctx.offlinePeers.length > 0) {
+            if (ok && step === 14 && shell.ctx.offlinePeers.length > 0) {
                 machinesTab.offlineExpanded = true
                 console.error("HARNESSTOGGLE expanded=1")
             }
             // scroll the lane to the bottom so the offexp capture shows
             // the offline block (proven v5 pattern)
-            if (ok && (step === 9 || step === 10) && machinesTab.offlineExpanded) {
+            if (ok && (step === 16 || step === 17) && machinesTab.offlineExpanded) {
                 machinesTab.laneScrollBottom()
             }
-            if (ok && step === 12) {
+            if (ok && step === 26) {
                 shell.ctx.searchOpen = true
                 shell.ctx.peerQuery = "host03"
                 console.error("HARNESSSEARCH q=host03 n=" + shell.ctx.searchResults.length)
             }
-            if (ok && step === 16) {
+            if (ok && step === 40) {
                 shell.ctx.peerQuery = "host zzz"
                 console.error("HARNESSSEARCH q=hostzzz n=" + shell.ctx.searchResults.length)
             }
-            if (ok && step === 18) {
+            if (ok && step === 44) {
                 shell.ctx.peerQuery = ""
                 shell.ctx.searchOpen = false
                 console.error("HARNESSSEARCH q=cleared n=" + shell.ctx.searchResults.length)
             }
-            if (ok && step === 20) {
+            if (ok && step === 46) {
                 shell.ctx.selectedTab = 1
                 const ax = shell.ctx.activeExitPeer()
                 console.error("HARNESSTAB exit cands=" + shell.ctx.exitNodes.length
                     + " active=" + (ax ? ax.HostName : "none"))
             }
-            if (ok && step === 28) {
+            if (ok && step === 62) {
                 shell.ctx.selectedTab = 0
                 console.error("HARNESSTAB connection prefs=" + (shell.ctx.gatePrefs !== "" ? "parsed" : "empty")
                     + " health=" + (shell.ctx.health || []).length)
             }
-            if (ok && step === 34) {
+            if (ok && step === 66) {
                 console.error("HARNESSGEO t1 " + Math.round(shell.width) + "x" + Math.round(shell.height))
             }
-            if (ok && step === 40) {
+            if (ok && step === 78) {
                 shell.ctx.selectedTab = 2
+                console.error("HARNESSTAB machines pre-detail")
+            }
+            if (ok && step === 80) {
                 const list = shell.ctx.onlinePeers.length > 0 ? shell.ctx.onlinePeers : shell.ctx.peers
                 machinesTab.openDetail(list[0])
                 console.error("HARNESSDETAIL open=" + (shell.ctx.detailPeer ? shell.ctx.detailPeer.HostName : "FAIL"))
             }
-            if (ok && step === 48) {
+            if (ok && step === 88) {
                 console.error("HARNESSGEO t2 " + Math.round(shell.width) + "x" + Math.round(shell.height))
             }
-            if (step === 56) {
+            if (step === 96) {
                 machinesTab.closeDetail()
                 console.error("HARNESSDETAIL open=" + (shell.ctx.detailPeer ? "STILL" : "closed"))
             }
-            if (step === 58) {
+            if (step === 98) {
                 console.error("HARNESSGEO t0b " + Math.round(shell.width) + "x" + Math.round(shell.height))
             }
         }
@@ -288,10 +322,10 @@ vis_anchor = "    onVisibleChanged: {"
 assert vis_anchor in s
 s = s.replace(vis_anchor,
     '    onVisibleChanged: { console.error("HARNESSVIS " + (visible ? "true" : "false"))', 1)
-step_anchor = "            if (step === 2) {"
+step_anchor = "            if (step === 4) {"
 assert step_anchor in s
 s = s.replace(step_anchor,
-    '            if (step === 4 || step === 6) {'
+    '            if (step === 6 || step === 8) {'
     ' console.error("HARNESSGEO2 shell=" + Math.round(shell.width) + "x" + Math.round(shell.height)'
     ' + " machinesTab=" + Math.round(machinesTab.width) + "x" + Math.round(machinesTab.height)'
     ' + " stack=" + Math.round(machinesTab.stackDepth())'
@@ -313,6 +347,12 @@ pt = pt.replace("    function searchable() {",
 open(peers_path, "w").write(pt)
 open(p, 'w').write(s); print("v8 driver in")
 PY
+# injection failure must abort loudly — a driverless run produces empty
+# asserts that look green (2026-11-08 v8h/v8i incident).
+grep -aq "HARNESSSTEP" "$PKG/contents/ui/PopupShell.qml" || {
+  echo "FATAL: driver injection failed (HARNESSSTEP absent) — aborting"
+  exit 9
+}
 
 echo "CKPT-START fixture=$FIXTURE gate=$GATE light=$LIGHT scale=$SCALE"
 QT_SCALE_FACTOR=$SCALE QT_LOGGING_RULES="org.kde.plasma*=true;js=true" plasmashell --no-respawn > $ROOT/shell-tailfin-v3-$FIXTURE-s$SCALE$LIGHT.log 2>&1 & SHELL_PID=$!
@@ -344,26 +384,29 @@ done
 echo "CKPT-PANELS=$PANELS after=$(( (i+1)/2 ))s"
 ADDERR=$(busctl --address="$DBUS_SESSION_BUS_ADDRESS" call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$(cat $ROOT/add-tailfin.js)" 2>&1)
 echo "CKPT-ADD: $(echo "$ADDERR" | head -1)"
-# Popup opens 6 s after applet load; driver steps are 500 ms each from
-# popup creation (t0). State windows (step): peers 2-6 · offexp 7+ ·
-# search 10-14 · exit 18-28 · device 28-34 · detail 40-48. Spectacle
-# adds 1-3 s latency per shot; windows are 5 s to absorb it.
-sleep 7
+# Popup opens 12 s after applet load (post-status; running=true ⇒
+# MACHINES landing). fullRepresentation (and the driver Timer) are
+# CREATED at open — t0 = open = add+12 s; step N wall = add + 12 + N/2.
+# Windows (step): settle+t0 4-12 · expand 14-17 · search q=host03 26-40
+# · zzz 40 · cleared 44 · exit 46 · t1 66 · connection 62 · machines 78
+# · detail 80 · t2 88 · closeDetail 96 · t0b 98. Shots launch at add+
+# 15/21/27/38/46/55; spectacle latency 1-3 s lands shutters in-window.
+sleep 15
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-machines-s$SCALE$LIGHT.png
 echo "SHOTDONE-machines $(date +%s.%N)" >> $ROOT/shot-times.log
-sleep 3.5
+sleep 6
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-offexp-s$SCALE$LIGHT.png
 echo "SHOTDONE-offexp $(date +%s.%N)" >> $ROOT/shot-times.log
-sleep 2
+sleep 6
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-search-s$SCALE$LIGHT.png
 echo "SHOTDONE-search $(date +%s.%N)" >> $ROOT/shot-times.log
-sleep 5
+sleep 11
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-exittab-s$SCALE$LIGHT.png
 echo "SHOTDONE-exittab $(date +%s.%N)" >> $ROOT/shot-times.log
-sleep 6
+sleep 8
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-connection-s$SCALE$LIGHT.png
 echo "SHOTDONE-connection $(date +%s.%N)" >> $ROOT/shot-times.log
-sleep 5
+sleep 9
 spectacle -b -n -o $ROOT/shots/$TAG-$FIXTURE-detail-s$SCALE$LIGHT.png
 echo "SHOTDONE-detail $(date +%s.%N)" >> $ROOT/shot-times.log
 sleep 10
@@ -396,7 +439,7 @@ grep -ao "HARNESSDETAIL open=[A-Za-z0-9-]*" "$LOG"
 # gate/edge verdict
 grep -ao "HARNESSGate .*" "$LOG" || echo "GATE-LINE-MISSING"
 # A7: no QML runtime errors of the classes we've been burned by
-QMLERR=$(grep -ac "is not defined\|Cannot read\|ReferenceError\|TypeError" "$LOG" || true)
+QMLERR=$(grep -ac "is not defined\|Cannot read\|ReferenceError\|TypeError\|Invalid write\|Invalid read\|Syntax error" "$LOG" || true)
 echo "QML-ERR=$QMLERR (want 0)"
 grep -a "is not defined\|Cannot read\|ReferenceError\|TypeError" "$LOG" | sort -u | head -5
 echo "===SHOTS==="

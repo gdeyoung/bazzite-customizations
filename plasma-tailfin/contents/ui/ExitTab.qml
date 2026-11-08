@@ -44,8 +44,40 @@ Item {
     readonly property bool routing: activeExit !== null
                                     && activeExit.Online === true
 
-    // Candidates: §T-4's raw 0.0.0.0/0 test, alphabetical.
+    // Candidates: §T-4's raw 0.0.0.0/0 test, alphabetical. Split for
+    // the §V8-4 MULLVAD REGIONS section — same allowlisted exit-set op.
     readonly property var candidates: ctx.exitNodes || []
+    readonly property var tailnetNodes: {
+        const all = ctx.exitNodes || []
+        const out = []
+        for (let i = 0; i < all.length; i++) {
+            if (!Model.isMullvadPeer(all[i])) out.push(all[i])
+        }
+        return out
+    }
+    // §V8-2c: Model excludes mullvad peers from ctx.peers/exitNodes
+    // entirely, so this reads the dedicated ctx.mullvadExitNodes lane.
+    readonly property var mullvadNodes: ctx.mullvadExitNodes || []
+    property string mullvadFilter: ""
+    readonly property var mullvadShown: {
+        const q = mullvadFilter.toLowerCase()
+        if (q === "") return mullvadNodes
+        return mullvadNodes.filter(function (n) {
+            return String(n.HostName || "").toLowerCase().indexOf(q) >= 0
+                || String(ctx.peerName(n)).toLowerCase().indexOf(q) >= 0
+        })
+    }
+    readonly property var activeMullvadName: {
+        const am = ctx.status && ctx.status.activeMullvadExit
+            ? String(ctx.status.activeMullvadExit) : ""
+        if (am === "") return ""
+        for (let i = 0; i < mullvadNodes.length; i++) {
+            const dns = String(mullvadNodes[i].DNSName || "").replace(/\.+$/, "")
+            if (dns === am || dns.indexOf(am) === 0 || am.indexOf(dns) === 0)
+                return dns
+        }
+        return ""
+    }
 
     // §T-4 target name while an op flies.
     readonly property bool switching: ctx.ctlBusy
@@ -151,6 +183,19 @@ Item {
 
             Kirigami.Separator { Layout.fillWidth: true }
 
+            // ---- §V8-1.4 caps section header (Omarchy grammar) -------
+            PC3.Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                text: "ROUTE ALL TRAFFIC THROUGH"
+                color: Kirigami.Theme.textColor
+                opacity: 0.62
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                font.bold: true
+                font.letterSpacing: 0.4
+            }
+
             // ---- picker list ------------------------------------------
             // Row 0: None · direct
             PickerRow {
@@ -158,19 +203,33 @@ Item {
                 Layout.leftMargin: Kirigami.Units.smallSpacing
                 Layout.rightMargin: Kirigami.Units.smallSpacing
                 ctx: tab.ctx
-                title: "None · direct"
+                title: "None (direct)"
                 address: ""
                 osText: ""
-                conn: "direct"
+                conn: "use your own internet connection"
                 selected: tab.activeExit === null && !tab.viaMullvad
                 busyTarget: false
                 interactive: ctx.controlsEnabled && !ctx.ctlBusy
                 onPicked: ctx.runControlOp("exit-clear", "")
             }
 
-            // candidate rows — §T-4 one-gesture switching
+            PC3.Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                visible: tab.tailnetNodes.length > 0
+                text: "TAILNET EXIT NODES"
+                color: Kirigami.Theme.textColor
+                opacity: 0.62
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                font.bold: true
+                font.letterSpacing: 0.4
+            }
+
+            // candidate rows — §T-4 one-gesture switching (tailnet only;
+            // mullvad nodes render in their own section below)
             Repeater {
-                model: tab.candidates
+                model: tab.tailnetNodes
                 PickerRow {
                     required property var modelData
                     Layout.fillWidth: true
@@ -194,6 +253,65 @@ Item {
                 }
             }
 
+            // ---- §V8-4 MULLVAD REGIONS (visible only when the tailnet
+            // has Mullvad exit nodes — Trayscale parity)
+            PC3.Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                visible: tab.mullvadNodes.length > 0
+                text: "MULLVAD REGIONS"
+                color: Kirigami.Theme.textColor
+                opacity: 0.62
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                font.bold: true
+                font.letterSpacing: 0.4
+            }
+            PC3.TextField {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                Layout.rightMargin: Kirigami.Units.smallSpacing
+                visible: tab.mullvadNodes.length > 8
+                placeholderText: "Filter " + tab.mullvadNodes.length + " regions…"
+                text: tab.mullvadFilter
+                onTextChanged: tab.mullvadFilter = text
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+            }
+            Repeater {
+                model: tab.mullvadShown
+                PickerRow {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Kirigami.Units.smallSpacing
+                    Layout.rightMargin: Kirigami.Units.smallSpacing
+                    ctx: tab.ctx
+                    peer: modelData
+                    title: ctx.peerName(modelData)
+                    address: String((modelData.TailscaleIPs || [])[0] || "")
+                    osText: "mullvad"
+                    conn: ""
+                    selected: tab.activeMullvadName !== ""
+                              && String(modelData.DNSName || "").replace(/\.+$/, "")
+                                 === tab.activeMullvadName
+                    busyTarget: ctx.ctlSwitching !== ""
+                                && ctx.ctlSwitching
+                                   === String(modelData.DNSName || "")
+                    interactive: ctx.controlsEnabled && !ctx.ctlBusy
+                    onPicked: ctx.runControlOp("exit-set",
+                                               Control.exitTarget(modelData))
+                }
+            }
+            PC3.Label {
+                Layout.fillWidth: true
+                Layout.leftMargin: Kirigami.Units.smallSpacing
+                visible: tab.mullvadNodes.length > 0
+                         && tab.mullvadShown.length === 0
+                text: "no regions match"
+                color: Kirigami.Theme.textColor
+                opacity: 0.62
+                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+            }
+
             // §T-4 in-flight marker row
             PC3.Label {
                 Layout.fillWidth: true
@@ -209,7 +327,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.topMargin: Kirigami.Units.gridUnit
                 Layout.bottomMargin: Kirigami.Units.gridUnit
-                visible: tab.candidates.length === 0
+                visible: tab.tailnetNodes.length === 0 && tab.mullvadNodes.length === 0
                 spacing: Kirigami.Units.smallSpacing * 0.5
                 Text {
                     Layout.fillWidth: true

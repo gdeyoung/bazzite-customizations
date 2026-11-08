@@ -290,6 +290,40 @@ python3 ../tools/check_qml.py .                      # static QML/metadata check
   contradicted by the gu-derived frame/rows and the absence of
   translations; scale matrix run green).
 
+## Verified (v0.8 — Omarchy-layout rebuild, 2026-11-08)
+
+Rebuild per owner verdict: Omarchy-original layout base + fleet design
+language. Tabs **CONNECTION · EXIT NODES · MACHINES** (fresh-open lands
+MACHINES when connected, CONNECTION when not — hero card is the recovery
+path), 40·gu popup, two-line rows, real toggles everywhere:
+
+- **Hero card** (CONNECTION): status dot, machine name, state phrase,
+  big connect toggle (§T-3 arm/confirm).
+- **PREFERENCES** (CONNECTION): accept-routes, accept-dns, shields-up,
+  exit-node-allow-lan-access — optimistic flips via allowlisted
+  `pref-set`, revert-on-probe.
+- **Copy (Trayscale parity)**: every address/DNS value is a readOnly
+  `selectByMouse` TextField (real highlight+Ctrl+C); one-gesture copy
+  buttons on machine rows and detail rows → `wl-copy` through
+  `Control.clipboardArg` (closed charset `^[A-Za-z0-9.:-]+$`, everything
+  else null — shell metachars structurally impossible).
+- **Mullvad exit selection**: EXIT NODES splits TAILNET EXIT NODES vs
+  MULLVAD REGIONS (`*.mullvad.ts.net`); regions fire the same
+  allowlisted `exit-set`; filter field >8 regions; section hidden when
+  the add-on is off (machines lane never shows mullvad nodes —
+  Model exports them on a dedicated `mullvadExitNodes` lane).
+- 75/75 node tests (charset + length-cap + mullvad lane locks, six ops
+  byte-exact); check_qml 0 errors (11 files, token-only styling).
+- Harness matrix 2026-11-08 AM, all green (GEO-UNIQUE=1 · SUM-BAD=0 ·
+  QML-ERR=0 · audit 6/6 distinct per config): mullvad fixture
+  (MULLVAD REGIONS + filter + active Frankfurt), norm19h base, SCALE=2,
+  zero19 (0-online edge), login (hero recovery), gate-disabled. Known
+  harness gap: LIGHT=1 no longer flips the VIRTUAL session's scheme
+  (worked at v5, broke with this week's Plasma bump — kdeglobals
+  ColorScheme ignored at startup); the app itself carries zero
+  hardcoded colors (24 Kirigami.Theme refs), so system theme switches
+  flow through like any KDE applet.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Model.js carries its upstream MIT lineage from

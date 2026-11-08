@@ -22,12 +22,26 @@ function argv(op, target, env) {
   if (op === "exit-set") return [b, "set", "--exit-node=" + String(target || "")]
   if (op === "exit-clear") return [b, "set", "--exit-node="]
   if (op === "probe") return [b, "debug", "prefs"]
+  if (op === "pref-set") {
+    // V8-2 closed flag allowlist — no free-form argv path. target is
+    // "<flag>:<bool>"; unknown flags yield null like unknown ops.
+    var PREF_FLAGS = [
+      "accept-routes",
+      "accept-dns",
+      "shields-up",
+      "exit-node-allow-lan-access"
+    ]
+    var parts = String(target || "").split(":")
+    if (parts.length !== 2 || PREF_FLAGS.indexOf(parts[0]) < 0) return null
+    if (parts[1] !== "true" && parts[1] !== "false") return null
+    return [b, "set", "--" + parts[0] + "=" + parts[1]]
+  }
   return null
 }
 
 // The total op set — tests assert this and nothing else.
 function ops() {
-  return ["up", "down", "exit-set", "exit-clear", "probe"]
+  return ["up", "down", "exit-set", "exit-clear", "probe", "pref-set"]
 }
 
 // §T-1 operator gate — parse `tailscale debug prefs` stdout.
@@ -168,6 +182,19 @@ function errorText(op, exitCode, stdout, stderr) {
   return "op failed: exit " + exitCode
 }
 
+// V8-2 clipboard — `wl-copy` with a CLOSED charset: only IPs, IPv6,
+// DNS names (alnum . : -). Anything else → null. The engine runs a
+// command string, so the charset guard makes shell metachars
+// structurally impossible, whatever the parsing.
+function clipboardArg(text) {
+  var s = String(text || "")
+  // closed charset: no whitespace/metachars can survive tokenization;
+  // length cap (CC build-gate): sane addresses are << 255 bytes.
+  if (s.length > 255) return null
+  if (!/^[A-Za-z0-9.:-]+$/.test(s)) return null
+  return ["wl-copy", "--", s]
+}
+
 // QML engine has no `module` — guard so the node --test
 // export doesn't ReferenceError on import in plasmashell.
 if (typeof module !== "undefined") module.exports = {
@@ -179,5 +206,6 @@ if (typeof module !== "undefined") module.exports = {
   isExitCandidate: isExitCandidate,
   Confirm: Confirm,
   Ops: Ops,
-  errorText: errorText
+  errorText: errorText,
+  clipboardArg: clipboardArg
 }
