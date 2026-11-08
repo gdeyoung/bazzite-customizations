@@ -85,3 +85,29 @@ KF6-devel not yet layered on Bazzite — first native-build task.
 Phase 1: deterministic core (everything but AI streaming). Phase 2: AI
 lane via hermes-runner prefixes (ai / hr). Phases are build order, not
 feature flags — the design ships whole.
+
+## R4 addendum — the user-space build (2026-11-07, supersedes the C++ plan)
+The C++ LayerShellQt daemon required rpm-ostree layering (layer-shell-qt-devel,
+KF6-devel) — wrong for this host. Rebuilt as pure user space with zero
+compilation, verified in the nested-kwin harness the same day:
+
+- **Host**: `/usr/bin/python3` + PySide6 6.11.2 (system rpm, same Qt 6.11 as
+  the desktop) → QQmlApplicationEngine → FoyerWindow.qml (org.kde.layershell
+  attached properties) → FoyerRoot.qml, unchanged from the applet build.
+- **Window**: Layer.Top overlay; kwin assigns the surface the full output and
+  the 920×640 card centers inside (measured 916×636 at (242,182) on a
+  1400×1000 output) — fullscreen-launcher geometry, whole-screen keyboard.
+- **Control**: DBus gdeyoung.foyer (toggle/showUI/hideUI/driveState); hidden
+  surface = 0 UI pixels (verified), reshow = byte-identical state.
+- **Warm start**: systemd user unit Type=dbus + dbus-activation file →
+  first summon starts the daemon, later summons are a warm show().
+- **Hotkey**: gdeyoung-foyer.desktop + kglobalaccel [services]; Meta+Space
+  currently belongs to hermes-menu — takeover is flag-gated
+  (harness/install.sh --take-hotkey), never silent.
+- **Dropped**: KWindowEffects blur (PyKDE absent; 0.96α card stands alone).
+- **Verified**: 13/13 unique frames, 11 states + hide/show roundtrip,
+  fleet 13 green UP + red DOWN dots, system destructive oranges, rail
+  38px pitch — same evidence bar as R3.
+- Remaining: live-data wiring (.desktop splice, ICMP, hermes-runner AI
+  lane), real-session install (explicit go from Greg), dependency-map node
+  at install time.

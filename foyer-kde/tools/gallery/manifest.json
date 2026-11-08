@@ -57,6 +57,27 @@
         {"file": "prototype/shots/native/qml-ssh.png", "label": "NATIVE·SSH", "caption": "14-host list, mono names, gdtower tagged local"},
         {"file": "prototype/shots/native/qml-settings.png", "label": "NATIVE·SETTINGS", "caption": "in-launcher settings rows — fork parity surface"}
       ]
+    },
+    {
+      "version": "R4",
+      "title": "User-space daemon — PySide6 + layer-shell, no rpm-ostree",
+      "verdict": "built",
+      "commits": "",
+      "note": "The C++ daemon needed rpm-ostree layering — redesigned to pure user space: /usr/bin/python3 + PySide6 (system rpm, same Qt 6.11 as the desktop) hosts the SAME FoyerRoot in a LayerShellQt Layer.Top window (org.kde.layershell QML module already on host). KWin assigns the full output; the 920×640 card centers inside (measured 916×636 @ (242,182)). DBus gdeyoung.foyer toggle/show/hide verified; systemd user unit Type=dbus gives the krunner warm-start pattern; hotkey via kglobalaccel [services] — Meta+Space takeover from hermes-menu is flag-gated, never silent. Blur dropped (PyKDE absent; 0.96α card carries the design). 13/13 unique frames incl. hidden (0 UI px) + reshow (byte-identical).",
+      "shots": [
+        {"file": "prototype/shots/daemon/d-boot.png", "label": "DAEMON·BOOT", "caption": "the layer-shell overlay live in nested kwin — full-bleed surface, centered card"},
+        {"file": "prototype/shots/daemon/d-games.png", "label": "DAEMON·DRILL", "caption": "Apps › Games — same FoyerRoot, daemon host"},
+        {"file": "prototype/shots/daemon/d-typed.png", "label": "DAEMON·TYPED", "caption": "'bro' — grouped results over the real desktop showing through"},
+        {"file": "prototype/shots/daemon/d-nomatch.png", "label": "DAEMON·NO MATCH", "caption": "'zzz' — inert Ask row, explicit-Enter law"},
+        {"file": "prototype/shots/daemon/d-ai.png", "label": "DAEMON·AI", "caption": "AI lane idle — model facts, questions-only history"},
+        {"file": "prototype/shots/daemon/d-stream.png", "label": "DAEMON·STREAM", "caption": "streaming ≠ ready — distinct rendering"},
+        {"file": "prototype/shots/daemon/d-ready.png", "label": "DAEMON·ANSWERED", "caption": "answered state, Copy alt⏎"},
+        {"file": "prototype/shots/daemon/d-system.png", "label": "DAEMON·SYSTEM", "caption": "destructive rows — consequence subtext visible"},
+        {"file": "prototype/shots/daemon/d-fleet.png", "label": "DAEMON·FLEET", "caption": "13 green UP + red nas DOWN in the overlay"},
+        {"file": "prototype/shots/daemon/d-ssh.png", "label": "DAEMON·SSH", "caption": "14-host lane, mono names"},
+        {"file": "prototype/shots/daemon/d-hidden.png", "label": "DAEMON·HIDDEN", "caption": "after toggle-hide: zero UI pixels — clean unmapping"},
+        {"file": "prototype/shots/daemon/d-reshown.png", "label": "DAEMON·RESHOWN", "caption": "toggle-show: identical boot state back — warm roundtrip"}
+      ]
     }
   ]
 }

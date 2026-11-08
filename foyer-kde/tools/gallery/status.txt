@@ -1,1 +1,1 @@
-R3 — built. Native QML verified in harness: 11 states, 0 errors, tokens live.
+R4 — user-space daemon. PySide6 + layer-shell, no ostree. 13/13 verified.

@@ -10,18 +10,25 @@ HTML at exact dimensions, self-contained, system fonts, no CDN). Mode: Operate.
 Established world: Breeze-family dark (host scheme = Vapor; its color VALUES
 are identical to the Breeze Dark table below — verified) / Kirigami house.
 
-## Implementation contract (research-verified, host-checked)
-Standalone Qt6/QML resident daemon · LayerShellQt (org.kde.layershell QML
-module INSTALLED on host) Layer.Top, centered anchors, KeyboardInteractivity
-OnDemand · blur via KWindowEffects::enableBlurBehind (same call PlasmaCore.Dialog
-uses) · warm start = Type=dbus systemd user unit + dbus-activation file
-(krunner's own pattern) → sub-150ms warm show · hotkey = .desktop +
-kglobalaccel [services] (fleet precedent: hermes-ask.desktop Meta+H; Exec
-caches at registration, lands next login — accepted) · theme via
-QQuickStyle org.kde.breeze + KColorScheme at runtime (never hardcode; the
-fleet-design-language law) · NOT a plasmoid (PlasmaCore.Dialog is fused to
-plasmashell; no overlay layer) · build gap: KF6/layer-shell devel packages
-not yet layered on Bazzite — first native-build task.
+## Implementation contract (R1.2 — USER-SPACE ONLY; no rpm-ostree, ever)
+Standalone resident daemon in pure user space: `/usr/bin/python3` + PySide6
+(system rpm 6.11.2, links the SAME Qt as the desktop) hosts FoyerRoot.qml
+inside FoyerWindow.qml — a LayerShellQt Layer.Top surface via the
+org.kde.layershell QML module shipped on the host (no compilation, no
+devel packages, no layering). KWin assigns the layer surface the full
+output; the 920×640 card centers inside it (fullscreen-launcher geometry,
+whole-screen keyboard coverage) — harness-verified 2026-11-07. Blur via
+KWindowEffects is DROPPED for v1 (needs PyKDE, absent; the 0.96α card
+carries the design alone; revisit only if the loss is visible in daily
+use). Warm start = Type=dbus systemd user unit + dbus-activation file in
+~/.local/share/dbus-1/services (krunner's pattern) → summon = show() on a
+warm engine. Hotkey = .desktop + kglobalaccel [services] (fleet precedent:
+hermes-menu.desktop holds Meta+Space today; install takes it over ONLY
+via an explicit --take-hotkey flag — never silently). Theme via
+Kirigami.Theme/KColorScheme at runtime (verified live: accent #569fcc,
+pos #7ea64b, neg #da4453). Also verified as a Plasma applet package
+(harness/package) — the same FoyerRoot runs in both hosts; the applet path
+is kept for gallery/QA, the daemon is the product.
 
 ## Foyer fork DNA (port these verbatim — the product's soul)
 - Caret flow: typing keeps caret in the box; ENTER = top hit; ↓ enters
