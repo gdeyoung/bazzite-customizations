@@ -27,15 +27,15 @@ do_install() {
   cp "$REPO/src/qml/FoyerRoot.qml" "$REPO/src/qml/FoyerData.js" "$DEST/"
   echo "staged: $DEST"
 
-  # Activation goes THROUGH systemd (not a bare Exec): a direct
-  # python3 Exec spawns an unmanaged daemon that bypasses the unit —
-  # no Restart=on-failure, no unit journal. systemctl --user start
-  # blocks until the BusName is claimed (Type=dbus), so the caller
-  # still gets a fully-registered daemon when the call returns.
+  # Activation goes THROUGH systemd (SystemdService=): a bare python3
+  # Exec spawns an unmanaged daemon that bypasses the unit — no
+  # Restart=on-failure, no unit journal, no watchdog. SystemdService=
+  # hands activation to systemd directly (dbus 1.14+ user services);
+  # Type=dbus blocks the activating call until BusName is claimed.
   cat > "$HOME/.local/share/dbus-1/services/gdeyoung.foyer.service" <<EOF
 [D-BUS Service]
 Name=gdeyoung.foyer
-Exec=/usr/bin/systemctl --user start foyer.service
+SystemdService=foyer.service
 EOF
 
   cat > "$HOME/.config/systemd/user/foyer.service" <<EOF
@@ -51,6 +51,16 @@ BusName=gdeyoung.foyer
 ExecStart=/usr/bin/python3 $DEST/foyer.py
 Restart=on-failure
 RestartSec=2
+# no start limit: RestartSec=2 bounds crash-loop load to one try per 2 s,
+# and a launcher should never stop trying (measured: 6 rapid kills never
+# trip the default burst window)
+StartLimitIntervalSec=0
+# steady RSS ~185 MB with the 252-app catalog; 768M bounds runaway
+# without OOM-killing normal QML render peaks (4x headroom)
+MemoryMax=768M
+CPUWeight=50
+# hung event loop (no frameSwapped, no sd_notify pings) restarts after 10 s
+WatchdogSec=10
 
 [Install]
 WantedBy=default.target

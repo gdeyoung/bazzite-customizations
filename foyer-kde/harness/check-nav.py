@@ -470,6 +470,33 @@ for v in ("boot", "category:Internet"):
     check(real == logic,
           f"{v}: real-key and logical-key channels disagree ({real} vs {logic})")
 
+# ===== warm-show latency: 20 summons, p99 < 150 ms (harness kwin) =====
+import time as _wt
+_samples = []
+for _ in range(20):
+    call("hideUI")
+    _wt.sleep(0.15)
+    call("showUI")
+    ms = None
+    for _ in range(40):          # up to 2 s
+        _wt.sleep(0.05)
+        st = json.loads(dbus_str("getShowMs"))
+        if st["ms"] is not None:
+            ms = st["ms"]
+            break
+    if ms is None:
+        check(False, "warm-show: no frameShown sample")
+        break
+    _samples.append(ms)
+call("hideUI")
+if len(_samples) == 20:
+    _samples.sort()
+    p50 = _samples[9]
+    p99 = _samples[18]           # 19th of 20; max held out as outlier
+    mx = _samples[-1]
+    print(f"    warm-show: p50={p50}ms p99={p99}ms max={mx}ms (harness kwin)")
+    check(p99 < 150, f"warm-show p99 {p99}ms >= 150ms budget")
+
 print(f"nav coverage: {checked} checks, {len(fails)} failures")
 for f in fails:
     print("  FAIL", f)

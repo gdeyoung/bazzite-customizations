@@ -22,7 +22,9 @@ the live session first.
 import glob
 import json
 import os
+import socket
 import sys
+import time
 
 from PySide6.QtCore import (QObject, Property, QCoreApplication, QEvent, Qt,
                             Signal, Slot, QUrl, QPointF)
@@ -809,6 +811,10 @@ class Bridge(QObject):
     def hideUI(self):
         self.hideRequested.emit()
 
+    @Slot(result=str)
+    def getShowMs(self):
+        return json.dumps({"ms": _SHOW_MS})
+
     @Slot(str)
     def driveState(self, state):
         print(f"foyer[drv] {state}", file=sys.stderr, flush=True)
@@ -965,6 +971,27 @@ def main():
         lambda: win.hide() if win.isVisible() else _show(win))
     bridge.showRequested.connect(lambda: _show(win))
     bridge.hideRequested.connect(win.hide)
+    win.frameSwapped.connect(lambda: _frame_shown(win))
+
+    def _wd_ping():
+        """Keep systemd WatchdogSec fed so a hung event loop restarts us."""
+        path = os.environ.get("NOTIFY_SOCKET")
+        if not path:
+            return
+        if path.startswith("@"):
+            path = "\0" + path[1:]
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            s.connect(path)
+            s.send(b"WATCHDOG=1")
+            s.close()
+        except OSError:
+            pass
+
+    from PySide6.QtCore import QTimer as _QTimer
+    _wd = _QTimer()
+    _wd.timeout.connect(_wd_ping)
+    _wd.start(3000)   # unit WatchdogSec=10; ping every 3 s
     bridge.keyRealDriven.connect(lambda k: post_real_key(win, k))
 
     def _launch(path):
@@ -1014,11 +1041,27 @@ def main():
     return app.exec()
 
 
+_SHOW_T0 = 0.0
+_SHOW_MS = None
+
+
 def _show(win):
+    global _SHOW_T0, _SHOW_MS
+    if not win.isVisible():
+        _SHOW_T0 = time.monotonic()
+        _SHOW_MS = None
     win.show()
     win.raise_()
     win.requestActivate()
     _dump(win, "show")
+
+
+def _frame_shown(win):
+    """First afterAnimating post-show — warm-show latency sample."""
+    global _SHOW_MS
+    if _SHOW_T0 and _SHOW_MS is None:
+        _SHOW_MS = round((time.monotonic() - _SHOW_T0) * 1000, 1)
+        print(f"foyer[showlat] t={_SHOW_MS}ms", file=sys.stderr, flush=True)
 
 
 def _dump(win, tag):
