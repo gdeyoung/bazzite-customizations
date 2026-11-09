@@ -381,11 +381,12 @@ Item {
         if (p) root.favoriteToggle(p);
     }
 
-    // every summon opens on Favorites when any exist; an in-flight or
-    // finished answer keeps its view (stream/ready are not yanked away)
+    // every summon opens on Favorites — even when empty, so the empty
+    // state (and its pin instructions) is the first thing seen; an
+    // in-flight or finished answer keeps its view (stream/ready stay)
     function summonReset() {
         if (root.state === "stream" || root.state === "ready") return;
-        gotoState(root.favsModel.length > 0 ? "favs" : "boot", true);
+        gotoState("favs", true);
     }
 
     function navFor(s) {

@@ -498,10 +498,10 @@ key("ctrl+p")
 f = favs()
 check(len(f) == 0, f"fav unpin: row still pinned ({f})")
 
-# 3) summon lands on Favorites when any exist; on Apps when none
+# 3) summon lands on Favorites ALWAYS — empty state teaches pinning
 drive("settings")
 call("hideUI"); _ft.sleep(0.2); call("showUI"); _ft.sleep(0.2)
-check(st() == "boot", f"summon with 0 favs should land on boot ({st()})")
+check(st() == "favs", f"summon with 0 favs should land on favs ({st()})")
 # pin one again, then summon must land on favs
 drive("boot")
 for ch in "brav":
