@@ -101,6 +101,7 @@ Window {
             FoyerRoot {
                 id: foyerRoot
                 onFavoriteToggle: (path) => bridge.favoriteToggleRequested(path)
+                onFavoriteMove: (index, delta) => bridge.favoriteMoveRequested(index, delta)
                 objectName: "foyerRoot"
                 // Adaptive scale: structure follows cardScale fully (u);
                 // type is clamped (t) so the hierarchy spreads at scale

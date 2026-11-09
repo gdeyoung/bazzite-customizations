@@ -381,6 +381,19 @@ Item {
         if (p) root.favoriteToggle(p);
     }
 
+    // ctrl+arrows on a focused favorites row move it; the focus follows
+    // the row so repeated presses keep walking it in that direction
+    function moveFocusedRow(delta) {
+        if (root.state !== "favs" || root.zone !== "lens" ||
+                root.lensIndex < 1) return false;
+        var i = root.lensIndex - 1;               // row 0 = Back row
+        if (i + delta < 0 || i + delta >= root.favsModel.length)
+            return true;                          // clamped: swallow the key
+        root.favoriteMove(i, delta);
+        root.lensIndex = i + delta + 1;           // follow the moved row
+        return true;
+    }
+
     // every summon opens on Favorites — even when empty, so the empty
     // state (and its pin instructions) is the first thing seen; an
     // in-flight or finished answer keeps its view (stream/ready stay)
@@ -605,6 +618,7 @@ Item {
     signal askHermes(string question)
     signal askCancel()
     signal favoriteToggle(string path)
+    signal favoriteMove(int index, int delta)
     signal copyText(string text)
     signal continueChat(string question)
     signal settingLever(string name)
@@ -707,8 +721,16 @@ Item {
                                     event.accepted = true;
                                 }
                             }
-                            Keys.onDownPressed: root.navKey("down")
-                            Keys.onUpPressed: root.navKey("up")
+                            Keys.onDownPressed: function(event) {
+                                if ((event.modifiers & Qt.ControlModifier) &&
+                                        root.moveFocusedRow(1)) return;
+                                root.navKey("down");
+                            }
+                            Keys.onUpPressed: function(event) {
+                                if ((event.modifiers & Qt.ControlModifier) &&
+                                        root.moveFocusedRow(-1)) return;
+                                root.navKey("up");
+                            }
                             Keys.onLeftPressed: function(event) {
                                 // While browsing options (lens/rail) arrows
                                 // are ALWAYS nav keys. In the field, ←
@@ -1034,7 +1056,12 @@ Item {
         property string dot: ""   // "", "ok", "down"
         property bool starred: false    // show the pin affordance at all
         property string starPath: ""    // desktop-file path this row pins
+        property bool moveArrows: false // favorites: show reorder arrows
+        property int moveIndex: 0
+        property bool canMoveUp: false
+        property bool canMoveDown: false
         signal starClicked()
+        signal moveClicked(int index, int delta)
         height: root.rowH
         radius: 8
         color: "transparent"
@@ -1071,6 +1098,28 @@ Item {
                 color: lr.warn ? root.cWarn : root.cDim
                 font.pixelSize: Math.round(13 * root.t)
                 elide: Text.ElideRight
+            }
+            Text {
+                visible: lr.moveArrows
+                text: "↑"
+                color: lr.canMoveUp ? root.cDim : Qt.rgba(0.5, 0.5, 0.5, 0.3)
+                font.pixelSize: Math.round(14 * root.t)
+                MouseArea {
+                    anchors.fill: parent; anchors.margins: -8
+                    enabled: lr.canMoveUp
+                    onClicked: lr.moveClicked(lr.moveIndex, -1)
+                }
+            }
+            Text {
+                visible: lr.moveArrows
+                text: "↓"
+                color: lr.canMoveDown ? root.cDim : Qt.rgba(0.5, 0.5, 0.5, 0.3)
+                font.pixelSize: Math.round(14 * root.t)
+                MouseArea {
+                    anchors.fill: parent; anchors.margins: -8
+                    enabled: lr.canMoveDown
+                    onClicked: lr.moveClicked(lr.moveIndex, 1)
+                }
             }
             Text {
                 visible: lr.starred
@@ -1804,6 +1853,13 @@ Item {
                         starred: true; starPath: modelData.path
                         onStarClicked: root.favoriteToggle(modelData.path)
                         focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
+                        moveArrows: true
+                        moveIndex: index
+                        canMoveUp: index > 0
+                        canMoveDown: index < root.favsModel.length - 1
+                        onMoveClicked: function(index, delta) {
+                            root.favoriteMove(index, delta)
+                        }
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                     }
                 }

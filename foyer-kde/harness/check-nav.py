@@ -512,6 +512,68 @@ drive("settings")
 call("hideUI"); _ft.sleep(0.2); call("showUI"); _ft.sleep(0.2)
 check(st() == "favs", f"summon with favs should land on favs ({st()})")
 
+# 3b) reorder: pin two more (Brave is still pinned from step 3), then
+# ctrl+arrows move rows with focus following the moved row
+for q_ in ("firef", "kons"):                # firefox, konsole
+    drive("boot")
+    for ch in q_:
+        key(ch)
+    key("down")
+    key("ctrl+p")
+f = favs()
+check(len(f) == 3, f"reorder setup: expected 3 pins ({len(f)})")
+if len(f) == 3:
+    names0 = [r["name"] for r in f]
+    drive("favs")
+    key("down")                    # back row
+    key("down")                    # first fav row
+    st_ = nav()
+    check(st_["state"] == "favs" and st_["i"] == 1 and st_["n"] == 4,
+          f"reorder: focus not on first fav ({st_})")
+    key("ctrl+down")               # move row 0 down
+    f = favs()
+    check([r["name"] for r in f] == [names0[1], names0[0], names0[2]],
+          f"reorder: ctrl+down order wrong ({[r['name'] for r in f]})")
+    st_ = nav()
+    check(st_["i"] == 2, f"reorder: focus did not follow the row ({st_['i']})")
+    key("ctrl+down")               # now last, must clamp
+    f = favs()
+    check([r["name"] for r in f] == [names0[1], names0[2], names0[0]],
+          f"reorder: second ctrl+down wrong ({[r['name'] for r in f]})")
+    check(nav()["i"] == 3, f"reorder: focus after second move ({nav()['i']})")
+    key("ctrl+down")               # at bottom: swallowed, no change
+    f2 = favs()
+    check(len(f2) == 3 and nav()["i"] == 3,
+          "reorder: bottom clamp moved something")
+    key("ctrl+up"); key("ctrl+up") # walk back to top
+    f = favs()
+    check([r["name"] for r in f] == names0,
+          f"reorder: ctrl+up x2 did not restore ({[r['name'] for r in f]})")
+    check(nav()["i"] == 1, f"reorder: focus at top ({nav()['i']})")
+    key("ctrl+up")                 # top: swallowed
+    check(nav()["i"] == 1, "reorder: top clamp moved focus")
+
+# 3c) single-item clamp: one pin cannot move at all
+f = favs()
+for _ in range(6):
+    drive("favs")
+    if nav()["n"] <= 1:
+        break
+    key("down"); key("down")
+    key("ctrl+p")
+if len(favs()) == 0:                      # ensure exactly one pin remains
+    drive("boot")
+    for ch in "brav":
+        key(ch)
+    key("down")
+    key("ctrl+p")
+drive("favs")
+key("down"); key("down")                  # focus the only fav row
+key("ctrl+down"); key("ctrl+up")
+f = favs()
+check(len(f) == 1, f"single-item clamp changed the list ({f})")
+check(nav()["i"] == 1, f"single-item clamp moved focus ({nav()['i']})")
+
 # 4) rail order: Favorites sits ABOVE Apps
 drive("boot")                     # owner of boot is AP
 key("left")                       # escape to rail
@@ -519,10 +581,13 @@ key("up")                         # next selectable above AP = FA
 key("enter")                      # rail enter -> gotoState
 check(st() == "favs", f"rail order: FA is not above AP ({st()})")
 
-# 5) clean slate: unpin so other drills see deterministic counts
-drive("favs")
-key("down"); key("down")
-key("ctrl+p")
+# 5) clean slate: unpin everything for the later drills
+for _ in range(6):
+    drive("favs")
+    if nav()["n"] <= 1:             # back row only — empty
+        break
+    key("down"); key("down")
+    key("ctrl+p")
 f = favs()
 check(len(f) == 0, f"fav cleanup failed ({f})")
 

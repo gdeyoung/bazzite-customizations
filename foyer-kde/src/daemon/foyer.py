@@ -253,9 +253,19 @@ def _fav_ids(apps_index):
 
 
 def _fav_write(ids):
+    """Atomic write: a crash mid-write must never lose the pin list."""
+    import tempfile
     os.makedirs(os.path.dirname(_FAV_PATH), exist_ok=True)
-    with open(_FAV_PATH, "w") as fh:
-        json.dump(ids, fh)
+    try:
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(_FAV_PATH),
+                                   prefix=".favorites-", suffix=".tmp")
+        with os.fdopen(fd, "w") as fh:
+            json.dump(ids, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, _FAV_PATH)
+    except OSError as exc:
+        print(f"foyer[fav] WRITE FAILED: {exc}", file=sys.stderr, flush=True)
 
 
 def _fav_rows(ids, apps_index):
@@ -577,6 +587,20 @@ def _toggle_favorite(path):
           f"(n={len(bridge._favIds)})", file=sys.stderr, flush=True)
 
 
+def _move_favorite(idx, delta):
+    """Reorder favorites: move item at idx by delta (+1 down, -1 up)."""
+    ids = bridge._favIds
+    j = idx + delta
+    if 0 <= idx < len(ids) and 0 <= j < len(ids):
+        ids[idx], ids[j] = ids[j], ids[idx]
+        _fav_write(ids)
+        bridge._favsJson = json.dumps(
+            _fav_rows(ids, bridge._appsIndex))
+        bridge.favsJsonChanged.emit()
+        print(f"foyer[fav] move {idx}->{j} (n={len(ids)})", file=sys.stderr,
+              flush=True)
+
+
 def _ask_cancel():
     """Esc/hide mid-stream: stop consuming, keep what arrived."""
     bridge._aiCancel = True
@@ -734,6 +758,7 @@ class Bridge(QObject):
     askRequested = Signal(str)
     askCancelRequested = Signal()
     favoriteToggleRequested = Signal(str)
+    favoriteMoveRequested = Signal(int, int)
     copyRequested = Signal(str)
     continueRequested = Signal(str)
     settingChanged = Signal(str)
@@ -994,6 +1019,7 @@ def main():
     bridge.askRequested.connect(_ask)
     bridge.askCancelRequested.connect(_ask_cancel)
     bridge.favoriteToggleRequested.connect(_toggle_favorite)
+    bridge.favoriteMoveRequested.connect(_move_favorite)
     bridge.copyRequested.connect(_do_copy)
     bridge.continueRequested.connect(_do_continue)
     bridge.settingChanged.connect(_apply_setting)
