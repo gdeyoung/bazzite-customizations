@@ -57,6 +57,10 @@ Item {
     // property; null in the applet build → frozen FoyerData fallback)
     property string appsJson: ""
     property var liveCats: null
+    // search results live on the ROOT: assigning to a Repeater model inside
+    // a not-yet-loaded Component is a write to a null id — silently lost
+    // (the exact "typed brave, nothing suggested" failure)
+    property var typedModel: []
     onAppsJsonChanged: {
         try { liveCats = JSON.parse(appsJson); }
         catch (e) { liveCats = null; }
@@ -137,7 +141,32 @@ Item {
         return out.join(" · ");
     }
 
-    function gotoState(s) {
+    // Live app search over the SAME scan that feeds the categories — the
+    // frozen demo index never knew real app names ("brave" found nothing).
+    // Rank: name-starts-with first, then generic/name substring. Cap 12.
+    function searchLive(q) {
+        var ql = q.toLowerCase(), starts = [], subs = [];
+        var cats = bootModel();
+        for (var c = 0; c < cats.length; c++) {
+            var apps = cats[c].apps || [];
+            for (var a = 0; a < apps.length; a++) {
+                var it = apps[a];
+                var nm = (it.name || "").toLowerCase();
+                var gen = (it.generic || "").toLowerCase();
+                if (nm.indexOf(ql) === 0) starts.push(it);
+                else if (nm.indexOf(ql) >= 0 || gen.indexOf(ql) >= 0) subs.push(it);
+            }
+        }
+        var hits = starts.slice(0, 12);
+        if (hits.length < 12)
+            hits = hits.concat(subs.slice(0, 12 - hits.length));
+        return hits.map(function (it) {
+            return { kind: "app", name: it.name, detail: it.generic || "",
+                     path: it.path };
+        });
+    }
+
+    function gotoState(s, fresh) {
         var target = s;
         if (s.indexOf("category:") === 0) {
             activeCatId = s.substring(9);
@@ -153,6 +182,10 @@ Item {
                      target === "nomatch" || target === "stream" ||
                      target === "ready") ? 0 : 1;
         if (lensIndex > lensCount - 1) lensIndex = lensCount - 1;   // empty views
+        // zone is NOT reset here: rail-walk previews and BackRow returns
+        // must keep their zone. Fresh entry (daemon jump / summon) passes
+        // fresh=true — the caller owns that decision.
+        if (fresh === true) zone = "field";
         navPulse = -1;
         var p = presets[target];
         if (!p) return;
@@ -327,7 +360,17 @@ Item {
             var lst = catList();
             if (i - 1 >= 0 && i - 1 < lst.length) { launchApp(lst[i - 1].path); return; }
         }
-        if (st === "typed") { gotoState("stream"); return; }
+        if (st === "typed") {
+            // app rows launch for real; Ask Hermes streams; WEB opens browser
+            // NOTE: use root.typedModel — the typedResults id is Component-
+            // scoped and does NOT resolve from this root-scope function
+            // (a ReferenceError here dies silently: enter did nothing)
+            var tmodel = root.typedModel;
+            if (i < tmodel.length) { launchApp(tmodel[i].path); return; }
+            if (i === tmodel.length) { gotoState("stream"); return; }
+            launchApp("https://duckduckgo.com/?q=" + encodeURIComponent(root.fieldText));
+            return;
+        }
         if (st === "nomatch") { gotoState("stream"); return; }
         if (st === "ai" && i === 1) { gotoState("stream"); return; }
         // remaining rows: action wiring is the live-data phase — pulse ⏎ feedback
@@ -416,10 +459,12 @@ Item {
                                 root.zone = "field";
                                 root.fieldText = text;
                                 if (text.length > 0) {
-                                    var hits = Data.search(text);
+                                    var hits = root.liveCats
+                                        ? root.searchLive(text)
+                                        : Data.search(text);
                                     root.state = hits.length > 0 ? "typed" : "nomatch";
                                     root.railIndex = -1;
-                                    typedResults.model = hits;
+                                    root.typedModel = hits;
                                 } else if (root.state === "typed" || root.state === "nomatch") {
                                     root.gotoState("boot");
                                 }
@@ -946,14 +991,13 @@ Item {
                 id: typedCol
                 width: parent.width
                 spacing: 0
-            function forceFocus() {}
             SectionHead { title: "APPLICATIONS · " + typedResults.count }
             Repeater {
                 id: typedResults
                 onCountChanged: root.lensCount = count + 2
                 Layout.fillWidth: true
                 Layout.leftMargin: 24; Layout.rightMargin: 24
-                model: []
+                model: root.typedModel
                 delegate: ListRow {
                     id: tr
                     required property var modelData

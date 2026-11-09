@@ -76,7 +76,7 @@ Window {
         // daemon → UI state channel (harness driver + tests)
         Connections {
             target: bridge
-            function onGotoState(s) { foyerRoot.gotoState(s) }
+            function onGotoState(s) { foyerRoot.gotoState(s, true) }
             function onKeyDriven(k) { foyerRoot.navKey(k) }
         }
 

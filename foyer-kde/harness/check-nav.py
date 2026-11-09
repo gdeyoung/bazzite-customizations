@@ -207,6 +207,43 @@ for s in range(ncat):
               f"category {st['cat']}: ⏎ on app row did not record a "
               f"desktop-file launch ({log1[-1] if log1 else 'none'})")
 
+# live search: type "brave" through REAL letter keys — the exact user path
+# that found nothing when the field still queried the frozen demo index
+drive("boot")
+for ch in "br":
+    key(ch)
+st = nav()
+check(st["state"] == "typed" and st["n"] >= 3,
+      f"search 'br': no live results offered ({st})")
+for ch in "ave":
+    key(ch)
+st = nav()
+check(st["state"] == "typed" and st["n"] >= 3,
+      f"search 'brave': results vanished on full word ({st})")
+# results are arrow-walkable like any list: ↓ enters slot 0, ← hits the rail
+key("down")
+st = nav()
+check(st["zone"] == "lens" and st["i"] == 0,
+      f"search 'brave': ↓ did not enter results ({st})")
+key("left")
+st = nav()
+check(st["zone"] == "rail",
+      f"search 'brave': ← from result did not reach rail ({st})")
+key("right")
+# ⏎ on the first result launches a Brave desktop file (harness records only)
+if HARNESS_MODE == "1" and nav()["zone"] == "lens" and nav()["i"] == 0:
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("enter")
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    check(len(log1) == len(log0) + 1 and "brave" in log1[-1].lower(),
+          f"search 'brave': ⏎ did not launch brave ({log1[-1:]})")
+# clearing the query returns to the menu
+for _ in range(5):
+    key("backspace")
+st = nav()
+check(st["state"] == "boot",
+      f"search: clearing the query did not return to boot ({st})")
+
 # real vs logical key channels must agree (sample)
 for v in ("boot", "games", "category:Internet"):
     drive(v)

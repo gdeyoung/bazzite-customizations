@@ -137,14 +137,19 @@ def scan_apps():
 _REALKEYS = {
     "down": Qt.Key.Key_Down, "up": Qt.Key.Key_Up,
     "left": Qt.Key.Key_Left, "right": Qt.Key.Key_Right,
+    "backspace": Qt.Key.Key_Backspace,
     "enter": Qt.Key.Key_Return, "escape": Qt.Key.Key_Escape,
 }
 
 
 def post_real_key(win, k):
     kk = _REALKEYS.get(k)
+    text = None
     if kk is None:
-        return
+        if len(k) == 1:            # printable char: the real typing path
+            text = k
+        else:
+            return
     try:    # QA trace: who receives real keys (focus theft detector)
         fo = win.focusObject()
         cn = ""
@@ -162,8 +167,13 @@ def post_real_key(win, k):
     except Exception:
         pass
     for typ in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-        QCoreApplication.sendEvent(
-            win, QKeyEvent(typ, int(kk), Qt.KeyboardModifier.NoModifier))
+        if text is None:
+            QCoreApplication.sendEvent(
+                win, QKeyEvent(typ, int(kk or 0), Qt.KeyboardModifier.NoModifier))
+        else:
+            QCoreApplication.sendEvent(
+                win, QKeyEvent(typ, int(Qt.Key.Key_unknown),
+                               Qt.KeyboardModifier.NoModifier, text))
     try:
         post = _STATE_READER() or ""     # type: ignore[misc]
     except Exception:
@@ -339,6 +349,10 @@ def main():
             bridge._launch_log.append(path)   # assertable, never spawned
             return
         from PySide6.QtCore import QProcess
+        if path.startswith("http://") or path.startswith("https://"):
+            # typed-view WEB row: hand URLs to the system handler, not gio
+            if QProcess.startDetached("/usr/bin/xdg-open", [path]):
+                return
         if os.path.exists("/usr/bin/gio"):
             ok = QProcess.startDetached("/usr/bin/gio", ["launch", path])
         else:   # last-ditch fallback (logged loudly)
