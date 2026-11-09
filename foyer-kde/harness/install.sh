@@ -27,10 +27,15 @@ do_install() {
   cp "$REPO/src/qml/FoyerRoot.qml" "$REPO/src/qml/FoyerData.js" "$DEST/"
   echo "staged: $DEST"
 
+  # Activation goes THROUGH systemd (not a bare Exec): a direct
+  # python3 Exec spawns an unmanaged daemon that bypasses the unit —
+  # no Restart=on-failure, no unit journal. systemctl --user start
+  # blocks until the BusName is claimed (Type=dbus), so the caller
+  # still gets a fully-registered daemon when the call returns.
   cat > "$HOME/.local/share/dbus-1/services/gdeyoung.foyer.service" <<EOF
 [D-BUS Service]
 Name=gdeyoung.foyer
-Exec=/usr/bin/python3 $DEST/foyer.py
+Exec=/usr/bin/systemctl --user start foyer.service
 EOF
 
   cat > "$HOME/.config/systemd/user/foyer.service" <<EOF
