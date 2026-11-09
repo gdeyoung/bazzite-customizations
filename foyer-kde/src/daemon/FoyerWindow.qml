@@ -42,7 +42,8 @@ Window {
         objectName: "foyerSurface"
         anchors.fill: parent
         focus: true
-        Keys.onEscapePressed: bridge.hideRequested()
+        Keys.onEscapePressed: foyerRoot.confirmArmed ? foyerRoot.disarmConfirm()
+                                                     : bridge.hideRequested()
 
         // ---- pinned theme (converged v4 token table, CONVERGED-DESIGN.md).
         // Attached properties inherit to every descendant — deterministic in
@@ -100,8 +101,17 @@ Window {
                 // instead of zooming. FoyerRoot sizes itself 920u × 640u.
                 u: bridge.cardScale
                 t: Math.min(bridge.cardScale, 1.18)
-                appsJson: bridge.appsJson   // live .desktop scan
+                appsJson: bridge.appsJson
+            sshJson: bridge.sshJson
+            recentsJson: bridge.recentsJson
+            favsJson: bridge.favsJson
+            fleetJson: bridge.fleetJson
+            updateOut: bridge.updateOut   // live .desktop scan
                 onLaunchApp: (exec) => bridge.launchRequested(exec)
+                onSystemAction: (name) => bridge.systemActionRequested(name)
+                onOpenSsh: (alias) => bridge.openSshRequested(alias)
+                onRunUpdate: (which) => bridge.updateRunRequested(which)
+                onProbeFleet: () => bridge.fleetProbeRequested()
             }
         }
     }

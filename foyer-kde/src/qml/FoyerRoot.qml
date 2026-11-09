@@ -61,6 +61,46 @@ Item {
     // a not-yet-loaded Component is a write to a null id — silently lost
     // (the exact "typed brave, nothing suggested" failure)
     property var typedModel: []
+    // destructive system rows arm a two-row confirm strip (Cancel default).
+    // Lock/Sleep stay immediate (reversible) — CC Loop-1 ship gate.
+    property bool confirmArmed: false
+    property string confirmAction: ""
+    property string confirmLabel: ""
+
+    function disarmConfirm() {
+        if (!confirmArmed) return;
+        confirmArmed = false; confirmAction = "";
+        var g = navFor("system");
+        lensCount = g[0];
+        if (lensIndex > lensCount - 1) lensIndex = lensCount - 1;
+    }
+    // live lanes pushed by the daemon (see foyer.py): ssh aliases from
+    // ~/.ssh/config, recents from recently-used.xbel, kickoff favorites,
+    // fleet probe results, rpm-ostree output for the UPDATE view
+    property string sshJson: ""
+    property string recentsJson: ""
+    property string favsJson: ""
+    property string fleetJson: ""
+    property string updateOut: ""
+    property var sshModel: []
+    property var recentsModel: []
+    property var favsModel: []
+    property var fleetModel: []
+    property string fleetStamp: ""
+    onSshJsonChanged:      { try { sshModel = JSON.parse(sshJson) } catch (e) {} }
+    onRecentsJsonChanged:  { try { recentsModel = JSON.parse(recentsJson) } catch (e) {} }
+    onFavsJsonChanged:     { try { favsModel = JSON.parse(favsJson) } catch (e) {} }
+    onFleetJsonChanged: {
+        try {
+            var f = JSON.parse(fleetJson);
+            fleetModel = f.hosts; fleetStamp = f.stamp;
+        } catch (e) {}
+        if (state === "fleet") {
+            var ng = navFor("fleet");
+            lensCount = ng[0]; lensCols = ng[1];
+            if (lensIndex > lensCount - 1) lensIndex = lensCount - 1;
+        }
+    }
     onAppsJsonChanged: {
         try { liveCats = JSON.parse(appsJson); }
         catch (e) { liveCats = null; }
@@ -83,7 +123,6 @@ Item {
     // state presets (fork caret-flow; daemon drives these live)
     readonly property var presets: ({
         boot:     { field: "",            rail: 0 },
-        games:    { field: "",            rail: 0 },
         typed:    { field: "bro",         rail: -1 },
         nomatch:  { field: "zzz",         rail: -1 },
         ai:       { field: "",            rail: 7 },
@@ -104,7 +143,7 @@ Item {
 
     readonly property var railModel: [
         { group: "Launcher" },
-        { tag: "AP", label: "Apps",      value: String(Data.meta.totalApps), state: "boot",     slot: 1 },
+        { tag: "AP", label: "Apps",      value: String(root.liveAppCount),   state: "boot",     slot: 1 },
         { tag: "FA", label: "Favorites", value: "★ 0",                        state: "favs",     slot: 2 },
         { tag: "RE", label: "Recents",   value: "0",                          state: "recents",  slot: 3 },
         { tag: "SE", label: "Settings",  value: String(Data.meta.kcmTotal),   state: "settings", slot: 4 },
@@ -114,14 +153,14 @@ Item {
         { group: "Fleet" },
         { tag: "AI", label: "AI",        value: Data.ai.model,                state: "ai",       slot: 8 },
         { tag: "FL", label: "Fleet",     value: upCount + "↑",                state: "fleet",    slot: 9 },
-        { tag: "SS", label: "SSH",       value: String(Data.sshHosts.length),state: "ssh" },
+        { tag: "SS", label: "SSH",       value: String(root.sshModel.length),state: "ssh" },
         { tag: "SN", label: "Snippets",  value: "0",                          state: "snippets" },
         { tag: "HE", label: "Help",      value: "f1",                         state: "help" }
     ]
     readonly property int upCount: {
-        var n = 0;
-        for (var i = 0; i < Data.fleet.length; i++) if (Data.fleet[i].up) n++;
-        return n;
+        var rows = fleetRows(), n = 0;
+        for (var i = 0; i < rows.length; i++) if (rows[i].up) n++;
+        return rows.length ? n : 0;
     }
 
     // live-first category model (frozen fallback for the applet build)
@@ -168,6 +207,7 @@ Item {
 
     function gotoState(s, fresh) {
         var target = s;
+        confirmArmed = false; confirmAction = "";
         if (s.indexOf("category:") === 0) {
             activeCatId = s.substring(9);
             activeCatLabel = activeCatId;
@@ -257,23 +297,34 @@ Item {
     // Nav geometry per view — SINGLE SOURCE OF TRUTH. gotoState reads this
     // on EVERY entry (views used to publish counts only on first load, so
     // re-entering a view kept the clobbered defaults — caught by check-nav).
+    readonly property int liveAppCount: {
+        var n = 0, cats = bootModel();
+        for (var i = 0; i < cats.length; i++) n += (cats[i].apps || []).length;
+        return n;
+    }
+    function fleetRows() {
+        return fleetModel.length > 0 ? fleetModel : Data.fleet;
+    }
     function navFor(s) {
         switch (s) {
         case "boot":     return [bootModel().length, 1];
         case "category": return [1 + catList().length, 1];
-        case "games":    return [1 + Data.games.length, 2];
         case "typed":    return [2, 1];   // apps added live via onCountChanged
         case "nomatch":  return [1, 1];
         case "ai":       return [2 + Data.ai.recentQuestions.length, 1];
         case "stream":   return [3, 1];
         case "ready":    return [3 + Math.min(2, Data.ai.recentQuestions.length), 1];
-        case "system":   return [1 + Data.systemRows.length, 1];
-        case "fleet":    return [1 + Data.fleet.length, 1];
-        case "ssh":      return [1 + Data.sshHosts.length, 1];
-        case "update":   return [4, 1];
+        case "system":   return root.confirmArmed
+                              ? [2, 1]
+                              : [1 + Data.systemRows.length, 1];
+        case "fleet":    return [1 + fleetRows().length, 1];
+        case "ssh":      return [1 + sshModel.length, 1];
+        case "update":   return [3, 1];   // back · check · history
         case "settings": return [14, 1];
         case "help":     return [11, 1];
-        default:         return [1, 1];   // about, favs, recents, snippets
+        case "recents":  return [1 + recentsModel.length, 1];
+        case "favs":     return [1 + favsModel.length, 1];
+        default:         return [1, 1];   // about, snippets
         }
     }
     function moveRail(d) {
@@ -345,6 +396,17 @@ Item {
                                    it.contentHeight - it.height);
     }
     function activateLens(st, i) {
+        if (st === "system" && root.confirmArmed) {
+            // confirm strip: slot 0 = Cancel (default), slot 1 = Confirm
+            if (i === 1) {
+                var act = root.confirmAction;
+                disarmConfirm();
+                root.systemAction(act);
+            } else {
+                disarmConfirm();
+            }
+            return;
+        }
         // slot 0 is the BackRow in every drill view (incl. stream/ready)
         if (i === 0 && st !== "boot" && st !== "typed" && st !== "nomatch") {
             gotoState("boot"); return;
@@ -371,12 +433,57 @@ Item {
             launchApp("https://duckduckgo.com/?q=" + encodeURIComponent(root.fieldText));
             return;
         }
+        if (st === "update") {
+            root.runUpdate(i === 1 ? "check" : "status");
+            return;
+        }
         if (st === "nomatch") { gotoState("stream"); return; }
         if (st === "ai" && i === 1) { gotoState("stream"); return; }
+        if (st === "system") {
+            // rows: Lock · Sleep · Log Out · Reboot · Shut Down. Reversible
+            // two fire immediately; destructive three arm the confirm strip.
+            var sys = ["lock", "sleep", "logout", "reboot", "poweroff"];
+            if (i - 1 >= 0 && i - 1 < sys.length) {
+                var nm = sys[i - 1];
+                if (nm === "logout" || nm === "reboot" || nm === "poweroff") {
+                    root.confirmAction = nm;
+                    root.confirmLabel = nm === "logout" ? "Log out"
+                                      : nm === "reboot" ? "Reboot"
+                                      : "Shut down";
+                    root.confirmArmed = true;
+                    var g = navFor("system");
+                    lensCount = g[0]; lensCols = g[1];
+                    root.zone = "lens"; root.lensIndex = 0;
+                    root.navPulse = -1;
+                } else {
+                    root.systemAction(nm);
+                }
+            }
+            return;
+        }
+        if (st === "ssh") {
+            if (i - 1 >= 0 && i - 1 < root.sshModel.length)
+                root.openSsh(root.sshModel[i - 1].alias);
+            return;
+        }
+        if (st === "recents") {
+            if (i - 1 >= 0 && i - 1 < root.recentsModel.length)
+                root.launchApp(root.recentsModel[i - 1].path);   // xdg-open
+            return;
+        }
+        if (st === "favs") {
+            if (i - 1 >= 0 && i - 1 < root.favsModel.length)
+                root.launchApp(root.favsModel[i - 1].path);
+            return;
+        }
         // remaining rows: action wiring is the live-data phase — pulse ⏎ feedback
         navPulse = i; navPulseT.restart();
     }
     signal launchApp(string exec)
+    signal systemAction(string name)
+    signal openSsh(string alias)
+    signal runUpdate(string which)
+    signal probeFleet()
     component BackRow: ListRow {
         Layout.fillWidth: true
         Layout.leftMargin: 24; Layout.rightMargin: 24
@@ -490,6 +597,11 @@ Item {
                             Keys.onReturnPressed: root.navKey("enter")
                             Keys.onEnterPressed: root.navKey("enter")
                             Keys.onEscapePressed: function(event) {
+                                if (root.confirmArmed) {
+                                    root.disarmConfirm();
+                                    event.accepted = true;
+                                    return;
+                                }
                                 if (text.length) {
                                     field.remove(0, text.length);
                                 } else if (root.state !== "boot") {
@@ -508,9 +620,8 @@ Item {
                         }
                         Text {
                             visible: field.length === 0 && root.fieldText.length === 0
-                            text: "search " + Data.meta.totalApps + " apps · " +
-                                  Data.meta.kcmTotal + " modules · " + Data.sshHosts.length +
-                                  " hosts — or just ask"
+                            text: "search " + root.liveAppCount + " apps · " +
+                                  root.sshModel.length + " hosts — or just ask"
                             color: root.cDim
                             font.pixelSize: Math.round(15 * root.t)
                             font.family: root.mono
@@ -675,7 +786,7 @@ Item {
                                 visible: root.state === "fleet"
                                 spacing: 8
                                 Text { text: root.upCount + " UP";  color: root.cPos; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
-                                Text { text: "· 1 DOWN · PINGED " + Data.meta.probedAt; color: root.cNeg; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
+                                Text { visible: root.fleetModel.length > 0; text: "· " + (root.fleetModel.length - root.upCount) + " DOWN · PINGED " + root.fleetStamp; color: root.cNeg; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
                             }
                         }
 
@@ -688,7 +799,6 @@ Item {
                                 switch (root.state) {
                                 case "boot":     return bootComp;
                                 case "category": return categoryComp;
-                                case "games":    return gamesComp;
                                 case "typed":    return typedComp;
                                 case "nomatch":  return nomatchComp;
                                 case "ai":       return aiComp;
@@ -701,8 +811,8 @@ Item {
                                 case "update":   return updateComp;
                                 case "help":     return helpComp;
                                 case "about":    return aboutComp;
-                                case "recents":  return emptyRecentsComp;
-                                case "favs":     return emptyFavsComp;
+                                case "recents":  return root.recentsModel.length > 0 ? recentsComp : emptyRecentsComp;
+                                case "favs":     return root.favsModel.length > 0 ? favsComp : emptyFavsComp;
                                 case "snippets": return emptySnipsComp;
                                 }
                                 return bootComp;
@@ -903,82 +1013,6 @@ Item {
         }
     }
 
-    Component {
-        id: gamesComp
-        Flickable {
-            clip: true
-            contentHeight: gamesCol.height + 28
-            ColumnLayout {
-                id: gamesCol
-                width: parent.width
-                spacing: 0
-                SectionHead { title: "GAMES"; note: Data.games.length + " apps · ⏎ launches · alt⏎ pins" }
-                BackRow {}
-                GridLayout {
-                    columns: 2
-                    Layout.leftMargin: 24; Layout.rightMargin: 24
-                    Layout.topMargin: 4
-                    columnSpacing: Math.round(8 * root.u); rowSpacing: Math.round(8 * root.u)
-                    Repeater {
-                        model: Data.games
-                        delegate: Rectangle {
-                            id: gcell
-                            required property var modelData
-                            required property int index
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Math.round(52 * root.u)
-                            radius: 8
-                            // DARK FILL ONLY — a Rectangle without color defaults
-                            // to white; that bug shipped the condemned white
-                            // cells. Contrast: cText on cRaised ≈ 10.9:1,
-                            // cDim on cRaised ≈ 5.6:1 (AA small-text pass).
-                            color: root.cRaised
-                            border.width: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1 ? 2 : 0
-                            border.color: root.cAccent
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: Math.round(12 * root.u)
-                                anchors.rightMargin: Math.round(12 * root.u)
-                                spacing: Math.round(12 * root.u)
-                                Rectangle {
-                                    width: Math.round(30 * root.u); height: Math.round(30 * root.u); radius: 7
-                                    color: root.cRaised
-                                    border.color: Qt.rgba(1, 1, 1, 0.12)
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: gcell.modelData ? gcell.modelData.name.substring(0, 2).toUpperCase() : ""
-                                        color: root.cText
-                                        font.pixelSize: Math.round(12 * root.t)
-                                        font.bold: true
-                                        font.family: root.mono
-                                    }
-                                }
-                                ColumnLayout {
-                                    spacing: 1
-                                    Layout.fillWidth: true
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: modelData ? modelData.name : ""
-                                        color: root.cText
-                                        font.pixelSize: Math.round(14 * root.t)
-                                        elide: Text.ElideRight
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: modelData ? modelData.detail : ""
-                                        color: root.cDim
-                                        font.pixelSize: Math.round(12 * root.t)
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                            MouseArea { anchors.fill: parent; onClicked: root.activateLens("games", gcell.index + 1) }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     Component {
         id: typedComp
@@ -1279,9 +1313,10 @@ Item {
                 id: systemCol
                 width: parent.width
                 spacing: 0
-            SectionHead { title: "POWER & SESSION"; note: "consequences are the confirmation" }
-            BackRow {}
+            SectionHead { visible: !root.confirmArmed; title: "POWER & SESSION"; note: "reversible rows act at once" }
+            BackRow { visible: !root.confirmArmed }
             Repeater {
+                visible: !root.confirmArmed
                 model: Data.systemRows
                 delegate: ListRow {
                     required property var modelData
@@ -1297,6 +1332,26 @@ Item {
                     MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                 }
             }
+            SectionHead { visible: root.confirmArmed; title: "CONFIRM · " + root.confirmLabel.toUpperCase(); note: "Esc or ⏎ on Cancel aborts" }
+            ListRow {
+                visible: root.confirmArmed
+                Layout.fillWidth: true
+                Layout.leftMargin: 24; Layout.rightMargin: 24
+                tag: "NO"; name: "Cancel"; detail: "stay as you are"
+                value: "⏎"
+                focused: root.zone === "lens" && root.lensIndex === 0
+                MouseArea { anchors.fill: parent; onClicked: root.activateLens("system", 0) }
+            }
+            ListRow {
+                visible: root.confirmArmed
+                Layout.fillWidth: true
+                Layout.leftMargin: 24; Layout.rightMargin: 24
+                tag: "GO"; name: root.confirmLabel + " now"; detail: "immediate · unsaved work is lost"
+                warn: true
+                value: "⏎"
+                focused: root.zone === "lens" && root.lensIndex === 1
+                MouseArea { anchors.fill: parent; onClicked: root.activateLens("system", 1) }
+            }
             }
         }
     }
@@ -1306,14 +1361,17 @@ Item {
         Flickable {
             clip: true
             contentHeight: fleetCol.height + 28
+            Component.onCompleted: root.probeFleet()
             ColumnLayout {
                 id: fleetCol
                 width: parent.width
                 spacing: 0
-                SectionHead { title: "HOSTS · " + Data.fleet.length; note: "live probe · icmp 1s · refreshed on open" }
+                SectionHead { title: "HOSTS · " + root.fleetRows().length
+                          note: root.fleetStamp ? "tcp/22 probe · pinged " + root.fleetStamp
+                                                : "probing hosts…" }
                 BackRow {}
                 Repeater {
-                    model: Data.fleet
+                    model: root.fleetRows()
                     delegate: ListRow {
                         required property var modelData
                         required property int index
@@ -1323,8 +1381,10 @@ Item {
                         monoName: true
                         dot: modelData.up ? "ok" : "down"
                         dimmed: !modelData.up
-                        name: modelData.host
-                        detail: (modelData.up ? "" : "down · ") + modelData.role
+                        name: modelData.alias || modelData.host
+                        detail: modelData.up
+                               ? ((modelData.ms !== undefined ? modelData.ms : "") + " ms · ") + (modelData.ip || modelData.role || "")
+                               : "down · " + (modelData.ip || modelData.role || "")
                         warn: !modelData.up
                         value: modelData.ip
                         focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
@@ -1344,10 +1404,10 @@ Item {
                 id: sshCol
                 width: parent.width
                 spacing: 0
-                SectionHead { title: "ALIASES · " + Data.sshHosts.length; note: "⏎ opens a terminal tab · from ~/.ssh/config" }
+                SectionHead { title: "ALIASES · " + root.sshModel.length; note: "⏎ opens a terminal tab · from ~/.ssh/config" }
                 BackRow {}
                 Repeater {
-                    model: Data.sshHosts
+                    model: root.sshModel
                     delegate: ListRow {
                         required property var modelData
                         required property int index
@@ -1382,25 +1442,30 @@ Item {
                 Layout.fillWidth: true
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "↺"; name: "Check for updates"
-                detail: "guard runs async · row states itself when done"; value: "⏎"
+                detail: "rpm-ostree upgrade --check · read-only"; value: "⏎"
                 focused: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1
-                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 1) }
-            }
-            ListRow {
-                Layout.fillWidth: true
-                Layout.leftMargin: 24; Layout.rightMargin: 24
-                tag: "⇧"; name: "Apply staged deployment"
-                detail: "closes open apps · reboots into new image"; warn: true; value: "⏎"
-                focused: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2
-                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
+                MouseArea { anchors.fill: parent; onClicked: root.runUpdate("check") }
             }
             ListRow {
                 Layout.fillWidth: true
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "i"; name: "Deployment history"
-                detail: "rpm-ostree status · last 5"; value: "→"
-                focused: (root.zone === "lens" && root.lensIndex === 3) || root.navPulse === 3
-                MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 3) }
+                detail: "rpm-ostree status · read-only"; value: "⏎"
+                focused: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2
+                MouseArea { anchors.fill: parent; onClicked: root.runUpdate("status") }
+            }
+            // live output of the last run (daemon property, async QProcess)
+            Text {
+                Layout.fillWidth: true
+                Layout.leftMargin: 28; Layout.rightMargin: 28
+                Layout.topMargin: 14
+                visible: root.updateOut.length > 0
+                text: root.updateOut
+                color: root.cDim
+                font.family: root.mono
+                font.pixelSize: Math.round(12 * root.t)
+                wrapMode: Text.WrapAnywhere
+                lineHeight: 1.35
             }
             }
         }
@@ -1542,6 +1607,66 @@ Item {
     }
 
     Component {
+        id: recentsComp
+        Flickable {
+            clip: true
+            contentHeight: recentsCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: recentsCol
+                width: parent.width
+                spacing: 0
+                SectionHead { title: "RECENTS · " + root.recentsModel.length; note: "recently-used.xbel · files, never content" }
+                BackRow {}
+                Repeater {
+                    model: root.recentsModel
+                    delegate: ListRow {
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 24; Layout.rightMargin: 24
+                        tag: "·"; name: modelData.name
+                        detail: modelData.detail; value: "⏎"
+                        focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
+                        MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: favsComp
+        Flickable {
+            clip: true
+            contentHeight: favsCol.height + 28
+            boundsBehavior: Flickable.StopAtBounds
+            function forceFocus() {}
+            ColumnLayout {
+                id: favsCol
+                width: parent.width
+                spacing: 0
+                SectionHead { title: "FAVORITES · " + root.favsModel.length; note: "mirrors Kickoff favorites" }
+                BackRow {}
+                Repeater {
+                    model: root.favsModel
+                    delegate: ListRow {
+                        required property var modelData
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 24; Layout.rightMargin: 24
+                        tag: "·"; name: modelData.name
+                        detail: modelData.generic || ""; value: "⏎"
+                        focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
+                        MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
         id: emptyRecentsComp
         ColumnLayout {
             spacing: 0
@@ -1551,7 +1676,7 @@ Item {
             Text { Layout.leftMargin: 28; text: "Nothing recent yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
-                text: "KDE activity feeds this on first use — files, apps, documents.\nRecents show what and when, never content."
+                text: "Recently-used is empty on this machine.\nFiles and documents land here as you open them."
                 color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }
@@ -1583,7 +1708,7 @@ Item {
             Text { Layout.leftMargin: 28; text: "No snippets yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
-                text: "Type ; in the field to search snippets once they exist.\nSnippets live in ~/.config/foyer/snippets.jsonc — same merge rules\nas the menu tree: your extensions win."
+                text: "No snippet source is configured yet.\nThe lane lights up the day one is wired — it will not pretend otherwise."
                 color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }

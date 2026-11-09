@@ -142,6 +142,140 @@ _REALKEYS = {
 }
 
 
+
+# ---- live lanes: ssh aliases, recents, favorites, fleet probe ----------
+_SSH_CONFIG = os.path.expanduser("~/.ssh/config")
+
+
+def parse_ssh_config():
+    """Host aliases from ~/.ssh/config — literal names only (no patterns)."""
+    hosts, cur = [], None
+    try:
+        with open(_SSH_CONFIG, errors="ignore") as fh:
+            for line in fh:
+                s = line.strip()
+                low = s.lower()
+                if low.startswith("host "):
+                    alias = next((n for n in s[5:].split()
+                                  if not any(c in n for c in "*?!")), None)
+                    cur = {"alias": alias, "ip": "", "note": ""} if alias else None
+                    if cur:
+                        hosts.append(cur)
+                elif cur is not None and low.startswith("hostname "):
+                    cur["ip"] = s.split(None, 1)[1].strip()
+                elif cur is not None and low.startswith(("user ", "port ")):
+                    k, _, v = s.partition(" ")
+                    cur["note"] += f"{k.lower()}={v.strip()} " if v.strip() else ""
+    except OSError:
+        return []
+    for h in hosts:
+        h["note"] = h["note"].strip()
+    return hosts
+
+
+def scan_recents(limit=12):
+    """Recently-used files from the XBEL log: name, app, age, file url."""
+    path = os.path.expanduser("~/.local/share/recently-used.xbel")
+    if not os.path.exists(path):
+        return []
+    import xml.etree.ElementTree as ET
+    try:
+        tree = ET.parse(path)
+    except ET.ParseError:
+        return []
+    ns = {"b": "http://www.freedesktop.org/standards/desktop-bookmarks"}
+    out = []
+    for bm in tree.getroot().findall("bookmark"):
+        href = bm.get("href", "")
+        app = bm.find("b:application", ns)
+        out.append({"modified": bm.get("modified", ""),
+                    "name": os.path.basename(
+                        __import__("urllib.parse", fromlist=["parse"])
+                        .unquote(href.split("://", 1)[-1])) or href,
+                    "detail": (app.get("name", "") if app is not None else ""),
+                    "path": href})
+    out.sort(key=lambda r: r["modified"], reverse=True)
+    for i, r in enumerate(out):
+        r["detail"] = (r["detail"] or "file") + (" · recent" if i < 3 else "")
+    return out[:limit]
+
+
+def parse_favorites(apps_index):
+    """Kickoff favorites (kickoffrc) resolved against the app scan."""
+    path = os.path.expanduser("~/.config/kickoffrc")
+    if not os.path.exists(path):
+        return []
+    cp = configparser.ConfigParser()
+    try:
+        with open(path, errors="ignore") as fh:
+            cp.read_file(fh)
+    except Exception:
+        return []
+    if not cp.has_section("Favorites"):
+        return []
+    raw = cp.get("Favorites", "personal", fallback="")
+    if not raw:
+        raw = cp.get("Favorites", "favorites", fallback="")
+    out = []
+    for tok in raw.split(","):
+        tok = tok.strip()
+        if not tok or not tok.startswith("applications:"):
+            continue
+        did = tok.split(":", 1)[1]
+        if did in apps_index:
+            out.append(apps_index[did])
+        if len(out) >= 12:
+            break
+    return out
+
+
+def _apps_index(scan_json):
+    """desktop-id -> {name, path} map from the scan buckets."""
+    if isinstance(scan_json, str):
+        scan_json = json.loads(scan_json)
+    idx = {}
+    for cat in scan_json:
+        for a in cat.get("apps", []):
+            base = os.path.basename(a["path"])
+            idx[base] = {"name": a["name"], "path": a["path"],
+                         "generic": a.get("generic", "")}
+    return idx
+
+
+def _probe_host(ip, res, i):
+    import socket, time as _t
+    t0 = _t.time()
+    try:
+        s = socket.create_connection((ip, 22), timeout=0.6)
+        s.close()
+        res[i] = (True, int((_t.time() - t0) * 1000))
+    except Exception:
+        res[i] = (False, -1)
+
+
+def probe_fleet(hosts):
+    """Parallel TCP:22 liveness probe — honest UP/DOWN with real ms."""
+    import threading
+    res = [None] * len(hosts)
+    ts = []
+    for i, h in enumerate(hosts):
+        t = threading.Thread(target=_probe_host,
+                             args=(h.get("ip") or h["alias"], res, i),
+                             daemon=True)
+        t.start()
+        ts.append(t)
+    for t in ts:
+        t.join(timeout=1.5)
+    out = []
+    import datetime
+    stamp = datetime.datetime.now().strftime("%H:%M")
+    for i, h in enumerate(hosts):
+        up, ms = res[i] if res[i] else (False, -1)
+        out.append({"alias": h["alias"], "ip": h.get("ip", ""),
+                    "up": up, "ms": ms})
+    return out, stamp
+
+
 def post_real_key(win, k):
     kk = _REALKEYS.get(k)
     text = None
@@ -196,6 +330,79 @@ def post_real_key(win, k):
 _STATE_READER = lambda: ""   # set by main() once the window exists
 
 
+def _system_action(name):
+    """Whitelisted session commands — the row subtext names consequences."""
+    cmds = {
+        "lock": ("loginctl", ["lock-session"]),
+        "sleep": ("systemctl", ["suspend"]),
+        "logout": ("loginctl",
+                   ["terminate-session", os.environ.get("XDG_SESSION_ID", "")]),
+        "reboot": ("systemctl", ["reboot"]),
+        "poweroff": ("systemctl", ["poweroff"]),
+    }
+    if name not in cmds:
+        print(f"foyer[system] REJECT {name!r}", file=sys.stderr, flush=True)
+        return
+    if HARNESS:
+        bridge._launch_log.append(f"system:{name}")   # assertable, not run
+        return
+    prog, args = cmds[name]
+    if name == "logout" and not args[-1]:
+        print("foyer[system] logout: no session id", file=sys.stderr,
+              flush=True)
+        return
+    from PySide6.QtCore import QProcess
+    QProcess.startDetached(prog, [a for a in args if a])
+    print(f"foyer[system] {name}", file=sys.stderr, flush=True)
+
+
+def _open_ssh(alias):
+    """Open a terminal tab to a real alias from ~/.ssh/config."""
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9._-]+", alias or ""):
+        print(f"foyer[ssh] REJECT {alias!r}", file=sys.stderr, flush=True)
+        return
+    if HARNESS:
+        bridge._launch_log.append(f"ssh:{alias}")
+        return
+    from PySide6.QtCore import QProcess
+    for term in (("/usr/bin/konsole", ["-e", "ssh", alias]),):
+        if os.path.exists(term[0]):
+            QProcess.startDetached(term[0], term[1])
+            return
+    print("foyer[ssh] no terminal found", file=sys.stderr, flush=True)
+
+
+def _run_update(which):
+    """Read-only rpm-ostree output into the UPDATE view (never deploys)."""
+    if HARNESS:
+        bridge._updateOut = (
+            "harness: rpm-ostree status (canned)\n"
+            "State: idle\nDeployments:\n● ostree://.../bazzite (booted)")
+        bridge.updateOutChanged.emit()
+        return
+    from PySide6.QtCore import QProcess
+
+    def _proc():
+        pr = QProcess()
+        pr.readyReadStandardOutput.connect(
+            lambda: bridge._set_update_out(
+                bytes(pr.readAllStandardOutput()).decode("utf-8", "ignore")))
+        pr.finished.connect(
+            lambda rc, st: bridge._set_update_out(
+                bridge._update_out_raw + f"\n[exit {rc}]"))
+        args = (["status"] if which == "status"
+                else ["upgrade", "--check"])
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(20000, lambda: pr.kill() if pr.state()
+                          != QProcess.ProcessState.NotRunning else None)
+        pr.start("/usr/bin/rpm-ostree", args)
+        bridge._set_update_out(f"$ rpm-ostree {' '.join(args)}\n…")
+
+    import threading
+    threading.Timer(0, _proc).start()
+
+
 class Bridge(QObject):
     """QML↔daemon channel (signals out, dbus slots in)."""
 
@@ -203,6 +410,12 @@ class Bridge(QObject):
     keyDriven = Signal(str)
     keyRealDriven = Signal(str)
     launchRequested = Signal(str)
+    systemActionRequested = Signal(str)
+    openSshRequested = Signal(str)
+    updateRunRequested = Signal(str)
+    fleetProbeRequested = Signal()
+    fleetJsonChanged = Signal()
+    updateOutChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -214,6 +427,13 @@ class Bridge(QObject):
         # doesn't read tiny on a 5120-wide panel; 1.0 elsewhere.
         self._cardScale = 1.0
         self._appsJson = scan_apps()
+        self._appsIndex = _apps_index(self._appsJson)
+        self._sshJson = json.dumps(parse_ssh_config())
+        self._recentsJson = json.dumps(scan_recents())
+        self._favsJson = json.dumps(parse_favorites(self._appsIndex))
+        self._fleetJson = ""
+        self._updateOut = ""
+        self._fleetHosts = parse_ssh_config()   # one inventory, two lanes
 
     def _read_cardOffsetX(self):
         return self._cardOffsetX
@@ -229,6 +449,31 @@ class Bridge(QObject):
         return self._appsJson
 
     appsJson = Property(str, _read_appsJson, constant=True)
+
+    def _read_sshJson(self):
+        return self._sshJson
+
+    sshJson = Property(str, _read_sshJson, constant=True)
+
+    def _read_recentsJson(self):
+        return self._recentsJson
+
+    recentsJson = Property(str, _read_recentsJson, constant=True)
+
+    def _read_favsJson(self):
+        return self._favsJson
+
+    favsJson = Property(str, _read_favsJson, constant=True)
+
+    def _read_fleetJson(self):
+        return self._fleetJson
+
+    fleetJson = Property(str, _read_fleetJson, notify=fleetJsonChanged)
+
+    def _read_updateOut(self):
+        return self._updateOut
+
+    updateOut = Property(str, _read_updateOut, notify=updateOutChanged)
 
     @Slot()
     def toggle(self):
@@ -274,6 +519,42 @@ class Bridge(QObject):
         rows against a live daemon — it would launch real apps."""
         return "1" if HARNESS else "0"
 
+    def _set_update_out(self, text):
+        import re
+        text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", text)   # no ANSI
+        self._update_out_raw = getattr(self, "_update_out_raw", "")
+        self._updateOut = text[-8192:]                          # cap 8 KiB
+        self.updateOutChanged.emit()
+
+    @Slot()
+    def probeFleet(self):
+        """Re-probe fleet liveness (also callable over dbus for tests)."""
+        self._do_probe()
+
+    @Slot(result=str)
+    def getUpdateOut(self):
+        """Test surface: current UPDATE view output text."""
+        return self._updateOut
+
+    @Slot(result=str)
+    def getFleetJson(self):
+        """Test surface: last fleet probe result as JSON."""
+        return self._fleetJson
+
+    def _do_probe(self):
+        import threading
+
+        def work():
+            try:
+                rows, stamp = probe_fleet(self._fleetHosts)
+                self._fleetJson = json.dumps({"stamp": stamp, "hosts": rows})
+                self.fleetJsonChanged.emit()
+            except Exception as exc:  # keep the thread from dying silently
+                print(f"foyer[probe] THREAD ERROR {exc!r}",
+                      file=sys.stderr, flush=True)
+
+        threading.Thread(target=work, daemon=True).start()
+
     # set by main() once the window exists: () -> "state zone i n cols rail"
     stateReader = None  # type: ignore[assignment]
 
@@ -289,12 +570,17 @@ class Bridge(QObject):
 
 
 def main():
+    global bridge
     app = QGuiApplication(sys.argv)
     app.setApplicationName("foyer")
     app.setDesktopFileName("gdeyoung-foyer")
     app.setApplicationVersion("0.2.0")
 
     bridge = Bridge()
+    bridge.systemActionRequested.connect(_system_action)
+    bridge.openSshRequested.connect(_open_ssh)
+    bridge.updateRunRequested.connect(_run_update)
+    bridge.fleetProbeRequested.connect(bridge._do_probe)
 
     # Multi-monitor fix: kwin assigns the layer surface the FULL combined
     # output; an un-offset card would center on the monitor seam. Shift the

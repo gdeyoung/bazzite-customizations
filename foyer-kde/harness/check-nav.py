@@ -44,6 +44,25 @@ def key(k): call("driveKeyReal", "s", k)     # REAL key delivery path
 def lkey(k): call("driveKey", "s", k)        # logical (cross-check only)
 def drive(s): call("driveState", "s", s)
 
+def dbus_prop(prop):
+    """Read a bridge value over the user bus via its getter slot
+    (Qt property export yields a duplicate introspection interface,
+    so tests call getUpdateOut/getFleetJson instead)."""
+    slot = "getUpdateOut" if prop == "updateOut" else "getFleetJson"
+    o = subprocess.run(
+        ["busctl", "--user", "call", "gdeyoung.foyer",
+         "/gdeyoung/foyer", "gdeyoung.foyer", slot],
+        capture_output=True, text=True).stdout.strip()
+    # busctl prints `s "escaped"`; JSON payloads embed quotes, so the old
+    # split('"')[1] truncation mangled them — shlex unescapes correctly.
+    import shlex
+    try:
+        parts = shlex.split(o)
+        return parts[1] if len(parts) > 1 else ""
+    except ValueError:
+        return ""
+
+
 def dbus_str(method):
     """Decode a busctl str return ('s "payload"' -> payload)."""
     o = call(method)
@@ -92,10 +111,10 @@ def goto_slot(v, s):
     return nav(), base
 
 VIEWS = ["boot", "category:Internet", "category:Games", "category:Utilities",
-         "games", "typed", "nomatch", "ai", "ready", "system", "fleet",
+         "typed", "nomatch", "ai", "ready", "system", "fleet",
          "ssh", "update", "settings", "help", "about",
          "favs", "recents", "snippets"]
-DRILLS = {"category:Internet", "category:Games", "category:Utilities", "games",
+DRILLS = {"category:Internet", "category:Games", "category:Utilities",
           "ai", "system", "fleet", "ssh", "update", "settings", "help",
           "about", "favs", "recents", "snippets", "ready"}
 
@@ -244,8 +263,96 @@ st = nav()
 check(st["state"] == "boot",
       f"search: clearing the query did not return to boot ({st})")
 
+# ---- live lanes: ssh/system/update/recents/fleet ------------------------
+# ssh view is fed by the REAL ~/.ssh/config parse (16 hosts on this machine)
+drive("ssh")
+st = nav()
+check(st["state"] == "ssh" and st["n"] >= 10,
+      f"ssh: live alias list not loaded ({st})")
+if HARNESS_MODE == "1" and st["n"] > 1:
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("down"); key("enter")            # slot 0 is BackRow -> boot
+    drive("ssh"); key("down"); key("right"); key("enter")   # slot 1 = first host
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    check(len(log1) == len(log0) + 1 and log1[-1].startswith("ssh:"),
+          f"ssh: ⏎ on host row did not record terminal ssh ({log1[-1:]})")
+
+# system rows map to whitelisted session commands (harness records only)
+if HARNESS_MODE == "1":
+    # reversible lock fires at once; destructive poweroff arms a confirm
+    drive("system")
+    key("down"); key("right")                      # slot 1 = Lock
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("enter")
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    check(len(log1) == len(log0) + 1 and log1[-1] == "system:lock",
+          f"system lock: ⏎ did not record system:lock ({log1[-1:]})")
+
+    # destructive ⏎ arms the confirm strip: n=2, Cancel default (slot 0)
+    drive("system")
+    key("down")
+    for _ in range(5):
+        key("right")                               # slot 5 = Shut Down
+    key("enter")
+    st = nav()
+    check(st["state"] == "system" and st["n"] == 2 and st["zone"] == "lens"
+          and st["i"] == 0,
+          f"system: shut-down ⏎ did not arm confirm w/ Cancel default ({st})")
+    # Esc cancels and restores the full list
+    key("escape")
+    st = nav()
+    check(st["state"] == "system" and st["n"] == 6,
+          f"system: Esc did not cancel confirm / restore list ({st})")
+    # re-arm, walk to Confirm, ⏎ fires; view disarms after
+    for _ in range(5):
+        key("right")
+    key("enter")
+    st = nav()
+    check(st["n"] == 2 and st["i"] == 0,
+          f"system: re-arm failed ({st})")
+    key("right")                                   # Cancel -> Confirm
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("enter")
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    st = nav()
+    check(len(log1) == len(log0) + 1 and log1[-1] == "system:poweroff",
+          f"system: confirm ⏎ did not record poweroff ({log1[-1:]})")
+    check(st["n"] == 6,
+          f"system: confirm did not disarm back to the list ({st})")
+
+# update: history row streams read-only rpm-ostree output into the view
+# (harness only — a live run must not fetch repo metadata by itself)
+if HARNESS_MODE == "1":
+    drive("update")
+    key("down"); key("down"); key("enter")   # slot 2 = Deployment history
+    out = ""
+    for _ in range(20):
+        import time as _t; _t.sleep(0.25)
+        out = dbus_prop("updateOut")
+        if out and len(out) > 40:
+            break
+    check("ostree" in out.lower() or "harness" in out.lower(),
+          f"update: no rpm-ostree output rendered ({out[:60]!r})")
+
+# recents come from the real xbel (this machine has 200+ entries)
+drive("recents")
+st = nav()
+check(st["n"] >= 5,
+      f"recents: live recently-used list not loaded ({st})")
+
+# fleet view: probe-on-open populates real UP/DOWN + a real timestamp
+drive("fleet")
+ok = ""
+for _ in range(24):
+    import time as _t; _t.sleep(0.25)
+    fj = dbus_prop("fleetJson")
+    if fj and '"stamp"' in fj:
+        ok = fj; break
+check(ok != "" and '"hosts"' in ok,
+      "fleet: probe-on-open produced no fleetJson")
+
 # real vs logical key channels must agree (sample)
-for v in ("boot", "games", "category:Internet"):
+for v in ("boot", "category:Internet"):
     drive(v)
     key("down")
     key("right")

@@ -23,6 +23,30 @@ export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CACHE_HOME="$HOME/.cache"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$HOME/shots"
 cp /usr/share/color-schemes/BreezeDark.colors "$XDG_CONFIG_HOME/kdeglobals" 2>/dev/null || true
+
+# --- seed live-lane sources (nested HOME starts empty) ---------------------
+# ssh view n = 1 back row + aliases; drills assert n >= 10 → seed 14.
+mkdir -p "$HOME/.ssh"
+if [ ! -s "$HOME/.ssh/config" ]; then
+  {
+    for h in aitower aicube gx10 gx11 unraid micro jellyfin \
+             aibox vivobook sammypro5 gdtower von k2 litellm; do
+      printf 'Host %s\n HostName 192.168.1.50\n' "$h"
+    done
+  } > "$HOME/.ssh/config"
+fi
+# recents view n = 1 back row + entries; drills assert n >= 5 → seed 6.
+if [ ! -s "$XDG_DATA_HOME/recently-used.xbel" ]; then
+  XB="$XDG_DATA_HOME/recently-used.xbel"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<xbel version="1.0" xmlns:bookmark="http://www.freedesktop.org/standards/desktop-bookmarks">\n' > "$XB"
+  i=0
+  for app in brave firefox code dolphin konsole steam; do
+    i=$((i+1))
+    printf ' <bookmark href="file:///usr/share/applications/%s.desktop" added="2026-11-0%dT10:00:00Z" modified="2026-11-0%dT10:00:00Z" visited="2026-11-0%dT10:00:00Z">\n  <info><metadata owner="http://freedesktop.org"><bookmark:application name="%s" modified="2026-11-0%dT10:00:00Z" count="1"/></metadata></info>\n </bookmark>\n' \
+      "$app" "$i" "$i" "$i" "$app" "$i" >> "$XB"
+  done
+  printf '</xbel>\n' >> "$XB"
+fi
 SOCKET="foyer-d-$$"
 
 teardown() {
