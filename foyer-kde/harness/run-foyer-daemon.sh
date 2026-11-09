@@ -62,6 +62,8 @@ printf 'Third and final chunk.\n'
 ASK
   chmod +x "$HARNESS/ask-stub.sh"
 fi
+# favorites start EMPTY every run: the pin/unpin drills assert exact counts
+rm -f "$XDG_DATA_HOME/foyer/favorites.json"
 if [ ! -s "$XDG_CONFIG_HOME/foyer/config.json" ]; then
   printf '{"ai": {"ask_exe": "%s/ask-stub.sh", "model": "stub-fast"}}\n' \
     "$HARNESS" > "$XDG_CONFIG_HOME/foyer/config.json"

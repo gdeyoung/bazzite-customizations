@@ -202,6 +202,10 @@ def scan_recents(limit=12):
     return out[:limit]
 
 
+_FAV_PATH = os.path.expanduser("~/.local/share/foyer/favorites.json")
+_FAV_MAX = 30
+
+
 def parse_favorites(apps_index):
     """Kickoff favorites (kickoffrc) resolved against the app scan."""
     path = os.path.expanduser("~/.config/kickoffrc")
@@ -225,10 +229,38 @@ def parse_favorites(apps_index):
             continue
         did = tok.split(":", 1)[1]
         if did in apps_index:
-            out.append(apps_index[did])
+            out.append(did)
         if len(out) >= 12:
             break
     return out
+
+
+def _fav_ids(apps_index):
+    """Foyer-owned favorites: load favorites.json, one-time Kickoff seed."""
+    if os.path.exists(_FAV_PATH):
+        try:
+            with open(_FAV_PATH) as fh:
+                ids = json.load(fh)
+            if isinstance(ids, list):
+                return [i for i in ids if isinstance(i, str)][:_FAV_MAX]
+        except Exception:
+            pass
+        return []
+    ids = [os.path.basename(r["path"]) if "path" in r else r
+           for r in parse_favorites(apps_index)]
+    _fav_write(ids)
+    return ids
+
+
+def _fav_write(ids):
+    os.makedirs(os.path.dirname(_FAV_PATH), exist_ok=True)
+    with open(_FAV_PATH, "w") as fh:
+        json.dump(ids, fh)
+
+
+def _fav_rows(ids, apps_index):
+    """desktop-id rows in stored order; drop ids the scan can't resolve."""
+    return [apps_index[i] for i in ids if i in apps_index]
 
 
 def _apps_index(scan_json):
@@ -279,13 +311,22 @@ def probe_fleet(hosts):
 
 
 def post_real_key(win, k):
+    mods = Qt.KeyboardModifier.NoModifier
+    if k.startswith("ctrl+"):
+        mods = Qt.KeyboardModifier.ControlModifier
+        k = k.split("+", 1)[1]
     kk = _REALKEYS.get(k)
     text = None
     if kk is None:
         if len(k) == 1:            # printable char: the real typing path
             text = k
+            if mods != Qt.KeyboardModifier.NoModifier:
+                kk = getattr(Qt.Key, "Key_" + k.upper(), None)
+                text = None        # combos match on key+modifier, not text
         else:
             return
+    if kk is None and text is None:
+        return
     try:    # QA trace: who receives real keys (focus theft detector)
         fo = win.focusObject()
         cn = ""
@@ -305,7 +346,7 @@ def post_real_key(win, k):
     for typ in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
         if text is None:
             QCoreApplication.sendEvent(
-                win, QKeyEvent(typ, int(kk or 0), Qt.KeyboardModifier.NoModifier))
+                win, QKeyEvent(typ, int(kk or 0), mods))
         else:
             QCoreApplication.sendEvent(
                 win, QKeyEvent(typ, int(Qt.Key.Key_unknown),
@@ -518,6 +559,24 @@ def _apply_setting(name):
         getattr(bridge, sig).emit()
 
 
+def _toggle_favorite(path):
+    """Pin/unpin an app. Takes a desktop-file path or bare id; persists."""
+    did = os.path.basename(path) if "/" in path else path
+    if did in bridge._favIds:
+        bridge._favIds.remove(did)
+    else:
+        bridge._favIds.append(did)
+        if len(bridge._favIds) > _FAV_MAX:
+            bridge._favIds = bridge._favIds[-_FAV_MAX:]
+    _fav_write(bridge._favIds)
+    bridge._favsJson = json.dumps(
+        _fav_rows(bridge._favIds, bridge._appsIndex))
+    bridge.favsJsonChanged.emit()
+    print(f"foyer[fav] {did} -> "
+          f"{'pinned' if did in bridge._favIds else 'unpinned'} "
+          f"(n={len(bridge._favIds)})", file=sys.stderr, flush=True)
+
+
 def _ask_cancel():
     """Esc/hide mid-stream: stop consuming, keep what arrived."""
     bridge._aiCancel = True
@@ -669,10 +728,12 @@ class Bridge(QObject):
     updateRunRequested = Signal(str)
     fleetProbeRequested = Signal()
     fleetJsonChanged = Signal()
+    favsJsonChanged = Signal()
     updateOutChanged = Signal()
     # Loop-2: AI lane + settings levers
     askRequested = Signal(str)
     askCancelRequested = Signal()
+    favoriteToggleRequested = Signal(str)
     copyRequested = Signal(str)
     continueRequested = Signal(str)
     settingChanged = Signal(str)
@@ -699,7 +760,8 @@ class Bridge(QObject):
         self._appsIndex = _apps_index(self._appsJson)
         self._sshJson = json.dumps(parse_ssh_config())
         self._recentsJson = json.dumps(scan_recents())
-        self._favsJson = json.dumps(parse_favorites(self._appsIndex))
+        self._favIds = _fav_ids(self._appsIndex)
+        self._favsJson = json.dumps(_fav_rows(self._favIds, self._appsIndex))
         self._fleetJson = ""
         self._updateOut = ""
         self._fleetHosts = parse_ssh_config()   # one inventory, two lanes
@@ -787,7 +849,7 @@ class Bridge(QObject):
     def _read_favsJson(self):
         return self._favsJson
 
-    favsJson = Property(str, _read_favsJson, constant=True)
+    favsJson = Property(str, _read_favsJson, notify=favsJsonChanged)
 
     def _read_fleetJson(self):
         return self._fleetJson
@@ -810,6 +872,14 @@ class Bridge(QObject):
     @Slot()
     def hideUI(self):
         self.hideRequested.emit()
+
+    @Slot(result=str)
+    def getFavsJson(self):
+        return self._favsJson
+
+    @Slot(str)
+    def qmlTrace(self, s):
+        print(f"foyer[qml] {s}", file=sys.stderr, flush=True)
 
     @Slot(result=str)
     def getShowMs(self):
@@ -923,6 +993,7 @@ def main():
     bridge.fleetProbeRequested.connect(bridge._do_probe)
     bridge.askRequested.connect(_ask)
     bridge.askCancelRequested.connect(_ask_cancel)
+    bridge.favoriteToggleRequested.connect(_toggle_favorite)
     bridge.copyRequested.connect(_do_copy)
     bridge.continueRequested.connect(_do_continue)
     bridge.settingChanged.connect(_apply_setting)

@@ -160,8 +160,8 @@ Item {
 
     readonly property var railModel: [
         { group: "Launcher" },
-        { tag: "AP", label: "Apps",      value: String(root.liveAppCount),   state: "boot",     slot: 1 },
-        { tag: "FA", label: "Favorites", value: "★ 0",                        state: "favs",     slot: 2 },
+        { tag: "FA", label: "Favorites", value: "★ " + root.favsModel.length, state: "favs",     slot: 1 },
+        { tag: "AP", label: "Apps",      value: String(root.liveAppCount),   state: "boot",     slot: 2 },
         { tag: "RE", label: "Recents",   value: "0",                          state: "recents",  slot: 3 },
         { tag: "SE", label: "Settings",  value: String(Data.meta.kcmTotal),   state: "settings", slot: 4 },
         { tag: "SY", label: "System",    value: "5",                          state: "system",   slot: 5 },
@@ -347,6 +347,47 @@ Item {
     function fleetRows() {
         return fleetModel.length > 0 ? fleetModel : Data.fleet;
     }
+    function isFav(path) {
+        var id = String(path).substring(String(path).lastIndexOf("/") + 1);
+        for (var i = 0; i < root.favsModel.length; i++)
+            if (root.favsModel[i].path === path ||
+                root.favsModel[i].path === undefined && root.favsModel[i].name === id)
+                return true;
+        return false;
+    }
+
+    // ctrl p on a focused app row: pin/unpin (same path the star click takes)
+    // row offset per view: typed rows have NO back row (slot 0 = first app);
+    // category/favs/recents put the Back row at slot 0, apps from slot 1
+    function pinFocusedRow() {
+        var p = null;
+        if (root.zone === "lens" && root.lensIndex >= 0) {
+            var i = root.lensIndex;
+            if (root.state === "category") {
+                var lst = catList();
+                if (i >= 1 && i - 1 < lst.length) p = lst[i - 1].path;
+            } else if (root.state === "typed") {
+                var tm = root.typedModel;
+                if (i < tm.length && tm[i].kind === "app")
+                    p = tm[i].path;
+            } else if (root.state === "favs") {
+                if (i >= 1 && i - 1 < root.favsModel.length)
+                    p = root.favsModel[i - 1].path;
+            } else if (root.state === "recents") {
+                if (i >= 1 && i - 1 < root.recentsModel.length)
+                    p = root.recentsModel[i - 1].path;
+            }
+        }
+        if (p) root.favoriteToggle(p);
+    }
+
+    // every summon opens on Favorites when any exist; an in-flight or
+    // finished answer keeps its view (stream/ready are not yanked away)
+    function summonReset() {
+        if (root.state === "stream" || root.state === "ready") return;
+        gotoState(root.favsModel.length > 0 ? "favs" : "boot", true);
+    }
+
     function navFor(s) {
         switch (s) {
         case "boot":     return [bootModel().length, 1];
@@ -562,6 +603,7 @@ Item {
     signal probeFleet()
     signal askHermes(string question)
     signal askCancel()
+    signal favoriteToggle(string path)
     signal copyText(string text)
     signal continueChat(string question)
     signal settingLever(string name)
@@ -655,6 +697,13 @@ Item {
                                     root.typedModel = hits;
                                 } else if (root.state === "typed" || root.state === "nomatch") {
                                     root.gotoState("boot");
+                                }
+                            }
+                            Keys.onPressed: function(event) {
+                                if (event.key === Qt.Key_P &&
+                                        (event.modifiers & Qt.ControlModifier)) {
+                                    root.pinFocusedRow();
+                                    event.accepted = true;
                                 }
                             }
                             Keys.onDownPressed: root.navKey("down")
@@ -982,6 +1031,9 @@ Item {
         property bool focused: false
         property bool monoName: false
         property string dot: ""   // "", "ok", "down"
+        property bool starred: false    // show the pin affordance at all
+        property string starPath: ""    // desktop-file path this row pins
+        signal starClicked()
         height: root.rowH
         radius: 8
         color: "transparent"
@@ -1018,6 +1070,17 @@ Item {
                 color: lr.warn ? root.cWarn : root.cDim
                 font.pixelSize: Math.round(13 * root.t)
                 elide: Text.ElideRight
+            }
+            Text {
+                visible: lr.starred
+                text: lr.starPath !== "" && root.isFav(lr.starPath) ? "★" : "☆"
+                color: lr.starPath !== "" && root.isFav(lr.starPath)
+                       ? root.cAccent : root.cDim
+                font.pixelSize: Math.round(14 * root.t)
+                MouseArea {
+                    anchors.fill: parent; anchors.margins: -8
+                    onClicked: lr.starClicked()
+                }
             }
             Text {
                 visible: lr.value.length > 0
@@ -1091,6 +1154,8 @@ Item {
                         name: modelData.name
                         detail: modelData.generic
                         value: ""
+                        starred: true; starPath: modelData.path
+                        onStarClicked: root.favoriteToggle(modelData.path)
                         focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                     }
@@ -1125,6 +1190,9 @@ Item {
                     Layout.fillWidth: true
                     tag: "·"
                     hasTile: modelData.kind === "app"
+                    starred: modelData.kind === "app"
+                    starPath: modelData.kind === "app" ? modelData.path : ""
+                    onStarClicked: if (modelData.kind === "app") root.favoriteToggle(modelData.path)
                     name: modelData.name
                     detail: modelData.detail
                     value: "⏎"
@@ -1700,6 +1768,8 @@ Item {
                         Layout.leftMargin: 24; Layout.rightMargin: 24
                         tag: "·"; name: modelData.name
                         detail: modelData.detail; value: "⏎"
+                        starred: true; starPath: modelData.path
+                        onStarClicked: root.favoriteToggle(modelData.path)
                         focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                     }
@@ -1719,7 +1789,7 @@ Item {
                 id: favsCol
                 width: parent.width
                 spacing: 0
-                SectionHead { title: "FAVORITES · " + root.favsModel.length; note: "mirrors Kickoff favorites" }
+                SectionHead { title: "FAVORITES · " + root.favsModel.length; note: "your first screen · seeded once from Kickoff" }
                 BackRow {}
                 Repeater {
                     model: root.favsModel
@@ -1730,6 +1800,8 @@ Item {
                         Layout.leftMargin: 24; Layout.rightMargin: 24
                         tag: "·"; name: modelData.name
                         detail: modelData.generic || ""; value: "⏎"
+                        starred: true; starPath: modelData.path
+                        onStarClicked: root.favoriteToggle(modelData.path)
                         focused: (root.zone === "lens" && root.lensIndex === index + 1) || root.navPulse === index + 1
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, index + 1) }
                     }
@@ -1764,7 +1836,7 @@ Item {
             Text { Layout.leftMargin: 28; text: "No pins yet"; color: root.cText; font.pixelSize: Math.round(15 * root.t); font.bold: true }
             Text {
                 Layout.leftMargin: 28; Layout.topMargin: 6
-                text: "ctrl p pins any row — app, host, snippet, question.\nFavorites mirror Kickoff favorites; prune there, this follows. Max 30."
+                text: "★ click or ctrl p on any app row pins it here.\nFavorites live in ~/.local/share/foyer/favorites.json. Max 30."
                 color: root.cDim; font.pixelSize: Math.round(13 * root.t); lineHeight: 1.5
             }
         }

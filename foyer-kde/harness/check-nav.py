@@ -470,6 +470,62 @@ for v in ("boot", "category:Internet"):
     check(real == logic,
           f"{v}: real-key and logical-key channels disagree ({real} vs {logic})")
 
+# ===== favorites: pin/unpin via ctrl+p, star rows, summon landing =====
+import time as _ft
+
+def favs():
+    return json.loads(dbus_str("getFavsJson"))
+
+def st():
+    return nav()["state"]
+
+# 1) typed "brav" -> first row is Brave -> ctrl+p pins it
+drive("boot")
+for ch in "brav":
+    key(ch)
+key("down")                       # lens 0 = Brave (typed rows: no back row)
+key("ctrl+p")
+f = favs()
+check(len(f) == 1 and "Brave" in f[0]["name"],
+      f"fav pin: ctrl+p did not pin Brave ({f})")
+
+# 2) favorites view shows it; unpin via ctrl+p on the row
+drive("favs")
+check(st() == "favs", f"fav view: not in favs ({st()})")
+key("down")                       # back row (slot 0)
+key("down")                       # the Brave row
+key("ctrl+p")
+f = favs()
+check(len(f) == 0, f"fav unpin: row still pinned ({f})")
+
+# 3) summon lands on Favorites when any exist; on Apps when none
+drive("settings")
+call("hideUI"); _ft.sleep(0.2); call("showUI"); _ft.sleep(0.2)
+check(st() == "boot", f"summon with 0 favs should land on boot ({st()})")
+# pin one again, then summon must land on favs
+drive("boot")
+for ch in "brav":
+    key(ch)
+key("down")
+key("ctrl+p")
+drive("settings")
+call("hideUI"); _ft.sleep(0.2); call("showUI"); _ft.sleep(0.2)
+check(st() == "favs", f"summon with favs should land on favs ({st()})")
+
+# 4) rail order: Favorites sits ABOVE Apps
+drive("boot")                     # owner of boot is AP
+key("left")                       # escape to rail
+key("up")                         # next selectable above AP = FA
+key("enter")                      # rail enter -> gotoState
+check(st() == "favs", f"rail order: FA is not above AP ({st()})")
+
+# 5) clean slate: unpin so other drills see deterministic counts
+drive("favs")
+key("down"); key("down")
+key("ctrl+p")
+f = favs()
+check(len(f) == 0, f"fav cleanup failed ({f})")
+
 # ===== warm-show latency: 20 summons, p99 < 150 ms (harness kwin) =====
 import time as _wt
 _samples = []
