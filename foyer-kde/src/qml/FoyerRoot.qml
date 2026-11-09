@@ -66,6 +66,23 @@ Item {
     property bool confirmArmed: false
     property string confirmAction: ""
     property string confirmLabel: ""
+    // Loop-2 live lanes: AI + settings (daemon is the source of truth)
+    property string aiQuestion: ""
+    property string aiStream: ""
+    property bool aiDone: true
+    property string aiModelName: ""
+    property string recentJson: "[]"
+    property var recentModel: []
+    property bool fuzzyOn: false
+    property string cardAnchor: "center"
+    onRecentJsonChanged: {
+        try { recentModel = JSON.parse(recentJson); }
+        catch (e) { recentModel = []; }
+    }
+    onAiDoneChanged: {
+        // stream -> ready when the answer lands (matches the design flow)
+        if (aiDone && state === "stream") gotoState("ready");
+    }
 
     function disarmConfirm() {
         if (!confirmArmed) return;
@@ -126,8 +143,8 @@ Item {
         typed:    { field: "bro",         rail: -1 },
         nomatch:  { field: "zzz",         rail: -1 },
         ai:       { field: "",            rail: 7 },
-        stream:   { field: Data.aiAnswer.q, rail: 7 },
-        ready:    { field: Data.aiAnswer.q, rail: 7 },
+        stream:   { field: root.aiQuestion, rail: 7 },
+        ready:    { field: root.aiQuestion, rail: 7 },
         system:   { field: "",            rail: 4 },
         fleet:    { field: "",            rail: 8 },
         ssh:      { field: "",            rail: 9 },
@@ -151,7 +168,7 @@ Item {
         { tag: "UP", label: "Update",    value: "check",                      state: "update",   slot: 6 },
         { tag: "AB", label: "About",     value: "",                           state: "about",    slot: 7 },
         { group: "Fleet" },
-        { tag: "AI", label: "AI",        value: Data.ai.model,                state: "ai",       slot: 8 },
+        { tag: "AI", label: "AI",        value: root.aiModelName,             state: "ai",       slot: 8 },
         { tag: "FL", label: "Fleet",     value: upCount + "↑",                state: "fleet",    slot: 9 },
         { tag: "SS", label: "SSH",       value: String(root.sshModel.length),state: "ssh" },
         { tag: "SN", label: "Snippets",  value: "0",                          state: "snippets" },
@@ -199,6 +216,26 @@ Item {
         var hits = starts.slice(0, 12);
         if (hits.length < 12)
             hits = hits.concat(subs.slice(0, 12 - hits.length));
+        if (root.fuzzyOn && q.length >= 3 && hits.length < 6) {
+            // subsequence match: every query char in order ("kden" → KDEnlive)
+            var fz = [];
+            for (var c2 = 0; c2 < cats.length && hits.length + fz.length < 12;
+                 c2++) {
+                var ap2 = cats[c2].apps || [];
+                for (var a2 = 0; a2 < ap2.length; a2++) {
+                    var cand = ap2[a2];
+                    if (hits.indexOf(cand) >= 0 || fz.indexOf(cand) >= 0)
+                        continue;
+                    var hay = ((cand.name || "") + " "
+                               + (cand.generic || "")).toLowerCase();
+                    var pi = 0;
+                    for (var ci = 0; ci < ql.length && pi >= 0; ci++)
+                        pi = hay.indexOf(ql[ci], pi);
+                    if (pi >= 0) fz.push(cand);
+                }
+            }
+            hits = hits.concat(fz.slice(0, 12 - hits.length));
+        }
         return hits.map(function (it) {
             return { kind: "app", name: it.name, detail: it.generic || "",
                      path: it.path };
@@ -230,8 +267,13 @@ Item {
         var p = presets[target];
         if (!p) return;
         state = target;
-        fieldText = p.field;
-        field.text = p.field;
+        // presets literals evaluate once; AI views resolve their field text
+        // live so the asked question rides along into stream/ready
+        var ft = p.field;
+        if ((target === "stream" || target === "ready")
+            && root.aiQuestion.length > 0) ft = root.aiQuestion;
+        fieldText = ft;
+        field.text = ft;
         // railIndex must point at the row that OWNS this state — computed
         // from the model, never from hand-maintained preset numbers (they
         // drifted off-by-one against the group-header rows).
@@ -311,16 +353,16 @@ Item {
         case "category": return [1 + catList().length, 1];
         case "typed":    return [2, 1];   // apps added live via onCountChanged
         case "nomatch":  return [1, 1];
-        case "ai":       return [2 + Data.ai.recentQuestions.length, 1];
+        case "ai":       return [2 + recentModel.length, 1];
         case "stream":   return [3, 1];
-        case "ready":    return [3 + Math.min(2, Data.ai.recentQuestions.length), 1];
+        case "ready":    return [3 + Math.min(2, recentModel.length), 1];
         case "system":   return root.confirmArmed
                               ? [2, 1]
                               : [1 + Data.systemRows.length, 1];
         case "fleet":    return [1 + fleetRows().length, 1];
         case "ssh":      return [1 + sshModel.length, 1];
         case "update":   return [3, 1];   // back · check · history
-        case "settings": return [14, 1];
+        case "settings": return [6, 1];   // back · 4 levers · reset
         case "help":     return [11, 1];
         case "recents":  return [1 + recentsModel.length, 1];
         case "favs":     return [1 + favsModel.length, 1];
@@ -429,7 +471,13 @@ Item {
             // (a ReferenceError here dies silently: enter did nothing)
             var tmodel = root.typedModel;
             if (i < tmodel.length) { launchApp(tmodel[i].path); return; }
-            if (i === tmodel.length) { gotoState("stream"); return; }
+            if (i === tmodel.length) {
+                if (root.fieldText.trim().length > 0) {
+                    askHermes(root.fieldText.trim());
+                    gotoState("stream");
+                }
+                return;
+            }
             launchApp("https://duckduckgo.com/?q=" + encodeURIComponent(root.fieldText));
             return;
         }
@@ -437,8 +485,36 @@ Item {
             root.runUpdate(i === 1 ? "check" : "status");
             return;
         }
-        if (st === "nomatch") { gotoState("stream"); return; }
-        if (st === "ai" && i === 1) { gotoState("stream"); return; }
+        if (st === "settings") {
+            // slots: 1 scale · 2 opacity · 3 location · 4 fuzzy · 5 reset
+            var levers = ["scale", "opacity", "anchor", "fuzzy", "reset"];
+            if (i - 1 >= 0 && i - 1 < levers.length)
+                settingLever(levers[i - 1]);
+            return;
+        }
+        if (st === "nomatch") {
+            if (fieldText.trim().length > 0) {
+                askHermes(fieldText.trim());
+                gotoState("stream");
+            } else gotoState("ai");
+            return;
+        }
+        if (st === "stream" || st === "ready") {
+            // slot 1 = Copy (armed when done), slot 2 = Continue in chat
+            if (i === 1) { if (root.aiDone && root.aiStream.length > 0)
+                               copyText(root.aiStream); }
+            else if (i === 2) { if (root.aiDone)
+                                    continueChat(root.aiQuestion); }
+            return;
+        }
+        if (st === "ai") {
+            // slot 1 = model row (info); recent questions re-ask for real
+            if (i >= 2 && i - 2 < recentModel.length) {
+                askHermes(recentModel[i - 2]);
+                gotoState("stream");
+            }
+            return;
+        }
         if (st === "system") {
             // rows: Lock · Sleep · Log Out · Reboot · Shut Down. Reversible
             // two fire immediately; destructive three arm the confirm strip.
@@ -484,6 +560,11 @@ Item {
     signal openSsh(string alias)
     signal runUpdate(string which)
     signal probeFleet()
+    signal askHermes(string question)
+    signal askCancel()
+    signal copyText(string text)
+    signal continueChat(string question)
+    signal settingLever(string name)
     component BackRow: ListRow {
         Layout.fillWidth: true
         Layout.leftMargin: 24; Layout.rightMargin: 24
@@ -599,6 +680,11 @@ Item {
                             Keys.onEscapePressed: function(event) {
                                 if (root.confirmArmed) {
                                     root.disarmConfirm();
+                                    event.accepted = true;
+                                    return;
+                                }
+                                if (root.state === "stream" && !root.aiDone) {
+                                    root.askCancel();   // keep what arrived
                                     event.accepted = true;
                                     return;
                                 }
@@ -1051,7 +1137,7 @@ Item {
                 Layout.leftMargin: 24; Layout.rightMargin: 24
                 tag: "ai"; name: "Ask Hermes"
                 detail: root.fieldText + "? — answer lands here"
-                value: Data.ai.model
+                value: root.aiModelName
                 focused: (root.zone !== "rail" && root.lensIndex === typedResults.count) || root.navPulse === typedResults.count
                 MouseArea { anchors.fill: parent; onClicked: root.gotoState("stream") }
             }
@@ -1092,7 +1178,7 @@ Item {
                 tag: "ai"
                 name: "Ask Hermes: " + root.fieldText
                 detail: "enter asks anyway · answer copied on ⏎"
-                value: Data.ai.model
+                value: root.aiModelName
                 focused: true
                 MouseArea { anchors.fill: parent; onClicked: root.gotoState("stream") }
             }
@@ -1113,24 +1199,24 @@ Item {
                 ColumnLayout {
                     Layout.leftMargin: 28; Layout.rightMargin: 28
                     spacing: 10
-                    Text { text: Data.ai.answerPrefix + "   ask a question — the answer streams here, ⏎ copies it"
+                    Text { text: "qh?   ask a question — the answer streams here, ⏎ copies it"
                            color: root.cDim; font.pixelSize: Math.round(14 * root.t); font.family: root.mono }
-                    Text { text: Data.ai.taskPrefix + "   hand a task to Hermes — it runs, you get notified"
+                    Text { text: "hr    hand a task to Hermes — it runs, you get notified"
                            color: root.cDim; font.pixelSize: Math.round(14 * root.t); font.family: root.mono }
                 }
                 SectionHead { title: "MODEL" }
                 ListRow {
                     Layout.fillWidth: true
                     Layout.leftMargin: 24; Layout.rightMargin: 24
-                    tag: "☉"; name: Data.ai.model
-                    detail: "via " + Data.ai.via + " · 45s timeout · " + Data.ai.maxChars + " chars max"
+                    tag: "☉"; name: root.aiModelName
+                    detail: "live · streams via the fleet LLM proxy"
                     value: "✓"
                     focused: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1
                     MouseArea { anchors.fill: parent; onClicked: root.activateLens("ai", 1) }
                 }
                 SectionHead { title: "RECENT QUESTIONS"; note: "questions only — answers are never cached" }
                 Repeater {
-                    model: Data.ai.recentQuestions
+                    model: root.recentModel
                     delegate: ListRow {
                         required property var modelData
                         required property int index
@@ -1139,6 +1225,7 @@ Item {
                         hasTile: false
                         name: ""
                         detail: modelData
+                        value: "⏎"
                         focused: (root.zone === "lens" && root.lensIndex === index + 2) || root.navPulse === index + 2
                         MouseArea { anchors.fill: parent; onClicked: root.activateLens("ai", index + 2) }
                     }
@@ -1172,15 +1259,15 @@ Item {
                         spacing: 12
                         RowLayout {
                             spacing: 10
-                            Text { text: "STREAMING"; color: root.cHover; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiDone ? "DONE" : "STREAMING"; color: root.aiDone ? root.cDim : root.cHover; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Text { text: "·"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
-                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiModelName; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Item { Layout.fillWidth: true }
-                            Text { text: "4.2s"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiQuestion.length > 42 ? root.aiQuestion.substring(0, 42) + "…" : root.aiQuestion; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono; elide: Text.ElideRight }
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: Data.aiAnswer.streamingText + " ▌"
+                            text: (root.aiStream || "asking…") + (root.aiDone ? "" : " ▌")
                             color: root.cText
                             font.pixelSize: Math.round(15 * root.t)
                             wrapMode: Text.Wrap
@@ -1188,7 +1275,7 @@ Item {
                         }
                         RowLayout {
                             spacing: 8
-                            opacity: 0.38
+                            opacity: root.aiDone ? 1.0 : 0.38
                             Rectangle {
                                 width: 90; height: 30; radius: 7
                                 border.color: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1 ? root.cAccent : Qt.rgba(1, 1, 1, 0.14)
@@ -1204,7 +1291,7 @@ Item {
                                 MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: "COPY ARMED WHEN STREAM ENDS"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiDone ? "⏎ COPIES THE ANSWER" : "COPY ARMS WHEN STREAM ENDS"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                     }
                 }
@@ -1238,21 +1325,13 @@ Item {
                             spacing: 10
                             Text { text: "ANSWERED"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Text { text: "·"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
-                            Text { text: Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiModelName; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                             Item { Layout.fillWidth: true }
-                            Text { text: "7.8s"; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: root.aiQuestion.length > 42 ? root.aiQuestion.substring(0, 42) + "…" : root.aiQuestion; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono; elide: Text.ElideRight }
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: Data.aiAnswer.body[0]
-                            color: root.cText
-                            font.pixelSize: Math.round(15 * root.t)
-                            wrapMode: Text.Wrap
-                            lineHeight: 1.25
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: Data.aiAnswer.body[1]
+                            text: root.aiStream || "(no answer)"
                             color: root.cText
                             font.pixelSize: Math.round(15 * root.t)
                             wrapMode: Text.Wrap
@@ -1280,13 +1359,13 @@ Item {
                                 MouseArea { anchors.fill: parent; onClicked: root.activateLens(root.state, 2) }
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: "MODEL  " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
+                            Text { text: "MODEL  " + root.aiModelName; color: root.cDim; font.pixelSize: Math.round(11 * root.t); font.family: root.mono }
                         }
                     }
                 }
                 SectionHead { title: "RECENT QUESTIONS" }
                 Repeater {
-                    model: Data.ai.recentQuestions.slice(0, 2)
+                    model: root.recentModel.slice(0, 2)
                     delegate: ListRow {
                         required property var modelData
                         required property int index
@@ -1480,61 +1559,54 @@ Item {
                 id: setCol
                 width: parent.width
                 spacing: 0
+                SectionHead { title: "WINDOW & SEARCH"
+                              ; note: "⏎ cycles a lever · applies live · persists" }
                 BackRow {}
-                SectionHead { title: "WINDOW" }
-                Repeater {
-                    model: [
-                        { k: "Width", v: "420   680   [920]" },
-                        { k: "Compact mode collapses the rail to a caption column", v: "at ≤ 560" },
-                        { k: "Row density", v: "24   [28]   34" },
-                        { k: "Opacity · Radius", v: "96% · 14" },
-                        { k: "Location", v: "↧ top   ◈ [center]   ↥ bottom" }
-                    ]
-                    delegate: NavRow {
-                        required property var modelData
-                        required property int index
-                        slot: index + 1
-                        Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
-                    }
+                ListRow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 24; Layout.rightMargin: 24
+                    tag: "SC"; name: "Card scale"
+                    detail: "whole-card size · auto fits this display"
+                    value: bridge.cardScale.toFixed(2) + "×"
+                    focused: (root.zone === "lens" && root.lensIndex === 1) || root.navPulse === 1
+                    MouseArea { anchors.fill: parent; onClicked: root.activateLens("settings", 1) }
                 }
-                SectionHead { title: "SEARCH" }
-                Repeater {
-                    model: [
-                        { k: "Fuzzy matching (≥ 3 chars)", v: "off" },
-                        { k: "Category captions", v: "on" },
-                        { k: "Menu on start", v: "on" },
-                        { k: "Ctrl-number hints", v: "on" }
-                    ]
-                    delegate: NavRow {
-                        required property var modelData
-                        required property int index
-                        slot: index + 6
-                        Text { text: modelData.k; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.v; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
-                    }
+                ListRow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 24; Layout.rightMargin: 24
+                    tag: "OP"; name: "Opacity"
+                    detail: "card translucency · text stays readable"
+                    value: Math.round(bridge.cardOpacity) + "%"
+                    focused: (root.zone === "lens" && root.lensIndex === 2) || root.navPulse === 2
+                    MouseArea { anchors.fill: parent; onClicked: root.activateLens("settings", 2) }
                 }
-                SectionHead { title: "SOURCES" }
-                NavRow {
-                    slot: 10
-                    Text { text: "Applications · Hermes AI · Fleet · SSH · Snippets"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true; elide: Text.ElideRight }
-                    Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
+                ListRow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 24; Layout.rightMargin: 24
+                    tag: "LO"; name: "Location"
+                    detail: "where the card opens on screen"
+                    value: bridge.cardAnchor
+                    focused: (root.zone === "lens" && root.lensIndex === 3) || root.navPulse === 3
+                    MouseArea { anchors.fill: parent; onClicked: root.activateLens("settings", 3) }
                 }
-                NavRow {
-                    slot: 11
-                    Text { text: "Web search"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
-                    Text { text: "fallback only · off"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
+                ListRow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 24; Layout.rightMargin: 24
+                    tag: "FZ"; name: "Fuzzy search"
+                    detail: "subsequence match for 3+ chars"
+                    value: bridge.fuzzy ? "on" : "off"
+                    focused: (root.zone === "lens" && root.lensIndex === 4) || root.navPulse === 4
+                    MouseArea { anchors.fill: parent; onClicked: root.activateLens("settings", 4) }
                 }
-                SectionHead { title: "AI" }
-                NavRow {
-                    slot: 12
-                    Text { text: "Endpoint · Model"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
-                    Text { text: "192.168.1.243:4000/v1 · " + Data.ai.model; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
-                }
-                NavRow {
-                    slot: 13
-                    Text { text: "Copy answers on ⏎"; color: root.cText; font.pixelSize: Math.round(14 * root.t); Layout.fillWidth: true }
-                    Text { text: "on"; color: root.cDim; font.pixelSize: Math.round(12 * root.t); font.family: root.mono }
+                SectionHead { title: "DEFAULTS"; note: "levers live in ~/.config/foyer/config.json" }
+                ListRow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 24; Layout.rightMargin: 24
+                    tag: "RS"; name: "Reset to defaults"
+                    detail: "window + search levers back to stock (AI config kept)"
+                    value: "⏎"
+                    focused: (root.zone === "lens" && root.lensIndex === 5) || root.navPulse === 5
+                    MouseArea { anchors.fill: parent; onClicked: root.activateLens("settings", 5) }
                 }
             }
         }

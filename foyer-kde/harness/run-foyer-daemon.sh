@@ -47,6 +47,25 @@ if [ ! -s "$XDG_DATA_HOME/recently-used.xbel" ]; then
   done
   printf '</xbel>\n' >> "$XB"
 fi
+
+# --- Loop-2: AI-lane stub + foyer config (never call the real LLM) --------
+mkdir -p "$XDG_CONFIG_HOME/foyer" "$XDG_DATA_HOME/foyer"
+if [ ! -s "$HARNESS/ask-stub.sh" ]; then
+  cat > "$HARNESS/ask-stub.sh" <<'ASK'
+#!/usr/bin/env bash
+# deterministic 3-chunk streamed answer for the AI-lane drills
+printf 'Hermes harness answer: first chunk.\n'
+sleep 0.3
+printf 'Second chunk arrives.\n'
+sleep 0.3
+printf 'Third and final chunk.\n'
+ASK
+  chmod +x "$HARNESS/ask-stub.sh"
+fi
+if [ ! -s "$XDG_CONFIG_HOME/foyer/config.json" ]; then
+  printf '{"ai": {"ask_exe": "%s/ask-stub.sh", "model": "stub-fast"}}\n' \
+    "$HARNESS" > "$XDG_CONFIG_HOME/foyer/config.json"
+fi
 SOCKET="foyer-d-$$"
 
 teardown() {

@@ -403,6 +403,258 @@ def _run_update(which):
     threading.Timer(0, _proc).start()
 
 
+# ------------------------------------------------------------- Loop-2 config
+# ~/.config/foyer/config.json — settings levers + AI lane. Seeded harness
+# HOME keeps tests off the real file; ask_exe swaps the LLM for a stub.
+_FOYER_DIR = os.path.expanduser("~/.config/foyer")
+_FOYER_CONFIG = os.path.join(_FOYER_DIR, "config.json")
+_RECENT_PATH = os.path.expanduser(
+    "~/.local/share/foyer/recent-questions.json")
+
+_FOYER_DEFAULTS = {
+    "card_scale": None,           # None = auto (1.45 on super-ultrawide)
+    "card_opacity": 100,
+    "card_anchor": "center",
+    "fuzzy": False,
+    "ai": {
+        "base_url": "http://192.168.1.243:4000/v1",
+        "model": "local-fast",
+        "api_key_env": "ZHW_PROXY_API_KEY",
+        "api_key_file": "~/.hermes/secrets/infra.env",
+        "timeout_s": 45,
+        "temperature": 0.1,
+        "max_tokens": 400,
+        "max_chars": 2000,
+        "ask_exe": "",
+    },
+}
+
+
+def _load_config():
+    conf = json.loads(json.dumps(_FOYER_DEFAULTS))   # deep default copy
+    try:
+        with open(_FOYER_CONFIG, errors="ignore") as fh:
+            user = json.load(fh)
+        if isinstance(user, dict):
+            for k, v in user.items():
+                if k == "ai" and isinstance(v, dict):
+                    conf["ai"].update(v)
+                else:
+                    conf[k] = v
+    except (OSError, ValueError):
+        pass
+    return conf
+
+
+def _save_config(conf):
+    os.makedirs(_FOYER_DIR, exist_ok=True)
+    tmp = _FOYER_CONFIG + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(conf, fh, indent=1)
+    os.replace(tmp, _FOYER_CONFIG)
+
+
+def _load_recent():
+    try:
+        with open(_RECENT_PATH, errors="ignore") as fh:
+            v = json.load(fh)
+        return v if isinstance(v, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _ask_key(conf):
+    """API key from the env-style secrets file (never logged)."""
+    import re
+    env_name = conf.get("api_key_env", "ZHW_PROXY_API_KEY")
+    try:
+        with open(os.path.expanduser(conf.get("api_key_file", "")),
+                  errors="ignore") as fh:
+            for line in fh:
+                m = re.match(rf"\s*(?:export\s+)?{env_name}=(\S+)", line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return ""
+
+
+# ------------------------------------------------ Loop-2: AI + settings rows
+def _apply_setting(name):
+    """Cycle a settings lever, persist, and publish live properties."""
+    conf = bridge._config
+    if name == "reset":
+        keep_ai = conf.get("ai", {})
+        conf.clear()
+        conf.update(json.loads(json.dumps(_FOYER_DEFAULTS)))
+        conf["ai"] = keep_ai
+    elif name == "scale":
+        steps = [None, 1.45, 1.38, 1.33, 1.60]
+        cur = conf.get("card_scale")
+        conf["card_scale"] = steps[(steps.index(cur) + 1) % len(steps)
+                                   if cur in steps else 1]
+    elif name == "opacity":
+        steps = [100, 96, 90, 85]
+        conf["card_opacity"] = steps[(steps.index(conf.get("card_opacity"))
+                                      + 1) % len(steps)]
+    elif name == "anchor":
+        steps = ["center", "top", "bottom"]
+        conf["card_anchor"] = steps[(steps.index(conf.get("card_anchor"))
+                                     + 1) % len(steps)]
+    elif name == "fuzzy":
+        conf["fuzzy"] = not conf.get("fuzzy", False)
+    else:
+        return
+    _save_config(conf)
+    cs = conf.get("card_scale")
+    bridge._cardScale = float(cs) if cs else 1.0     # None -> auto in main()
+    bridge._cardOpacity = float(conf.get("card_opacity", 100))
+    bridge._cardAnchor = str(conf.get("card_anchor", "center"))
+    bridge._fuzzy = bool(conf.get("fuzzy", False))
+    for sig in ("cardScaleChanged", "cardOpacityChanged",
+                "cardAnchorChanged", "fuzzyChanged"):
+        getattr(bridge, sig).emit()
+
+
+def _ask_cancel():
+    """Esc/hide mid-stream: stop consuming, keep what arrived."""
+    bridge._aiCancel = True
+
+
+def _do_copy(text):
+    if HARNESS:
+        bridge._launch_log.append(f"clip:{text[:40]}")
+        return
+    ok = False
+    try:
+        from PySide6.QtGui import QGuiApplication
+        cb = QGuiApplication.clipboard()
+        cb.setText(text)
+        ok = cb.text() == text          # silent-failure check (Wayland)
+    except Exception:
+        pass
+    if not ok:
+        # klipper D-Bus fallback — the path krunner-hermes uses in prod
+        import subprocess
+        try:
+            subprocess.run(
+                ["busctl", "--user", "call", "org.kde.klipper", "/klipper",
+                 "org.kde.klipper.klipper", "setClipboardContents",
+                 "s", text], timeout=3, check=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as exc:
+            print(f"foyer: clipboard set failed ({exc})", file=sys.stderr)
+
+
+def _do_continue(question):
+    if HARNESS:
+        bridge._launch_log.append(f"continue:{question[:40]}")
+        return
+    _do_copy(question)   # the question rides along in the clipboard
+    from PySide6.QtCore import QProcess
+    QProcess.startDetached("gio", ["launch",
+                                   os.path.expanduser(
+                                       "~/.local/share/applications/"
+                                       "com.nousresearch.hermes.desktop")])
+
+
+def _recent_add(q):
+    bridge._recent = [q] + [x for x in bridge._recent if x != q][:7]
+    os.makedirs(os.path.dirname(_RECENT_PATH), exist_ok=True)
+    with open(_RECENT_PATH, "w") as fh:
+        json.dump(bridge._recent, fh)
+    bridge._recentJson = json.dumps(bridge._recent)
+    bridge.recentJsonChanged.emit()
+
+
+def _ask(question):
+    """Stream an answer into the AI lane (stub process or LiteLLM SSE)."""
+    q = question.strip()
+    if not q:
+        return
+    conf = bridge._config.get("ai", {})
+    bridge._aiQuestion = q
+    bridge._aiStream = ""
+    bridge._aiDone = False
+    bridge._aiCancel = False
+    for sig in ("aiQuestionChanged", "aiStreamChanged", "aiDoneChanged"):
+        getattr(bridge, sig).emit()
+
+    def append(text):
+        bridge._aiStream = (bridge._aiStream + text)[
+            :int(conf.get("max_chars", 2000))]
+        bridge.aiStreamChanged.emit()
+
+    def work():
+        import time as _time
+        started = _time.time()
+        try:
+            if conf.get("ask_exe"):
+                import subprocess
+                p = subprocess.Popen([conf["ask_exe"]], stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL, text=True)
+                for line in p.stdout:
+                    if bridge._aiCancel:
+                        break
+                    append(line)
+                p.wait(timeout=5)
+            else:
+                import urllib.request
+                url = conf["base_url"].rstrip("/") + "/chat/completions"
+                payload = json.dumps({
+                    "model": conf.get("model", "local-fast"),
+                    "messages": [{"role": "user", "content": q}],
+                    "max_tokens": int(conf.get("max_tokens", 400)),
+                    "temperature": float(conf.get("temperature", 0.1)),
+                    "stream": True,
+                }).encode()
+                req = urllib.request.Request(url, data=payload, headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {_ask_key(conf)}",
+                })
+                # per-read timeout doubles as first-token timeout: a
+                # stalled proxy raises after 12 s with no bytes
+                with urllib.request.urlopen(
+                        req, timeout=min(12, int(conf.get("timeout_s", 45)))) as r:
+                    truncated = False
+                    for raw in r:
+                        if bridge._aiCancel:
+                            break
+                        if _time.time() - started > int(conf.get(
+                                "timeout_s", 45)):
+                            append("\n...(timed out)")
+                            break
+                        line = raw.decode("utf-8", "ignore").strip()
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)["choices"][0]
+                            delta = chunk.get("delta", {}).get("content", "")
+                            if chunk.get("finish_reason") == "length":
+                                truncated = True
+                        except (ValueError, KeyError, IndexError):
+                            continue
+                        if delta:
+                            append(delta)
+                    if truncated:
+                        append("\n...(truncated at max tokens - raise "
+                               "ai.max_tokens in config)")
+        except Exception as exc:
+            if not bridge._aiCancel:
+                append(f"\n\u26a0 ask failed: {exc}")
+        finally:
+            bridge._aiDone = True
+            bridge.aiDoneChanged.emit()
+            if bridge._aiStream:
+                _recent_add(q)   # completed or cancelled-with-text asks
+
+    import threading
+    threading.Thread(target=work, daemon=True).start()
+
+
 class Bridge(QObject):
     """QML↔daemon channel (signals out, dbus slots in)."""
 
@@ -416,6 +668,21 @@ class Bridge(QObject):
     fleetProbeRequested = Signal()
     fleetJsonChanged = Signal()
     updateOutChanged = Signal()
+    # Loop-2: AI lane + settings levers
+    askRequested = Signal(str)
+    askCancelRequested = Signal()
+    copyRequested = Signal(str)
+    continueRequested = Signal(str)
+    settingChanged = Signal(str)
+    cardScaleChanged = Signal()
+    cardOpacityChanged = Signal()
+    cardAnchorChanged = Signal()
+    fuzzyChanged = Signal()
+    aiQuestionChanged = Signal()
+    aiStreamChanged = Signal()
+    aiDoneChanged = Signal()
+    aiModelChanged = Signal()
+    recentJsonChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -434,6 +701,20 @@ class Bridge(QObject):
         self._fleetJson = ""
         self._updateOut = ""
         self._fleetHosts = parse_ssh_config()   # one inventory, two lanes
+        # Loop-2: persisted settings + live AI lane state
+        self._config = _load_config()
+        cs = self._config.get("card_scale")
+        self._cardScale = float(cs) if cs else 1.0
+        self._cardOpacity = float(self._config.get("card_opacity", 100))
+        self._cardAnchor = str(self._config.get("card_anchor", "center"))
+        self._fuzzy = bool(self._config.get("fuzzy", False))
+        self._aiQuestion = ""
+        self._aiStream = ""
+        self._aiDone = True
+        self._aiCancel = False
+        self._aiModel = self._config.get("ai", {}).get("model", "")
+        self._recent = _load_recent()
+        self._recentJson = json.dumps(self._recent)
 
     def _read_cardOffsetX(self):
         return self._cardOffsetX
@@ -443,7 +724,48 @@ class Bridge(QObject):
     def _read_cardScale(self):
         return self._cardScale
 
-    cardScale = Property(float, _read_cardScale, constant=True)
+    cardScale = Property(float, _read_cardScale, notify=cardScaleChanged)
+
+    def _read_cardOpacity(self):
+        return self._cardOpacity
+
+    cardOpacity = Property(float, _read_cardOpacity,
+                           notify=cardOpacityChanged)
+
+    def _read_cardAnchor(self):
+        return self._cardAnchor
+
+    cardAnchor = Property(str, _read_cardAnchor, notify=cardAnchorChanged)
+
+    def _read_fuzzy(self):
+        return self._fuzzy
+
+    fuzzy = Property(bool, _read_fuzzy, notify=fuzzyChanged)
+
+    def _read_aiQuestion(self):
+        return self._aiQuestion
+
+    aiQuestion = Property(str, _read_aiQuestion, notify=aiQuestionChanged)
+
+    def _read_aiStream(self):
+        return self._aiStream
+
+    aiStream = Property(str, _read_aiStream, notify=aiStreamChanged)
+
+    def _read_aiDone(self):
+        return self._aiDone
+
+    aiDone = Property(bool, _read_aiDone, notify=aiDoneChanged)
+
+    def _read_aiModel(self):
+        return self._aiModel
+
+    aiModel = Property(str, _read_aiModel, notify=aiModelChanged)
+
+    def _read_recentJson(self):
+        return self._recentJson
+
+    recentJson = Property(str, _read_recentJson, notify=recentJsonChanged)
 
     def _read_appsJson(self):
         return self._appsJson
@@ -541,6 +863,18 @@ class Bridge(QObject):
         """Test surface: last fleet probe result as JSON."""
         return self._fleetJson
 
+    @Slot(result=str)
+    def getAiState(self):
+        """Test surface: {q, len, done} for the AI lane drills."""
+        return json.dumps({"q": self._aiQuestion,
+                           "len": len(self._aiStream),
+                           "done": self._aiDone})
+
+    @Slot(result=str)
+    def getConfig(self):
+        """Test surface: current persisted settings + AI config."""
+        return json.dumps(self._config)
+
     def _do_probe(self):
         import threading
 
@@ -581,6 +915,11 @@ def main():
     bridge.openSshRequested.connect(_open_ssh)
     bridge.updateRunRequested.connect(_run_update)
     bridge.fleetProbeRequested.connect(bridge._do_probe)
+    bridge.askRequested.connect(_ask)
+    bridge.askCancelRequested.connect(_ask_cancel)
+    bridge.copyRequested.connect(_do_copy)
+    bridge.continueRequested.connect(_do_continue)
+    bridge.settingChanged.connect(_apply_setting)
 
     # Multi-monitor fix: kwin assigns the layer surface the FULL combined
     # output; an un-offset card would center on the monitor seam. Shift the
@@ -593,8 +932,9 @@ def main():
             bridge._cardOffsetX = prim.geometry().center().x() - vg.center().x()
             # With QT_ENABLE_HIGHDPI_SCALING=0 these are PHYSICAL pixels.
             w, h = vg.width(), vg.height()
-            if w / h >= 2.6:
+            if bridge._config.get("card_scale") is None and w / h >= 2.6:
                 bridge._cardScale = 1.45
+                bridge.cardScaleChanged.emit()
     except Exception as exc:  # cosmetic; never block startup
         print(f"foyer: screen geometry fallback ({exc})", file=sys.stderr)
 

@@ -88,8 +88,12 @@ Window {
             id: cardBox
             objectName: "cardBox"
             z: 1
+            opacity: bridge.cardOpacity / 100
             x: (parent.width - width) / 2 + bridge.cardOffsetX
-            y: (parent.height - height) / 2
+            y: bridge.cardAnchor === "top" ? 48
+             : bridge.cardAnchor === "bottom"
+               ? parent.height - height - 48
+               : (parent.height - height) / 2
             width: 920 * bridge.cardScale
             height: 640 * bridge.cardScale
 
@@ -107,11 +111,23 @@ Window {
             favsJson: bridge.favsJson
             fleetJson: bridge.fleetJson
             updateOut: bridge.updateOut   // live .desktop scan
+            aiQuestion: bridge.aiQuestion
+            aiStream: bridge.aiStream
+            aiDone: bridge.aiDone
+            aiModelName: bridge.aiModel
+            recentJson: bridge.recentJson
+            fuzzyOn: bridge.fuzzy
+            cardAnchor: bridge.cardAnchor
                 onLaunchApp: (exec) => bridge.launchRequested(exec)
                 onSystemAction: (name) => bridge.systemActionRequested(name)
                 onOpenSsh: (alias) => bridge.openSshRequested(alias)
                 onRunUpdate: (which) => bridge.updateRunRequested(which)
                 onProbeFleet: () => bridge.fleetProbeRequested()
+                onAskHermes: (question) => bridge.askRequested(question)
+                onAskCancel: () => bridge.askCancelRequested()
+                onCopyText: (text) => bridge.copyRequested(text)
+                onContinueChat: (question) => bridge.continueRequested(question)
+                onSettingLever: (name) => bridge.settingChanged(name)
             }
         }
     }

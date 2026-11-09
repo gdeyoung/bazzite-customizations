@@ -70,6 +70,8 @@ def dbus_str(method):
         return o.strip()
     return json.loads(o.split(None, 1)[1].strip())
 
+import os
+
 fails, checked = [], 0
 
 def check(cond, msg):
@@ -350,6 +352,110 @@ for _ in range(24):
         ok = fj; break
 check(ok != "" and '"hosts"' in ok,
       "fleet: probe-on-open produced no fleetJson")
+
+# ---- Loop-2: Ask Hermes streams a real (stubbed) answer ------------------
+if HARNESS_MODE == "1":
+    drive("typed")
+    for ch in "zzqx":          # no app hits -> Ask row is slot 0
+        key(ch)
+    import time as _t
+    _t.sleep(0.3)
+    key("down")                # field -> lens 0 (Ask Hermes)
+    key("enter")
+    st = nav()
+    check(st["state"] == "stream", f"ask: ⏎ on Ask row did not open stream ({st})")
+    ai = ""
+    for _ in range(40):
+        _t.sleep(0.25)
+        ai = json.loads(dbus_str("getAiState"))
+        if ai["done"]:
+            break
+    check(ai["done"] and ai["len"] > 40,
+          f"ask: stream did not land ({ai})")
+    check(nav()["state"] == "ready",
+          "ask: done stream did not auto-advance to ready")
+    # ⏎ on Copy records the answer to the clipboard lane
+    drive("ready")
+    key("down"); key("right")          # slot 1 = Copy
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("enter")
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    check(len(log1) == len(log0) + 1 and log1[-1].startswith("clip:Hermes harness answer"),
+          f"ask: ⏎ Copy did not record the answer ({log1[-1:]})")
+    # Esc mid-stream cancels: partial text kept, done flips, no hang
+    drive("typed")
+    for ch in "qqxz":
+        key(ch)
+    import time as _t
+    _t.sleep(0.25)
+    key("down"); key("enter")            # ask again
+    _t.sleep(0.2)                        # mid-stub (chunk 1 of 3)
+    key("escape")
+    ai2 = ""
+    for _ in range(20):
+        _t.sleep(0.25)
+        ai2 = json.loads(dbus_str("getAiState"))
+        if ai2["done"]:
+            break
+    check(ai2["done"] and ai2["len"] < 60,
+          f"ask-cancel: Esc did not stop the stream early ({ai2})")
+
+    # the question persists into RECENT QUESTIONS (questions only)
+    drive("ai")
+    st = nav()
+    check(st["n"] >= 3, f"ask: recent question row missing ({st})")
+    rq = os.path.expanduser("~/.local/share/foyer/recent-questions.json")
+    check(os.path.exists(rq) and "zzqx" in open(rq).read(),
+          "ask: question not persisted to recent-questions.json")
+
+# ---- Loop-2: settings levers persist + apply live -------------------------
+if HARNESS_MODE == "1":
+    drive("settings")
+    st = nav()
+    check(st["n"] == 6, f"settings: rebuilt lever list wrong ({st})")
+    c0 = json.loads(dbus_str("getConfig"))
+    check(c0.get("card_scale") is None and c0.get("card_anchor") == "center",
+          f"settings: harness config not at defaults ({c0.get('card_scale')}, {c0.get('card_anchor')})")
+    key("down")
+    key("right"); key("right")         # slot 2 = Opacity
+    key("enter")                       # 100 -> 96
+    c1 = json.loads(dbus_str("getConfig"))
+    check(c1.get("card_opacity") == 96,
+          f"settings: opacity ⏎ did not cycle ({c1.get('card_opacity')})")
+    onDisk = json.load(open(os.path.expanduser("~/.config/foyer/config.json")))
+    check(onDisk.get("card_opacity") == 96,
+          "settings: lever change not persisted to config.json")
+    key("down")                        # slot 3
+    key("right"); key("right")         # slot 5 = Reset
+    key("enter")
+    c2 = json.loads(dbus_str("getConfig"))
+    check(c2.get("card_opacity") == 100 and c2.get("card_scale") is None,
+          f"settings: reset did not restore defaults ({c2.get('card_opacity')}, {c2.get('card_scale')})")
+    check(c2["ai"].get("ask_exe"), "settings: reset wiped the AI config (must be kept)")
+
+# ---- Loop-2: fuzzy lever actually changes search behavior -----------------
+if HARNESS_MODE == "1":
+    drive("settings")
+    key("down")
+    for _ in range(4):
+        key("right")              # slot 4 = Fuzzy search
+    key("enter")                  # off -> on
+    c = json.loads(dbus_str("getConfig"))
+    check(c.get("fuzzy") is True, f"fuzzy: lever did not toggle on ({c.get('fuzzy')})")
+    drive("typed")
+    for ch in "brv":              # subsequence — no substring hit
+        key(ch)
+    import time as _t; _t.sleep(0.3)
+    st = nav()
+    check(st["n"] >= 3,
+          f"fuzzy: 'brv' produced no subsequence hits ({st})")
+    key("escape") if st["state"] != "boot" else None
+    drive("settings"); key("down")
+    for _ in range(4):
+        key("right")
+    key("enter")                  # on -> off
+    c = json.loads(dbus_str("getConfig"))
+    check(c.get("fuzzy") is False, "fuzzy: lever did not toggle back off")
 
 # real vs logical key channels must agree (sample)
 for v in ("boot", "category:Internet"):
