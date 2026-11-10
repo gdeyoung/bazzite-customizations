@@ -325,6 +325,29 @@ if st["state"] == "typed" and st["n"] >= 2 and HARNESS_MODE == "1":
 for _ in range(12):
     key("backspace")
 
+# stem tier: "startup" (Windows wording) must still reach Autostart —
+# longest query prefix >=4 substring-matching a name ("start" ⊂ "autostart")
+drive("boot")
+for ch in "startup":
+    key(ch)
+st = nav()
+check(st["state"] == "typed" and st["n"] >= 1,
+      f"search 'startup': stem tier found nothing ({st})")
+if st["state"] == "typed" and st["n"] >= 1 and HARNESS_MODE == "1":
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    found = False
+    for row in range(min(4, st["n"])):
+        key("down")
+        key("enter")
+        logn = json.loads(dbus_str("launchLog") or "[]")
+        if len(logn) > len(log0) and logn[-1].endswith("kcm_autostart.desktop"):
+            found = True
+            break
+    check(found,
+          "search 'startup': Autostart KCM not reachable in stem results")
+for _ in range(8):
+    key("backspace")
+
 # ---- live lanes: ssh/system/update/recents/fleet ------------------------
 # ssh view is fed by the REAL ~/.ssh/config parse (16 hosts on this machine)
 drive("ssh")

@@ -51,6 +51,14 @@ printf '[Desktop Entry]\nType=Application\nName=Visualstudio Ninja\nExec=/bin/tr
 printf '[Desktop Entry]\nType=Application\nName=Visual Studio Code\nExec=/bin/true\n' \
   > "$XDG_DATA_HOME/applications/visual-studio-code.desktop"
 
+# stem-tier distractors (CC r65): "startup" must still reach Autostart —
+# Startup Disk Creator holds the full query (tier-4 hit, deduped out of
+# stem); Star Crafts is a longer-name stem hit that must sort after
+printf '[Desktop Entry]\nType=Application\nName=Startup Disk Creator\nExec=/bin/true\n' \
+  > "$XDG_DATA_HOME/applications/startup-disk-creator.desktop"
+printf '[Desktop Entry]\nType=Application\nName=Star Crafts\nExec=/bin/true\n' \
+  > "$XDG_DATA_HOME/applications/star-crafts.desktop"
+
 # recents view n = 1 back row + entries; drills assert n >= 5 → seed 6.
 if [ ! -s "$XDG_DATA_HOME/recently-used.xbel" ]; then
   XB="$XDG_DATA_HOME/recently-used.xbel"

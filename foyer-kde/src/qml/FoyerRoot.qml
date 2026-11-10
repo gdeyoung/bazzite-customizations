@@ -226,6 +226,42 @@ Item {
             }
         }
         var hits = startsEx.concat(startsSp, subsEx, subsSp).slice(0, 12);
+        // stem tier: a DIFFERENT word sharing a stem ("startup" →
+        // "Autostart" — Windows calls it Startup). Longest query prefix
+        // (min 4) that appears in the spaceless name; name hits only,
+        // ranked last, capped at 4 so wording drift never floods results.
+        if (nq.length >= 4 && hits.length < 12) {
+            var stemHits = [];
+            for (var L = nq.length; L >= 4 && stemHits.length === 0; L--) {
+                var stem = nq.substring(0, L);
+                for (var c3 = 0; c3 < cats.length && stemHits.length < 4;
+                     c3++) {
+                    var ap3 = cats[c3].apps || [];
+                    for (var a3 = 0; a3 < ap3.length; a3++) {
+                        var cd = ap3[a3];
+                        if (hits.indexOf(cd) >= 0
+                                || stemHits.indexOf(cd) >= 0)
+                            continue;
+                        var nm3 = (cd.name || "").toLowerCase()
+                                           .replace(/ /g, "");
+                        if (nm3.indexOf(stem) >= 0) stemHits.push(cd);
+                    }
+                }
+            }
+            // CC r65 item 2 tiebreak: shorter name = more specific target
+            // first ('Autostart' beats 'Startup Disk Creator'), name-asc
+            // for determinism. Dedupe happens during collection, so a
+            // prefix length whose candidates are all duplicates leaves
+            // stemHits empty and the loop tries shorter prefixes (CC r65
+            // item 1's early-exit concern is already covered).
+            stemHits.sort(function (x, y) {
+                var lx = (x.name || "").length, ly = (y.name || "").length;
+                if (lx !== ly) return lx - ly;
+                return (x.name || "").toLowerCase()
+                        < (y.name || "").toLowerCase() ? -1 : 1;
+            });
+            hits = hits.concat(stemHits.slice(0, 12 - hits.length));
+        }
         if (root.fuzzyOn && q.length >= 3 && hits.length < 6) {
             // subsequence match: every query char in order ("kden" → KDEnlive)
             var fz = [];
