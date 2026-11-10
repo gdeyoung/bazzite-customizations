@@ -265,6 +265,66 @@ st = nav()
 check(st["state"] == "boot",
       f"search: clearing the query did not return to boot ({st})")
 
+# ---- settings modules: Kickoff parity -------------------------------------
+# kcm_*.desktop are 83/84 NoDisplay=true; Foyer must still surface them in
+# search ("auto start" → Autostart settings page) and offer the Settings
+# bucket in the apps view. Owner report 2026-11-10: typed "auto start" in
+# Foyer found nothing while Kickoff jumped straight to the Autostart KCM.
+drive("boot")
+for ch in "auto start":
+    key(ch)
+st = nav()
+check(st["state"] == "typed" and st["n"] >= 1,
+      f"search 'auto start': settings module not offered ({st})")
+if st["state"] == "typed" and st["n"] >= 1:
+    key("down")                        # slot 0 = top hit (starts-with rank)
+    if HARNESS_MODE == "1" and nav()["zone"] == "lens" and nav()["i"] == 0:
+        log0 = json.loads(dbus_str("launchLog") or "[]")
+        key("enter")
+        log1 = json.loads(dbus_str("launchLog") or "[]")
+        check(len(log1) == len(log0) + 1
+              and log1[-1].endswith("kcm_autostart.desktop"),
+              f"search 'auto start': ⏎ did not launch the Autostart KCM "
+              f"({log1[-1:]})")
+for _ in range(11):
+    key("backspace")
+
+# Settings bucket is browsable: category view with real kcm entries
+drive("category:Settings")
+st = nav()
+check(st["state"] == "category" and st["cat"] == "Settings" and st["n"] >= 20,
+      f"Settings bucket: not browsable as category ({st})")
+
+# NoDisplay non-kcm entries stay HIDDEN (seeded zqhidden.desktop)
+drive("boot")
+for ch in "zqhidden":
+    key(ch)
+st = nav()
+check(st["state"] == "nomatch",
+      f"NoDisplay leak: seeded hidden app matched in search ({st})")
+for _ in range(8):
+    key("backspace")
+
+# ranking guard (CC r63): true-prefix beats spaceless-prefix —
+# "visualstudio" must put Visualstudio Ninja ABOVE Visual Studio Code
+drive("boot")
+for ch in "visualstudio":
+    key(ch)
+st = nav()
+check(st["state"] == "typed" and st["n"] >= 2,
+      f"search 'visualstudio': expected 2+ ranked hits ({st})")
+if st["state"] == "typed" and st["n"] >= 2 and HARNESS_MODE == "1":
+    key("down")
+    log0 = json.loads(dbus_str("launchLog") or "[]")
+    key("enter")
+    log1 = json.loads(dbus_str("launchLog") or "[]")
+    check(len(log1) == len(log0) + 1
+          and log1[-1].endswith("visualstudio-ninja.desktop"),
+          f"ranking: true-prefix did not outrank spaceless-prefix "
+          f"({log1[-1:]})")
+for _ in range(12):
+    key("backspace")
+
 # ---- live lanes: ssh/system/update/recents/fleet ------------------------
 # ssh view is fed by the REAL ~/.ssh/config parse (16 hosts on this machine)
 drive("ssh")

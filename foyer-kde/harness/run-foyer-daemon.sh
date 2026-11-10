@@ -35,6 +35,22 @@ if [ ! -s "$HOME/.ssh/config" ]; then
     done
   } > "$HOME/.ssh/config"
 fi
+# NoDisplay non-kcm app: must STAY hidden from apps+search (negative drill
+# guards the kcm_ NoDisplay bypass from leaking to regular hidden entries)
+mkdir -p "$XDG_DATA_HOME/applications"
+if [ ! -s "$XDG_DATA_HOME/applications/zqhidden.desktop" ]; then
+  printf '[Desktop Entry]\nType=Application\nName=Zqhidden\nExec=/bin/true\nNoDisplay=true\n' \
+    > "$XDG_DATA_HOME/applications/zqhidden.desktop"
+fi
+
+# ranking-guard seeds (CC r63): true-prefix must outrank spaceless-prefix —
+# query "visualstudio" → Visualstudio Ninja (true prefix) above
+# Visual Studio Code (spaceless prefix)
+printf '[Desktop Entry]\nType=Application\nName=Visualstudio Ninja\nExec=/bin/true\n' \
+  > "$XDG_DATA_HOME/applications/visualstudio-ninja.desktop"
+printf '[Desktop Entry]\nType=Application\nName=Visual Studio Code\nExec=/bin/true\n' \
+  > "$XDG_DATA_HOME/applications/visual-studio-code.desktop"
+
 # recents view n = 1 back row + entries; drills assert n >= 5 → seed 6.
 if [ ! -s "$XDG_DATA_HOME/recently-used.xbel" ]; then
   XB="$XDG_DATA_HOME/recently-used.xbel"

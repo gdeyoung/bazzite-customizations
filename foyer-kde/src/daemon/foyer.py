@@ -79,6 +79,11 @@ def scan_apps():
             key = os.path.basename(f)
             if key in seen and d == _DESKTOP_DIRS[0]:
                 continue  # user/system dirs override /usr/share on revisit
+            # KDE settings modules: kcm_*.desktop are 83/84 NoDisplay=true by
+            # spec (correct for app menus, wrong for us — Kickoff surfaces
+            # them in search). Bypass NoDisplay for kcm_ files, bucket them
+            # under Settings. Hidden stays skipped (spec: retired entries).
+            is_kcm = key.startswith("kcm_")
             try:
                 cp = configparser.ConfigParser(interpolation=None,
                                                strict=False)
@@ -89,7 +94,7 @@ def scan_apps():
                 de = cp["Desktop Entry"]
                 if de.get("Type", "Application") != "Application":
                     continue
-                if de.getboolean("NoDisplay", False):
+                if de.getboolean("NoDisplay", False) and not is_kcm:
                     continue
                 if de.getboolean("Hidden", False):
                     continue
@@ -97,12 +102,13 @@ def scan_apps():
                 exec_ = de.get("Exec", "").strip()
                 if not name or not exec_:
                     continue
-                cats = (de.get("Categories", "") + ";").split(";")
-                label = "Other"
-                for cid, lab in _CATMAP:
-                    if cid in cats:
-                        label = lab
-                        break
+                label = "Settings" if is_kcm else "Other"
+                if not is_kcm:
+                    cats = (de.get("Categories", "") + ";").split(";")
+                    for cid, lab in _CATMAP:
+                        if cid in cats:
+                            label = lab
+                            break
                 # spec visibility: NotShowIn hits the current desktop → skip;
                 # OnlyShowIn set and current desktop absent → skip
                 cur = {s.strip() for s in os.environ.get(
@@ -115,14 +121,16 @@ def scan_apps():
                 if osi and not (cur & osi):
                     continue
                 seen[key] = (label, name, de.get("GenericName", "").strip(),
+                             de.get("Keywords", "").replace(";", " ").strip(),
                              f)
             except Exception:
                 continue
 
     buckets = {}
-    for label, name, generic, path in seen.values():
+    for label, name, generic, kws, path in seen.values():
         buckets.setdefault(label, []).append(
-            {"name": name, "generic": generic, "path": path})
+            {"name": name, "generic": generic, "keywords": kws,
+             "bucket": label, "path": path})
     out = []
     for label, apps in buckets.items():
         if label == "Other" and len(out) >= 9:   # keep the rail tidy

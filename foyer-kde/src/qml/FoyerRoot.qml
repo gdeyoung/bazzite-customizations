@@ -200,8 +200,14 @@ Item {
     // Live app search over the SAME scan that feeds the categories — the
     // frozen demo index never knew real app names ("brave" found nothing).
     // Rank: name-starts-with first, then generic/name substring. Cap 12.
+    // Space-insensitive compare (strip spaces both sides) so "auto start"
+    // hits "Autostart" — Kickoff parity for settings modules.
     function searchLive(q) {
-        var ql = q.toLowerCase(), starts = [], subs = [];
+        var ql = q.toLowerCase(), nq = ql.replace(/ /g, "");
+        // ranking tiers (CC r63 required item): true prefix > spaceless
+        // prefix > true substring > spaceless substring — "visualstudio"
+        // must not outrank an app whose real name starts with the query.
+        var startsEx = [], startsSp = [], subsEx = [], subsSp = [];
         var cats = bootModel();
         for (var c = 0; c < cats.length; c++) {
             var apps = cats[c].apps || [];
@@ -209,13 +215,17 @@ Item {
                 var it = apps[a];
                 var nm = (it.name || "").toLowerCase();
                 var gen = (it.generic || "").toLowerCase();
-                if (nm.indexOf(ql) === 0) starts.push(it);
-                else if (nm.indexOf(ql) >= 0 || gen.indexOf(ql) >= 0) subs.push(it);
+                var kw = (it.keywords || "").toLowerCase();
+                var nm2 = nm.replace(/ /g, ""), gen2 = gen.replace(/ /g, "");
+                if (nm.indexOf(ql) === 0) startsEx.push(it);
+                else if (nq && nm2.indexOf(nq) === 0) startsSp.push(it);
+                else if (nm.indexOf(ql) >= 0 || gen.indexOf(ql) >= 0
+                         || kw.indexOf(ql) >= 0) subsEx.push(it);
+                else if (nq && (nm2.indexOf(nq) >= 0 || gen2.indexOf(nq) >= 0))
+                    subsSp.push(it);
             }
         }
-        var hits = starts.slice(0, 12);
-        if (hits.length < 12)
-            hits = hits.concat(subs.slice(0, 12 - hits.length));
+        var hits = startsEx.concat(startsSp, subsEx, subsSp).slice(0, 12);
         if (root.fuzzyOn && q.length >= 3 && hits.length < 6) {
             // subsequence match: every query char in order ("kden" → KDEnlive)
             var fz = [];
@@ -227,7 +237,8 @@ Item {
                     if (hits.indexOf(cand) >= 0 || fz.indexOf(cand) >= 0)
                         continue;
                     var hay = ((cand.name || "") + " "
-                               + (cand.generic || "")).toLowerCase();
+                               + (cand.generic || "") + " "
+                               + (cand.keywords || "")).toLowerCase();
                     var pi = 0;
                     for (var ci = 0; ci < ql.length && pi >= 0; ci++)
                         pi = hay.indexOf(ql[ci], pi);
@@ -237,7 +248,10 @@ Item {
             hits = hits.concat(fz.slice(0, 12 - hits.length));
         }
         return hits.map(function (it) {
-            return { kind: "app", name: it.name, detail: it.generic || "",
+            return { kind: "app", name: it.name,
+                     detail: it.generic
+                             || (it.bucket === "Settings"
+                                 ? "SYSTEM SETTINGS" : ""),
                      path: it.path };
         });
     }
@@ -341,7 +355,9 @@ Item {
     // re-entering a view kept the clobbered defaults — caught by check-nav).
     readonly property int liveAppCount: {
         var n = 0, cats = bootModel();
-        for (var i = 0; i < cats.length; i++) n += (cats[i].apps || []).length;
+        for (var i = 0; i < cats.length; i++)
+            if (cats[i].id !== "Settings")   // settings modules count separately
+                n += (cats[i].apps || []).length;
         return n;
     }
     function fleetRows() {
