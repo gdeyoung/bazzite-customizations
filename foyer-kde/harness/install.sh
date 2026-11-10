@@ -2,10 +2,10 @@
 # install.sh — Foyer for KDE, 100% user-space install (no rpm-ostree, no sudo).
 #
 #   ./install.sh --install            stage files, dbus activation, systemd user unit
-#   ./install.sh --take-hotkey        ALSO rebind Meta+Space from hermes-menu to Foyer
-#                                     (edits kglobalshortcutrc + restarts kglobalaccel;
+#   ./install.sh --take-hotkey        ALSO bind Meta+Space to Foyer via a KWin
+#                                     script (loads live, persists via kwinrc;
 #                                     hermes-ask/task/terminal bindings untouched)
-#   ./install.sh --uninstall          remove everything (hotkey revert is manual)
+#   ./install.sh --uninstall          remove everything incl. the hotkey script
 #
 # What lands where (all inside $HOME):
 #   ~/.local/share/foyer/                 foyer.py, FoyerWindow.qml, FoyerRoot.qml, FoyerData.js
@@ -84,30 +84,60 @@ EOF
   kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
   echo "installed: dbus activation + systemd user unit + launcher desktop file"
   echo "summon:    systemctl --user start foyer.service   (or just call the bus)"
-  echo "hotkey:    re-run with --take-hotkey to bind Meta+Space (removes it from hermes-menu)"
+  echo "hotkey:    re-run with --take-hotkey to bind Meta+Space (KWin script)"
 }
 
 do_take_hotkey() {
-  # hermes-menu.desktop currently holds Meta+Space in kglobalshortcutrc
-  # [services]; move it to gdeyoung-foyer.desktop. Flag-gated on purpose.
-  kwriteconfig6 --file kglobalshortcutsrc \
-    --group services --group hermes-menu.desktop --key _launch none
-  kwriteconfig6 --file kglobalshortcutrc \
-    --group services --group gdeyoung-foyer.desktop --key _launch 'Meta+Space'
-  qdbus6 org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.blockGlobalShortcuts true 2>/dev/null || true
-  systemctl --user restart plasma-kglobalaccel.service 2>/dev/null \
-    || pkill -HUP -x kglobalaccel 2>/dev/null || true
-  echo "hotkey: Meta+Space → gdeyoung-foyer.desktop (hermes-menu released)"
+  # PROVEN MECHANISM (2026-11-10, harness-verified then owner-verified live):
+  # a KWin script whose registerShortcut() binds Meta+Space INSIDE kwin —
+  # active, grabbed, and re-registered by kwin at every login (kwinrc
+  # [Plugins] foyerhotkeyEnabled=true).
+  #
+  # DEAD PATHS (do not resurrect):
+  # - kglobalshortcutrc [services][*.desktop] _launch= : registers NOTHING,
+  #   not even at session start (harness-proven A0=0 with full Plasma session).
+  # - doRegister+setForeignShortcut on /kglobalaccel (the 4-string actionId
+  #   form DOES create + bind) but the component stays isActive=false forever,
+  #   so the key never fires — no path flips it active.
+  local SRC="$REPO/src/kwin-script/foyerhotkey"
+  local DST="$HOME/.local/share/kwin/scripts/foyerhotkey"
+  mkdir -p "$DST/contents/ui"
+  cp "$SRC/metadata.json" "$DST/"
+  cp "$SRC/contents/ui/main.js" "$DST/contents/ui/"
+  kwriteconfig6 --file kwinrc --group Plugins --key foyerhotkeyEnabled true
+  # load into the RUNNING kwin — no restart of anything. Guard against
+  # double-load (loadScript with the same name stacks duplicates).
+  if ! busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting \
+      isScriptLoaded s foyerhotkey 2>/dev/null | grep -q true; then
+    busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting \
+      loadScript ss "$DST/contents/ui/main.js" "foyerhotkey" >/dev/null
+  fi
+  busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting start >/dev/null
+  sleep 2
+  # verify: FoyerSummon must own Meta+Space (=0x10000020=268435488) under kwin
+  local OWN
+  OWN=$(busctl --user call org.kde.kglobalaccel /kglobalaccel \
+    org.kde.KGlobalAccel getGlobalShortcutsByKey i 268435488 2>/dev/null || true)
+  if echo "$OWN" | grep -q FoyerSummon; then
+    echo "hotkey: Meta+Space -> FoyerSummon (kwin component, live + at every login)"
+  else
+    echo "hotkey: VERIFY FAILED — owner query returned: $OWN" >&2
+    return 1
+  fi
 }
 
 do_uninstall() {
   systemctl --user disable --now foyer.service >/dev/null 2>&1 || true
+  busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting \
+    unloadScript s foyerhotkey >/dev/null 2>&1 || true
+  kwriteconfig6 --file kwinrc --group Plugins --key foyerhotkeyEnabled --delete >/dev/null 2>&1 || true
+  rm -rf "$HOME/.local/share/kwin/scripts/foyerhotkey"
   rm -f "$HOME/.config/systemd/user/foyer.service" \
     "$HOME/.local/share/dbus-1/services/gdeyoung.foyer.service" \
     "$HOME/.local/share/applications/gdeyoung-foyer.desktop"
   rm -rf "$DEST"
   systemctl --user daemon-reload
-  echo "uninstalled (if you ran --take-hotkey, rebind Meta+Space by hand)"
+  echo "uninstalled (incl. Meta+Space kwin script)"
 }
 
 case "${1:-}" in
