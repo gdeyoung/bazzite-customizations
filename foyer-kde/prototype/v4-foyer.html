@@ -373,7 +373,7 @@
           <div class="answercard">
             <div class="ac-hd"><span class="stream">STREAMING</span><span>·</span><span>local-fast</span><span style="margin-left:auto">4.2s</span></div>
             <div class="ac-body">
-              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">nas</span> (192.0.2.252) — the unraid array box. Everything else answered a ping just now<span class="streamcaret"></span></p>
+              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">host-06</span> (192.0.2.16) — the storage array box. Everything else answered a ping just now<span class="streamcaret"></span></p>
             </div>
             <div class="actions">
               <span class="btn" disabled>Copy</span>
@@ -388,8 +388,8 @@
           <div class="answercard">
             <div class="ac-hd"><span>ANSWERED</span><span>·</span><span>local-fast</span><span style="margin-left:auto">7.8s</span></div>
             <div class="ac-body">
-              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">nas</span> (192.0.2.252) — the unraid array box. Everything else answered a ping just now: <span class="m">host-02, host-01, host-03, jellyfin, host-05, host-06, micro, node, host-04, host-07, host-08, host-09, host-10</span>.</p>
-              <p>Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check nas properly — wake-on-lan or ssh?</p>
+              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">host-06</span> (192.0.2.16) — the storage array box. Everything else answered a ping just now: <span class="m">host-02, host-01, host-03, jellyfin, host-05, host-06, micro, node, host-04, host-07, host-08, host-09, host-10</span>.</p>
+              <p>Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check host-06 properly — wake-on-lan or ssh?</p>
             </div>
             <div class="actions">
               <span class="btn">Copy&nbsp; <kbd style="border-color:rgba(61,174,233,.45);color:var(--accent-hi)">alt ⏎</kbd></span>
@@ -416,37 +416,37 @@
         <div class="pane" id="p-fleet">
           <div class="sec">Hosts · 14 <span class="note">live probe · icmp 1s · refreshed on open</span></div>
           <div class="lrow focus"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">tower</span><span class="dt">this host · bazzite · plasma 6.8</span><span class="ct">local</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-01</span><span class="dt">GPU node · 3090 + 3090 ti</span><span class="ct">.246</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-02</span><span class="dt">services · litellm :4000</span><span class="ct">.243</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-03</span><span class="dt">stt · tts gpus</span><span class="ct">.239</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">jellyfin</span><span class="dt">media server</span><span class="ct">.238</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-05</span><span class="dt">media lane</span><span class="ct">.250</span></div>
-          <div class="lrow off"><span class="dot dn"></span><span class="nm" style="font-family:var(--mono);font-size:14px">nas</span><span class="dt"><span class="warn">down</span> · unraid array · elastic lives here</span><span class="ct">.252</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-06</span><span class="dt">ns canonical library</span><span class="ct">.251</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">micro</span><span class="dt">haos vm host</span><span class="ct">.240</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">node</span><span class="dt">fleet host</span><span class="ct">.248</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-04</span><span class="dt">fleet host</span><span class="ct">.249</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-07</span><span class="dt">spark node</span><span class="ct">.245</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-08</span><span class="dt">spark node</span><span class="ct">.242</span></div>
-          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-09</span><span class="dt">spark node</span><span class="ct">.241</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-01</span><span class="dt">gpu node</span><span class="ct">.11</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-02</span><span class="dt">services</span><span class="ct">.12</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-03</span><span class="dt">media server</span><span class="ct">.13</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-04</span><span class="dt">fleet host</span><span class="ct">.14</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-05</span><span class="dt">media lane</span><span class="ct">.15</span></div>
+          <div class="lrow off"><span class="dot dn"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-06</span><span class="dt"><span class="warn">down</span> · storage array</span><span class="ct">.16</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-07</span><span class="dt">vm host</span><span class="ct">.17</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-08</span><span class="dt">fleet host</span><span class="ct">.18</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-09</span><span class="dt">spark node</span><span class="ct">.19</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-10</span><span class="dt">spark node</span><span class="ct">.20</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-11</span><span class="dt">spark node</span><span class="ct">.21</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-12</span><span class="dt">fleet host</span><span class="ct">.22</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">host-13</span><span class="dt">fleet host</span><span class="ct">.23</span></div>
         </div>
 
         <!-- SSH -->
         <div class="pane" id="p-ssh">
-          <div class="sec">Aliases · 14 <span class="note">⏎ opens a terminal tab · from ~/.ssh/config</span></div>
-          <div class="lrow focus"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-01</span><span class="dt">192.0.2.246</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-02</span><span class="dt">192.0.2.243</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-03</span><span class="dt">192.0.2.239</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">jellyfin</span><span class="dt">192.0.2.238</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-05</span><span class="dt">192.0.2.250</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">nas</span><span class="dt">192.0.2.252 · nasserver</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-06</span><span class="dt">192.0.2.251</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">micro</span><span class="dt">192.0.2.240</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">node</span><span class="dt">192.0.2.248</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-04</span><span class="dt">192.0.2.249</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-07</span><span class="dt">192.0.2.245 · spark</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-08</span><span class="dt">192.0.2.242 · host-13</span></div>
-          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-09</span><span class="dt">192.0.2.241 · host-14</span></div>
+          <div class="sec">Aliases · 13 <span class="note">⏎ opens a terminal tab · from ~/.ssh/config</span></div>
+          <div class="lrow focus"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-01</span><span class="dt">192.0.2.11</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-02</span><span class="dt">192.0.2.12</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-03</span><span class="dt">192.0.2.13</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-04</span><span class="dt">192.0.2.14</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-05</span><span class="dt">192.0.2.15</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-06</span><span class="dt">192.0.2.16</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-07</span><span class="dt">192.0.2.17</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-08</span><span class="dt">192.0.2.18</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-09</span><span class="dt">192.0.2.19</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-10</span><span class="dt">192.0.2.20</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-11</span><span class="dt">192.0.2.21</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-12</span><span class="dt">192.0.2.22</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-13</span><span class="dt">192.0.2.23</span></div>
           <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">host-10</span><span class="dt">192.0.2.244</span></div>
         </div>
 

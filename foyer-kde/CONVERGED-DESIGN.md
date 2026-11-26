@@ -56,7 +56,7 @@ fill them). Streaming ≠ ready.
 
 250 apps / 12 categories from the live .desktop scan; 30 of 83 KCMs; 14
 SSH aliases from ~/.ssh/config; fleet liveness from an actual ICMP probe
-(13 UP, nas DOWN, timestamped); AI config from hermes-runner (local-fast
+(13 UP, host-06 DOWN, timestamped); AI config from hermes-runner (local-fast
 via host-02:4000, 45s, 700 chars, copy-on-⏎). No lorem anywhere.
 
 ## Council verdict (ai-tech, folded)

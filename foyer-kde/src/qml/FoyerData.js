@@ -1,8 +1,7 @@
-// FoyerData.js — REAL fleet data snapshot, gathered 2026-11-07 (~15:53 CST)
-// Sources: ~/.cache/hermes-runner/apps.json (.desktop scan), kcmshell --list,
-// ~/.ssh/config, live ICMP probe, ~/.config/hermes-runner/config.json.
-// The daemon replaces this with live providers; values here are the frozen set
-// the design gallery was verified against.
+// FoyerData.js — frozen demo snapshot (host-01…host-13, RFC 5737 addresses; the
+// shape the design gallery was verified against, gathered from a .desktop scan,
+// kcmshell --list, an ssh config and a live ICMP probe). No real host, address or
+// account is named here — the daemon replaces this file with live providers.
 
 .pragma library
 
@@ -55,38 +54,37 @@ var kcms = [
 ];
 
 var sshHosts = [
-    { alias: "host-01",     ip: "192.0.2.246", note: "" },
-    { alias: "host-02",      ip: "192.0.2.243", note: "" },
-    { alias: "host-03",       ip: "192.0.2.239", note: "" },
-    { alias: "jellyfin",    ip: "192.0.2.238", note: "" },
-    { alias: "host-05", ip: "192.0.2.250", note: "" },
-    { alias: "nas",         ip: "192.0.2.252", note: "nasserver" },
-    { alias: "host-06",  ip: "192.0.2.251", note: "" },
-    { alias: "micro",       ip: "192.0.2.240", note: "" },
-    { alias: "node",        ip: "192.0.2.248", note: "" },
-    { alias: "host-04",  ip: "192.0.2.249", note: "" },
-    { alias: "host-07",        ip: "192.0.2.245", note: "spark" },
-    { alias: "host-08",        ip: "192.0.2.242", note: "host-13" },
-    { alias: "host-09",        ip: "192.0.2.241", note: "host-14" },
-    { alias: "host-10",        ip: "192.0.2.244", note: "" }
+    { alias: "host-01", ip: "192.0.2.11", note: "" },
+    { alias: "host-02", ip: "192.0.2.12", note: "" },
+    { alias: "host-03", ip: "192.0.2.13", note: "" },
+    { alias: "host-04", ip: "192.0.2.14", note: "" },
+    { alias: "host-05", ip: "192.0.2.15", note: "" },
+    { alias: "host-06", ip: "192.0.2.16", note: "" },
+    { alias: "host-07", ip: "192.0.2.17", note: "" },
+    { alias: "host-08", ip: "192.0.2.18", note: "" },
+    { alias: "host-09", ip: "192.0.2.19", note: "" },
+    { alias: "host-10", ip: "192.0.2.20", note: "" },
+    { alias: "host-11", ip: "192.0.2.21", note: "" },
+    { alias: "host-12", ip: "192.0.2.22", note: "" },
+    { alias: "host-13", ip: "192.0.2.23", note: "" }
 ];
 
-// live ICMP probe 2026-11-07 15:53 CST, 1s timeout — 13 UP, nas DOWN
+// ICMP probe shape — 13 UP, one DOWN (host-06)
 var fleet = [
-    { host: "tower",     role: "this host · bazzite · plasma 6.8", ip: "local", up: true },
-    { host: "host-01",     role: "GPU node · 3090 + 3090 ti",        ip: ".246",  up: true },
-    { host: "host-02",      role: "services · litellm :4000",         ip: ".243",  up: true },
-    { host: "host-03",       role: "stt · tts gpus",                   ip: ".239",  up: true },
-    { host: "jellyfin",    role: "media server",                     ip: ".238",  up: true },
-    { host: "host-05", role: "media lane",                       ip: ".250",  up: true },
-    { host: "nas",         role: "unraid array · elastic lives here",ip: ".252",  up: false },
-    { host: "host-06",  role: "ns canonical library",             ip: ".251",  up: true },
-    { host: "micro",       role: "haos vm host",                     ip: ".240",  up: true },
-    { host: "node",        role: "fleet host",                       ip: ".248",  up: true },
-    { host: "host-04",  role: "fleet host",                       ip: ".249",  up: true },
-    { host: "host-07",        role: "spark node",                       ip: ".245",  up: true },
-    { host: "host-08",        role: "spark node",                       ip: ".242",  up: true },
-    { host: "host-09",        role: "spark node",                       ip: ".241",  up: true }
+    { host: "tower",  role: "this host · bazzite · plasma 6", ip: "local", up: true },
+    { host: "host-01", role: "gpu node", ip: ".11", up: true },
+    { host: "host-02", role: "services", ip: ".12", up: true },
+    { host: "host-03", role: "media server", ip: ".13", up: true },
+    { host: "host-04", role: "fleet host", ip: ".14", up: true },
+    { host: "host-05", role: "media lane", ip: ".15", up: true },
+    { host: "host-06", role: "storage array", ip: ".16", up: false },
+    { host: "host-07", role: "vm host", ip: ".17", up: true },
+    { host: "host-08", role: "fleet host", ip: ".18", up: true },
+    { host: "host-09", role: "spark node", ip: ".19", up: true },
+    { host: "host-10", role: "spark node", ip: ".20", up: true },
+    { host: "host-11", role: "spark node", ip: ".21", up: true },
+    { host: "host-12", role: "fleet host", ip: ".22", up: true },
+    { host: "host-13", role: "fleet host", ip: ".23", up: true }
 ];
 
 // hermes-runner config (values only; no keys)
@@ -106,17 +104,17 @@ var ai = {
 
 var aiAnswer = {
     q: "which hosts are up right now?",
-    streamingText: "13 of 14 fleet hosts are up. The only one down is nas (192.0.2.252) — the unraid array box. Everything else answered a ping just now",
+    streamingText: "13 of 14 fleet hosts are up. The only one down is host-06 (192.0.2.16) — the storage array box. Everything else answered a ping just now",
     body: [
-        "13 of 14 fleet hosts are up. The only one down is nas (192.0.2.252) — the unraid array box. Everything else answered a ping just now: host-02, host-01, host-03, jellyfin, host-05, host-06, micro, node, host-04, host-07, host-08, host-09, host-10.",
-        "Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check nas properly — wake-on-lan or ssh?"
+        "13 of 14 fleet hosts are up. The only one down is host-06 (192.0.2.16) — the storage array box. Everything else answered a ping just now: host-02, host-01, host-03, host-04, host-05, host-07, host-08, host-09, host-10, host-11, host-12, host-13.",
+        "Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check host-06 properly — wake-on-lan or ssh?"
     ]
 };
 
 var systemRows = [
     { name: "Lock Screen", detail: "enter locks now",                      warn: false },
     { name: "Sleep",       detail: "enter sleeps now",                     warn: false },
-    { name: "Log Out",     detail: "closes open apps · session gdeyoung",  warn: true },
+    { name: "Log Out",     detail: "closes open apps · ends the session",  warn: true },
     { name: "Reboot",      detail: "closes open apps · boots staged deployment if any", warn: true },
     { name: "Shut Down",   detail: "closes open apps · powers off",        warn: true }
 ];

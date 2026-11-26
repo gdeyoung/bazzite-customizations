@@ -29,8 +29,8 @@ cp /usr/share/color-schemes/BreezeDark.colors "$XDG_CONFIG_HOME/kdeglobals" 2>/d
 mkdir -p "$HOME/.ssh"
 if [ ! -s "$HOME/.ssh/config" ]; then
   {
-    for h in host-01 host-02 host-07 host-08 unraid micro jellyfin \
-             host-03 host-11 host-12 tower von k2 litellm; do
+    for h in host-01 host-02 host-03 host-04 host-05 host-06 host-07 host-08 host-09 \
+             host-10 host-11 host-12 host-13 tower; do
       printf 'Host %s\n HostName 192.0.2.50\n' "$h"
     done
   } > "$HOME/.ssh/config"
@@ -96,7 +96,7 @@ SOCKET="foyer-d-$$"
 
 teardown() {
   echo "=== daemon.log tail ==="; tail -15 "$HARNESS/daemon.log" 2>/dev/null
-  cp -f "$HARNESS/daemon.log" /var/home/gdeyoung/.hermes/cache/scratch/foyer-last-daemon.log 2>/dev/null
+  cp -f "$HARNESS/daemon.log" "$HOME/.hermes/cache/scratch/foyer-last-daemon.log" 2>/dev/null
   for p in ${DAEMON_PID:-} ${KWIN_PID:-}; do
     [ -n "$p" ] || continue
     if tr '\0' '\n' < "/proc/$p/environ" 2>/dev/null | grep -q "^HOME=$HOME$"; then
