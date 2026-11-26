@@ -6,7 +6,7 @@
 #   ./install.sh                                  # defaults
 #   ./install.sh --litellm-url http://HOST:4000/v1 --model local-fast \
 #                --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env \
-#                --web-search-url http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG
+#                --web-search-url http://192.0.2.20:8787/search?q=%s --web-search-name SEARXNG
 set -euo pipefail
 
 LITELLM_URL="http://localhost:4000/v1"

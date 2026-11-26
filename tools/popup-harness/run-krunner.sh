@@ -55,7 +55,7 @@ cat > "$H/.config/hermes-runner/config.json" <<'EOF'
   "answer_prefix": "ai",
   "task_prefix": "hr",
   "litellm": {
-    "base_url": "http://192.168.1.243:4000/v1",
+    "base_url": "http://192.0.2.10:4000/v1",
     "model": "local-fast",
     "timeout_s": 30,
     "api_key_env": "ZHW_PROXY_API_KEY",
@@ -84,7 +84,7 @@ c["hermes_exe"] = str(pathlib.Path(sys.argv[1]) / "stub-hermes.sh")
 p.write_text(json.dumps(c, indent=2))
 PY
 # dead-port config for the error-lane daemon (second instance)
-sed 's#http://192.168.1.243:4000/v1#http://127.0.0.1:9/v1#' \
+sed 's#http://192.0.2.10:4000/v1#http://127.0.0.1:9/v1#' \
     "$H/.config/hermes-runner/config.json" \
     > "$H/.config/hermes-runner/config-dead.json"
 
@@ -251,7 +251,7 @@ c["handoffs"] = [
     {"prefix": "gh", "label": "GitHub",
      "url": "https://github.com/search?q=%s"},
     {"prefix": "sea", "label": "SearXNG fleet",
-     "url": "http://192.168.1.249:8787/search?q=%s"},
+     "url": "http://192.0.2.20:8787/search?q=%s"},
 ]
 json.dump(c, open(p, "w"), indent=1)
 PYEOF

@@ -37,7 +37,7 @@ cat > "$STATUSJSON" <<'JSON'
   "TUN": true,
   "Self": {
     "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-    "UserID": 1, "TailscaleIPs": ["100.71.87.72", "fd7a:115c:a1e0::1"],
+    "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
     "Capabilities": []
   },
   "Peer": {
@@ -45,24 +45,24 @@ cat > "$STATUSJSON" <<'JSON'
       "ID": "p1", "HostName": "watertower", "DNSName": "watertower.horse-frog.ts.net.",
       "OS": "linux", "UserID": 1, "Online": true, "Active": true,
       "ExitNodeOption": true, "ExitNode": true,
-      "TailscaleIPs": ["100.96.254.1"],
-      "AllowedIPs": ["100.96.254.1/32", "0.0.0.0/0", "::/0"],
+      "TailscaleIPs": ["100.100.100.20"],
+      "AllowedIPs": ["100.100.100.20/32", "0.0.0.0/0", "::/0"],
       "RxBytes": 1, "TxBytes": 1, "LastSeen": "2026-11-01T00:00:00Z"
     },
     "p2": {
       "ID": "p2", "HostName": "nasbox", "DNSName": "nasbox.horse-frog.ts.net.",
       "OS": "linux", "UserID": 1, "Online": true, "Active": true,
       "ExitNodeOption": true, "ExitNode": false,
-      "TailscaleIPs": ["100.97.1.2"],
-      "AllowedIPs": ["100.97.1.2/32", "0.0.0.0/0", "::/0"],
+      "TailscaleIPs": ["100.100.100.21"],
+      "AllowedIPs": ["100.100.100.21/32", "0.0.0.0/0", "::/0"],
       "RxBytes": 1, "TxBytes": 1, "LastSeen": "2026-11-01T00:00:00Z"
     },
     "p3": {
       "ID": "p3", "HostName": "oldspark", "DNSName": "oldspark.horse-frog.ts.net.",
       "OS": "linux", "UserID": 1, "Online": false, "Active": false,
       "ExitNodeOption": false, "ExitNode": false,
-      "TailscaleIPs": ["100.97.1.3"],
-      "AllowedIPs": ["100.97.1.3/32", "192.168.1.0/24"],
+      "TailscaleIPs": ["100.100.100.22"],
+      "AllowedIPs": ["100.100.100.22/32", "192.0.2.0/24"],
       "RxBytes": 0, "TxBytes": 0, "LastSeen": "2026-10-01T00:00:00Z"
     }
   }

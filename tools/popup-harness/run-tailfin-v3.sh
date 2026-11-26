@@ -51,7 +51,7 @@ peers = {}
 if fx == "norm19":
     for i in range(1, 20):
         peers[f"p{i}"] = peer(i, True, exitc=(i % 3 == 0), exit_node=(i == 3),
-                              active=(i % 2 == 0), routes=(["192.168.1.0/24"] if i % 4 == 0 else None))
+                              active=(i % 2 == 0), routes=(["192.0.2.0/24"] if i % 4 == 0 else None))
     for i in range(100, 121):
         peers[f"p{i}"] = peer(i, False)
 elif fx in ("norm24", "norm25"):
@@ -67,7 +67,7 @@ doc = {
     "TUN": True,
     "Self": {
         "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-        "UserID": 1, "TailscaleIPs": ["100.71.87.72", "fd7a:115c:a1e0::1"],
+        "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
         "Capabilities": [],
     },
     "Peer": peers,

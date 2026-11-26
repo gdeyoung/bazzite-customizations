@@ -55,7 +55,7 @@ def peer(i, online, exitc=False, exit_node=False, active=False, routes=None):
         "RxBytes": 1 if not active else 1_000_000 + i * 1234,
         "TxBytes": 1 if not active else 500_000 + i * 432,
         "LastSeen": "2026-11-01T00:00:00Z" if online else "2026-10-01T00:00:00Z",
-        "CurAddr": f"192.168.1.{i}" if (direct and online) else "",
+        "CurAddr": f"192.0.2.{i}" if (direct and online) else "",
         "Relay": "" if (direct and online) else "dfw",
         "LastHandshake": hs,
     }
@@ -64,7 +64,7 @@ health = []
 if fx == "norm19" or fx == "norm19h":
     for i in range(1, 20):
         peers[f"p{i}"] = peer(i, True, exitc=(i % 3 == 0), exit_node=(i == 3),
-                              active=(i % 2 == 0), routes=(["192.168.1.0/24"] if i % 4 == 0 else None))
+                              active=(i % 2 == 0), routes=(["192.0.2.0/24"] if i % 4 == 0 else None))
     for i in range(100, 121):
         peers[f"p{i}"] = peer(i, False)
     if fx == "norm19h":
@@ -90,7 +90,7 @@ doc = {
     "TUN": True,
     "Self": {
         "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-        "UserID": 1, "TailscaleIPs": ["100.71.87.72", "fd7a:115c:a1e0::1"],
+        "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
         "Capabilities": [],
     },
     "Peer": peers,
