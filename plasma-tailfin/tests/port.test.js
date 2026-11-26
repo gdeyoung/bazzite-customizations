@@ -29,7 +29,7 @@ function syntheticStatus() {
       HostName: "desktop",
       DNSName: "desktop.example.ts.net.",
       UserID: 42,
-      TailscaleIPs: ["100.64.0.1", "fd7a:115c:a1e0::1"],
+      TailscaleIPs: ["100.64.9.1", "fd7a:115c:a1e0::1"],
       CapMap: { "https://tailscale.com/cap/file-sharing": [] },
     },
     Peer: {
@@ -37,23 +37,23 @@ function syntheticStatus() {
         ID: "aaa", HostName: "tower", DNSName: "tower.example.ts.net.",
         OS: "linux", UserID: 42, Online: true, Active: true,
         ExitNodeOption: true, ExitNode: true,
-        TailscaleIPs: ["100.64.0.10", "fd7a:115c:a1e0::a"],
-        AllowedIPs: ["100.64.0.10/32", "fd7a:115c:a1e0::a/128", "0.0.0.0/0", "::/0"],
+        TailscaleIPs: ["100.64.11.10", "fd7a:115c:a1e0::a"],
+        AllowedIPs: ["100.64.11.10/32", "fd7a:115c:a1e0::a/128", "0.0.0.0/0", "::/0"],
         RxBytes: 4096, TxBytes: 8192, LastSeen: "2026-10-26T12:00:00Z",
       },
       "nodekey:bbb": {
         ID: "bbb", HostName: "nasbox", DNSName: "nasbox.example.ts.net.",
         OS: "linux", UserID: 42, Online: true, Active: false,
         ExitNodeOption: false, ExitNode: false,
-        TailscaleIPs: ["100.64.0.11"],
-        AllowedIPs: ["100.64.0.11/32", "192.168.50.0/24"],
+        TailscaleIPs: ["100.64.12.11"],
+        AllowedIPs: ["100.64.12.11/32", "198.51.100.128/24"],
         RxBytes: 0, TxBytes: 0, LastSeen: "2026-10-26T11:00:00Z",
       },
       "nodekey:ccc": {
         ID: "ccc", HostName: "oldphone", DNSName: "oldphone.example.ts.net.",
         OS: "android", UserID: 42, Online: false, Active: false,
         ExitNodeOption: false, ExitNode: false,
-        TailscaleIPs: ["100.64.0.12"],
+        TailscaleIPs: ["100.64.13.12"],
         RxBytes: 0, TxBytes: 0, LastSeen: "0001-01-01T00:00:00Z",
       },
       "nodekey:mmm": {
@@ -117,14 +117,14 @@ test("subnet routes: exit-node ad and subnet ad survive, host /32-/128 stripped"
   const nas = s.peers.find((p) => p.HostName === "nasbox")
   const phone = s.peers.find((p) => p.HostName === "oldphone")
   assert.deepEqual(subnetRoutes(tower, rawMap), ["0.0.0.0/0", "::/0"])
-  assert.deepEqual(subnetRoutes(nas, rawMap), ["192.168.50.0/24"])
+  assert.deepEqual(subnetRoutes(nas, rawMap), ["198.51.100.128/24"])
   assert.deepEqual(subnetRoutes(phone, rawMap), [])
 })
 
 test("self identity feeds the popup header (name, v4 IP, dns)", () => {
   const s = Model.parseStatusPlus(syntheticStatus())
   assert.equal(s.selfName, "desktop")
-  assert.equal(s.selfIp, "100.64.0.1")
+  assert.equal(s.selfIp, "100.64.9.1")
   assert.equal(s.selfDnsName, "desktop.example.ts.net")
   assert.equal(s.fileSharing, true)
 })

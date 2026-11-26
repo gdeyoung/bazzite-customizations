@@ -16,16 +16,16 @@ test("parseStatusPlus: mullvad peers excluded from peers, exported to mullvadExi
     Relay: "", LastHandshake: "0001-01-01T00:00:00Z",
   })
   const plain = {
-    ID: "p1", HostName: "host01", DNSName: "host01.horse-frog.ts.net.", OS: "linux",
-    Online: true, ExitNodeOption: false, TailscaleIPs: ["100.64.3.2"],
-    AllowedIPs: ["100.64.3.2/32"], RxBytes: 1, TxBytes: 1,
-    LastSeen: "2026-11-01T00:00:00Z", CurAddr: "192.168.1.1", Relay: "",
+    ID: "p1", HostName: "host01", DNSName: "host01.tail.example.", OS: "linux",
+    Online: true, ExitNodeOption: false, TailscaleIPs: ["100.64.14.2"],
+    AllowedIPs: ["100.64.14.2/32"], RxBytes: 1, TxBytes: 1,
+    LastSeen: "2026-11-01T00:00:00Z", CurAddr: "192.0.2.1", Relay: "",
     LastHandshake: "2026-11-07T03:00:00Z",
   }
   const st = Model.parseStatusPlus(JSON.stringify({
     BackendState: "Running",
-    Self: { HostName: "gdtower", DNSName: "gdtower.horse-frog.ts.net.",
-            TailscaleIPs: ["100.71.87.72"] },
+    Self: { HostName: "tower", DNSName: "tower.tail.example.",
+            TailscaleIPs: ["100.64.18.72"] },
     Peer: { "m-de": mul("de-fra-wg-001", true), "m-nl": mul("nl-ams-wg-001", false), p1: plain },
   }))
   assert.equal(st.ok, true)
@@ -42,8 +42,8 @@ test("isMullvadPeer: mullvad.ts.net suffix in DNS or HostName", () => {
     DNSName: "de-fra-wg-001.mullvad.ts.net." }), true)
   assert.equal(Model.isMullvadPeer({ HostName: "de-fra-wg-001.mullvad.ts.net",
     DNSName: "" }), true)
-  assert.equal(Model.isMullvadPeer({ HostName: "gdtower",
-    DNSName: "gdtower.horse-frog.ts.net." }), false)
+  assert.equal(Model.isMullvadPeer({ HostName: "tower",
+    DNSName: "tower.tail.example." }), false)
   assert.equal(Model.isMullvadPeer(null), false)
 })
 
@@ -58,34 +58,34 @@ test("parseStatus handles the real 61-peer tailnet payload", () => {
     Health: ["Some peers are advertising routes but --accept-routes is false"],
     TUN: true,
     Self: {
-      HostName: "vivobook",
-      DNSName: "vivobook.horse-frog.ts.net.",
+      HostName: "host-11",
+      DNSName: "host-11.tail.example.",
       UserID: 21848907911933984,
-      TailscaleIPs: ["100.85.113.67", "fd7a:115c:a1e0::1c37:1533"],
+      TailscaleIPs: ["100.64.22.67", "fd7a:115c:a1e0::1c37:1533"],
       Capabilities: ["https://tailscale.com/cap/file-sharing"],
     },
     Peer: {
       p1: {
-        ID: "p1", HostName: "watertower-ts", DNSName: "watertower-ts.horse-frog.ts.net.",
+        ID: "p1", HostName: "host-04-ts", DNSName: "host-04-ts.tail.example.",
         OS: "linux", UserID: 21848907911933984, Online: true, Active: true,
         ExitNodeOption: true, ExitNode: false,
-        TailscaleIPs: ["100.124.218.81", "fd7a:115c:a1e0::9803:2c5b"],
+        TailscaleIPs: ["100.64.40.81", "fd7a:115c:a1e0::9803:2c5b"],
         RxBytes: 1048576, TxBytes: 2048,
         LastSeen: "2026-09-22T17:00:00.000000000Z",
         TaildropTarget: 1,
       },
       p2: {
-        ID: "p2", HostName: "gx10", DNSName: "gx10.horse-frog.ts.net.",
+        ID: "p2", HostName: "host-07", DNSName: "host-07.tail.example.",
         OS: "linux", UserID: 21848907911933984, Online: true, Active: false,
         ExitNodeOption: false, ExitNode: false,
-        TailscaleIPs: ["100.73.21.51"], RxBytes: 0, TxBytes: 0,
+        TailscaleIPs: ["100.64.20.51"], RxBytes: 0, TxBytes: 0,
         LastSeen: "2026-09-22T16:40:00.000000000Z",
       },
       p3: {
-        ID: "p3", HostName: "old-laptop", DNSName: "old-laptop.horse-frog.ts.net.",
+        ID: "p3", HostName: "old-laptop", DNSName: "old-laptop.tail.example.",
         OS: "windows", UserID: 21848907911933984, Online: false, Active: false,
         ExitNodeOption: false, ExitNode: false,
-        TailscaleIPs: ["100.99.1.2"], RxBytes: 0, TxBytes: 0,
+        TailscaleIPs: ["100.64.27.2"], RxBytes: 0, TxBytes: 0,
         // Go zero time: never seen.
         LastSeen: "0001-01-01T00:00:00Z",
       },
@@ -102,7 +102,7 @@ test("parseStatus handles the real 61-peer tailnet payload", () => {
   // Stock drops offline; fork keeps them (parseStatusPlus below).
   assert.equal(s.peers.length, 2)
   assert.equal(s.exitNodes.length, 1)
-  assert.equal(s.exitNodes[0].HostName, "watertower-ts")
+  assert.equal(s.exitNodes[0].HostName, "host-04-ts")
 
   const plus = Model.parseStatusPlus(raw)
   assert.equal(plus.ok, true)
@@ -113,7 +113,7 @@ test("parseStatus handles the real 61-peer tailnet payload", () => {
   assert.equal(plus.peers[2].LastSeen, "0001-01-01T00:00:00Z")
   assert.equal(plus.health.length, 1)
   assert.match(plus.health[0], /accept-routes/)
-  assert.equal(plus.selfIp, "100.85.113.67")
+  assert.equal(plus.selfIp, "100.64.22.67")
   assert.equal(plus.fileSharing, true)
 })
 
@@ -123,12 +123,12 @@ test("parseStatusPlus marks the active exit node", () => {
     Health: [],
     Self: { HostName: "me", TailscaleIPs: ["100.1.1.1"] },
     Peer: {
-      a: { ID: "a", HostName: "aitower", DNSName: "aitower.horse-frog.ts.net.", Online: true, ExitNodeOption: true, ExitNode: true, TailscaleIPs: ["100.86.130.1"] },
-      b: { ID: "b", HostName: "homeserver", DNSName: "homeserver.horse-frog.ts.net.", Online: true, ExitNodeOption: true, ExitNode: false, TailscaleIPs: ["100.111.244.103"] },
+      a: { ID: "a", HostName: "host-01", DNSName: "host-01.tail.example.", Online: true, ExitNodeOption: true, ExitNode: true, TailscaleIPs: ["100.64.23.1"] },
+      b: { ID: "b", HostName: "host-06", DNSName: "host-06.tail.example.", Online: true, ExitNodeOption: true, ExitNode: false, TailscaleIPs: ["100.64.38.103"] },
     },
   })
   const plus = Model.parseStatusPlus(raw)
-  assert.equal(plus.peers.find((p) => p.ExitNode === true).HostName, "aitower")
+  assert.equal(plus.peers.find((p) => p.ExitNode === true).HostName, "host-01")
 })
 
 test("parseStatusPlus surfaces an active Mullvad exit node", () => {
@@ -137,8 +137,8 @@ test("parseStatusPlus surfaces an active Mullvad exit node", () => {
     Health: [],
     Self: { HostName: "me", TailscaleIPs: ["100.1.1.1"] },
     Peer: {
-      a: { ID: "a", HostName: "aitower", DNSName: "aitower.horse-frog.ts.net.", Online: true, ExitNodeOption: true, TailscaleIPs: ["100.86.130.1"] },
-      m: { ID: "m", HostName: "us-mkc-wg-003.mullvad.ts.net", DNSName: "us-mkc-wg-003.mullvad.ts.net.", Online: true, ExitNodeOption: true, ExitNode: true, TailscaleIPs: ["100.114.236.33"] },
+      a: { ID: "a", HostName: "host-01", DNSName: "host-01.tail.example.", Online: true, ExitNodeOption: true, TailscaleIPs: ["100.64.23.1"] },
+      m: { ID: "m", HostName: "us-mkc-wg-003.mullvad.ts.net", DNSName: "us-mkc-wg-003.mullvad.ts.net.", Online: true, ExitNodeOption: true, ExitNode: true, TailscaleIPs: ["100.64.39.33"] },
     },
   })
   const plus = Model.parseStatusPlus(raw)
@@ -157,8 +157,8 @@ test("mullvadRegionOptions prefers the selected node per city", () => {
     ExitNode: selected === true, Mullvad: true, Country: "USA", City: "Kansas City, MO",
   })
   const regions = Model.mullvadRegionOptions([
-    mk("us-mkc-wg-001.mullvad.ts.net", "100.100.134.83", false),
-    mk("us-mkc-wg-003.mullvad.ts.net", "100.114.236.33", true),
+    mk("us-mkc-wg-001.mullvad.ts.net", "100.64.29.83", false),
+    mk("us-mkc-wg-003.mullvad.ts.net", "100.64.39.33", true),
   ])
   assert.equal(regions.length, 1)
   assert.equal(regions[0].ExitNode, true)
@@ -179,7 +179,7 @@ test("parsePrefs reads the real debug prefs output", () => {
     CorpDNS: true,
     WantRunning: true,
     ShieldsUp: false,
-    Config: { UserProfile: { LoginName: "gdeyoung@gmail.com", DisplayName: "Greg DeYoung" } },
+    Config: { UserProfile: { LoginName: "owner@example.com", DisplayName: "Greg DeYoung" } },
   })
   const prefs = Model.parsePrefs(raw)
   assert.equal(prefs.ok, true)
@@ -192,19 +192,19 @@ test("parsePrefs reads the real debug prefs output", () => {
 
 test("parsePrefs flags an active exit node", () => {
   const raw = JSON.stringify({
-    RouteAll: true, ExitNodeID: "nXKXXXXX", ExitNodeIP: "100.124.218.81",
+    RouteAll: true, ExitNodeID: "nXKXXXXX", ExitNodeIP: "100.64.40.81",
     ExitNodeAllowLANAccess: true, CorpDNS: true, ShieldsUp: false,
   })
   const prefs = Model.parsePrefs(raw)
   assert.equal(prefs.routeAll, true)
   assert.equal(prefs.allowLanAccess, true)
-  assert.equal(prefs.exitNodeIp, "100.124.218.81")
+  assert.equal(prefs.exitNodeIp, "100.64.40.81")
 })
 
 test("parseSuggest extracts the hostname from the real output", () => {
   // Captured 2026-09-22: note the trailing dot on the FQDN.
-  const raw = "Suggested exit node: watertower-ts.horse-frog.ts.net.\nTo accept this suggestion, use `tailscale set --exit-node=watertower-ts.horse-frog.ts.net.`.\n"
-  assert.equal(Model.parseSuggest(raw), "watertower-ts.horse-frog.ts.net")
+  const raw = "Suggested exit node: host-04-ts.tail.example.\nTo accept this suggestion, use `tailscale set --exit-node=host-04-ts.tail.example.`.\n"
+  assert.equal(Model.parseSuggest(raw), "host-04-ts.tail.example")
 })
 
 test("parseSuggest returns empty for garbage", () => {
@@ -215,16 +215,16 @@ test("parseSuggest returns empty for garbage", () => {
 
 test("filterPeers matches name, dns, and ip; empty query returns all", () => {
   const peers = [
-    { HostName: "watertower-ts", DNSName: "watertower-ts.horse-frog.ts.net", TailscaleIPs: ["100.124.218.81"] },
-    { HostName: "Greg's Z Fold8 Ultra", DNSName: "gregs-z-fold8-ultra.horse-frog.ts.net", TailscaleIPs: ["100.72.181.83"] },
-    { HostName: "AIcube", DNSName: "aicube.horse-frog.ts.net", TailscaleIPs: ["100.78.79.41"] },
+    { HostName: "host-04-ts", DNSName: "host-04-ts.tail.example", TailscaleIPs: ["100.64.40.81"] },
+    { HostName: "Owner's Phone 9 Pro", DNSName: "owners-phone-9-pro.tail.example", TailscaleIPs: ["100.64.19.83"] },
+    { HostName: "Nodecube", DNSName: "nodecube.tail.example", TailscaleIPs: ["100.64.21.41"] },
   ]
   assert.equal(Model.filterPeers(peers, "").length, 3)
   assert.equal(Model.filterPeers(peers, "cube").length, 1)
-  assert.equal(Model.filterPeers(peers, "cube")[0].HostName, "AIcube")
-  assert.equal(Model.filterPeers(peers, "100.124").length, 1)
-  assert.equal(Model.filterPeers(peers, "fold").length, 1)
-  assert.equal(Model.filterPeers(peers, "ts.net").length, 3)
+  assert.equal(Model.filterPeers(peers, "cube")[0].HostName, "Nodecube")
+  assert.equal(Model.filterPeers(peers, "100.64.40").length, 1)
+  assert.equal(Model.filterPeers(peers, "phone").length, 1)
+  assert.equal(Model.filterPeers(peers, "tail.example").length, 3)
   assert.equal(Model.filterPeers(peers, "zzz").length, 0)
   assert.equal(Model.filterPeers(null, "x").length, 0)
 })
@@ -256,7 +256,7 @@ test("parseExitNodeList keeps only mullvad rows and parses columns", () => {
   const raw = [
     "",
     " IP                  HOSTNAME                            COUNTRY     CITY      STATUS     ",
-    " 100.86.130.1        aitower-ts.horse-frog.ts.net        -           -         -          ",
+    " 100.64.23.1        host-01-ts.tail.example        -           -         -          ",
     " 10.64.0.1           de-fra-wg-001.mullvad.ts.net        Germany     Frankfurt active     ",
     " 10.64.0.2           us-nyc-wg-002.mullvad.ts.net        United States New York -        ",
     "",
@@ -271,7 +271,7 @@ test("parseExitNodeList keeps only mullvad rows and parses columns", () => {
   assert.equal(nodes[0].City, "Frankfurt")
   assert.equal(nodes[0].ExitNode, true) // status "active"
   assert.equal(nodes[0].Mullvad, true)
-  const nonMullvad = nodes.find((n) => n.HostName.indexOf("aitower") !== -1)
+  const nonMullvad = nodes.find((n) => n.HostName.indexOf("host-01") !== -1)
   assert.equal(nonMullvad, undefined)
 })
 
@@ -280,8 +280,8 @@ test("parseExitNodeList returns empty for a tailnet with no Mullvad", () => {
   const raw = [
     "",
     " IP                  HOSTNAME                            COUNTRY     CITY      STATUS     ",
-    " 100.86.130.1        aitower-ts.horse-frog.ts.net        -           -         -          ",
-    " 100.111.244.103     homeserver-ts.horse-frog.ts.net     -           -         -          ",
+    " 100.64.23.1        host-01-ts.tail.example        -           -         -          ",
+    " 100.64.38.103     host-06-ts.tail.example     -           -         -          ",
     "",
   ].join("\n")
   assert.equal(Model.parseExitNodeList(raw).length, 0)
@@ -293,16 +293,16 @@ test("peer copy options build in stable order", () => {
   // The stock PeerRow builds copy options name→dns→ipv6→ip; the fork's
   // Machines tab reuses that order, so lock it down.
   const peer = {
-    HostName: "watertower-ts",
-    DNSName: "watertower-ts.horse-frog.ts.net",
-    TailscaleIPs: ["100.124.218.81"],
+    HostName: "host-04-ts",
+    DNSName: "host-04-ts.tail.example",
+    TailscaleIPs: ["100.64.40.81"],
     TailscaleIPv6: ["fd7a:115c:a1e0::9803:2c5b"],
   }
   const expected = [
-    { kind: "name", label: "watertower-ts" },
-    { kind: "dns", label: "watertower-ts.horse-frog.ts.net" },
+    { kind: "name", label: "host-04-ts" },
+    { kind: "dns", label: "host-04-ts.tail.example" },
     { kind: "ipv6", label: "fd7a:115c:a1e0::9803:2c5b" },
-    { kind: "ip", label: "100.124.218.81" },
+    { kind: "ip", label: "100.64.40.81" },
   ]
   const options = []
   if (peer.HostName) options.push({ kind: "name", label: peer.HostName })

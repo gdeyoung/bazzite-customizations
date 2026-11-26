@@ -156,7 +156,7 @@ kbd{border:1px solid var(--bd2);border-radius:4px;padding:2.5px 5.5px;color:var(
         <div class="quad-body">
           <div class="airow"><span class="pf">ai</span><span>type a question — ENTER asks</span></div>
           <div class="recent" id="recq"></div>
-          <div class="mrow"><span class="dot"></span> local-fast · 27B · AICUBE:4000 <span class="chip">MODEL ▾</span></div>
+          <div class="mrow"><span class="dot"></span> local-fast · 27B · HOST-02:4000 <span class="chip">MODEL ▾</span></div>
         </div>
       </div>
       <div class="quad" data-q="fleet">
@@ -218,10 +218,10 @@ const CATS={'Games':['9 Kings','Ad Fundum','After Inc: Revival','Age of Mytholog
 const GEN={'Brotato':'Arena roguelite horde survival','Avorion':'Sandbox space sim','Beyond All Reason':'Large-scale RTS','Kdenlive':'Video editor','Dolphin':'File manager','Firefox':'Web browser','Brave':'Web browser','Kate':'Text editor','Bitwarden':'Password manager','Blender':'3D creation suite','Inkscape':'Vector graphics editor','Steam':'Game store and launcher','Konsole':'Terminal emulator','calibre':'E-book library','Joplin':'Note taking','OBS Studio':'Streaming and recording','HandBrake':'Video transcoder','Gwenview':'Image viewer','VLC':'Media player'};
 const FAVS=['Dolphin','Firefox','Konsole','Kdenlive','Bitwarden','Steam'];
 const KCMS=['About this System','Accessibility','Activities','Animations','Application Permissions','Application Style','Audio CDs','Autostart','Background Services','Bluetooth','Breeze Window Decoration','Colors and Themes','Cursors','Date and Time','Desktop Effects','Displays','Energy Saving','Fonts','Input Devices','KRunner','Keyboard Shortcuts'];
-const PEERS=[['AICube','LiteLLM · MCP','on'],['AITower','ComfyUI · video','on'],['AI Box','embed · STT','on'],['MediaServer','Qwen 27B','on'],['Watertower','SearXNG · ES','on'],['NAS','TrueNAS','on'],['Spark GX10','VELO pool','on'],['Spark GX13','VELO pool','on'],['Spark2','GLM-5.3','on'],['Node','compute','off'],['HomeServer','Unraid apps','on'],['Jellyfin','media :8096','off']];
+const PEERS=[['Host-02','LiteLLM · MCP','on'],['Host-01','ComfyUI · video','on'],['Host-03','embed · STT','on'],['Host-05','Qwen 27B','on'],['Host-04','SearXNG · ES','on'],['NAS','TrueNAS','on'],['Spark HOST-07','VELO pool','on'],['Spark HOST-10','VELO pool','on'],['Host-13','GLM-5.3','on'],['Node','compute','off'],['Host-06','Unraid apps','on'],['Jellyfin','media :8096','off']];
 const POWER=[['Lock Screen','lock','ENTER LOCKS NOW'],['Sleep','sleep','ENTER SLEEPS NOW'],['Log Out','out','ENTER LOGS OUT · CLOSES OPEN APPS'],['Reboot','reb','ENTER REBOOTS · CLOSES OPEN APPS'],['Shut Down','off','ENTER SHUTS DOWN · CLOSES OPEN APPS']];
 const RECENTS=['ask hermes about plasma 6.7 blur behind layer shell','ai summarize the omarchy menu format','hr check the fleet heartbeat and report gaps'];
-const SSH=[['aitower','root@192.168.1.246'],['aicube','root@192.168.1.243'],['aibox','root@192.168.1.239'],['watertower','root@192.168.1.249'],['nas','root@192.168.1.252'],['mediaserver','root@192.168.1.250'],['jellyfin','gdeyoung@192.168.1.238'],['micro','gdeyoung@192.168.1.240'],['spark','gdeyoung@192.168.1.245']];
+const SSH=[['host-01','root@192.0.2.246'],['host-02','root@192.0.2.243'],['host-03','root@192.0.2.239'],['host-04','root@192.0.2.249'],['nas','root@192.0.2.252'],['host-05','root@192.0.2.250'],['jellyfin','gdeyoung@192.0.2.238'],['micro','gdeyoung@192.0.2.240'],['spark','gdeyoung@192.0.2.245']];
 const HUES=['#1e92ff','#27ae60','#f67400','#9b59b6','#da4453','#1abc9c','#3daee9','#c9ce3b'];
 function tile(n,s=32){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))>>>0;
  return `<span class="tile" style="width:${s}px;height:${s}px;background:linear-gradient(145deg,${HUES[h%8]},${HUES[(h+3)%8]}cc)">${n[0].toUpperCase()}</span>`}

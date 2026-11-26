@@ -1,7 +1,7 @@
 # Foyer for KDE — Research Digest: implementation surface + precedent digest
 
 - Date: 2026-11-07 (CST). Lane: research-only subagent (no design decisions).
-- Target host: GDTower-class Bazzite box (Fedora-atomic, KDE Plasma 6.x, Qt6, KWin/Wayland, user gdtower/gdeyoung).
+- Target host: the tower-class Bazzite box (Fedora-atomic, KDE Plasma 6.x, Qt6, KWin/Wayland, user the tower/gdeyoung).
 - Facts marked **HOST-VERIFIED** were probed by shell command on this host (probe log in §1.0).
 - Facts marked **UNVERIFIED** come from docs/web and were not runtime-confirmed here.
 - STATUS: COMPLETE v1.0 (2026-11-07) — all sections filled; open spike items listed in §4.
@@ -11,7 +11,7 @@
 
 ## 1. PART 1 — Implementation surface
 
-### 1.0 Host probe log (all HOST-VERIFIED, run 2026-11-07 on gdtower/gdeyoung)
+### 1.0 Host probe log (all HOST-VERIFIED, run 2026-11-07 on the tower/gdeyoung)
 - OS: Bazzite 45.20261104 (Kinoite, VARIANT_ID=bazzite-dx-nvidia) — rpm-ostree atomic. Session: KDE / Wayland (`plasma.desktop`).
 - **Plasma 6.8.2 / KWin 6.8.2** (`plasmashell --version`, `kwin_wayland --version`). NOTE: brief said 6.7.5; actual is 6.8.2. Qt 6.11.2 (qtwayland, qtdeclarative).
 - `layer-shell-qt-6.8.2-1.fc45.x86_64` installed. Ships: `libLayerShellQtInterface.so.6`, Qt plugin `/usr/lib64/qt6/plugins/wayland-shell-integration/liblayer-shell.so`, QML module `/usr/lib64/qt6/qml/org/kde/layershell/` (qmldir: `module org.kde.layershell`, plugin `LayerShellQtQml`). **`layer-shell-qt-devel` NOT installed** (build gap; same for `kf6-kirigami-devel`, `kf6-kglobalaccel-devel`, `kf6-kwindowsystem-devel`).
@@ -198,7 +198,7 @@
 - Kando: https://kando.menu/ · https://github.com/kando-menu/kando
 
 **Provenance & confidence notes**
-- Host facts: probed by shell on gdtower (Bazzite 45, Plasma/KWin 6.8.2, Qt 6.11.2) — §1.0.
+- Host facts: probed by shell on the tower (Bazzite 45, Plasma/KWin 6.8.2, Qt 6.11.2) — §1.0.
 - Web facts: fetched directly from the pages above (web_extract) or from raw source files (curl of github/jsdelivr mirrors); the primary SearXNG backend was returning junk during this session (known degraded mode), so nothing load-bearing rests on search snippets.
 - GitHub API rate-limited some repo lookups; license claims come from fetched LICENSE/COPYING files where possible (Albert/Ulauncher/Kando/rofi verified this way, Walker via API field, fuzzel UNVERIFIED).
 - Open items for the spike: (1) KWin blur-on-layer-surface runtime check; (2) Kirigami PlatformTheme→accent wiring; (3) kglobalaccel registration end-to-end through one login; (4) show-time budget measurement (<150 ms target).

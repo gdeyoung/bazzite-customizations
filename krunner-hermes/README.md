@@ -31,7 +31,7 @@ Errors are their own state: a failed ask shows a red row with a one-line humaniz
 
 **Adoption counters (v0.4):** every Enter-verb counts (asks, tasks, answer uses, error retries, handoff opens per prefix, web opens, recent copies, model switches, dictation folds) into `~/.cache/hermes-runner/stats.json` — counts only, never query text. `/usr/bin/python3 hermes_runner.py --stats` prints totals + per-day rollup (system python — the module imports dbus at top level); the two-week adoption review decides which lanes stay.
 
-**SSH lane (v0.5):** `ssh <host>` connects straight from `~/.ssh/config` — Enter opens `konsole --hold -e ssh <name>` (window stays up after disconnect). Hosts are parsed at load (HUP reloads, like handoffs): `Host` groups share Hostname/Port/User, globs and `!negated` names are skipped, `Include` is followed one level (missing files silently skipped). Matching is typed-prefix filtering — exact > prefix > substring, cap 8 rows; `sshconf`/`sshd` are NOT claimed (first word must be exactly `ssh`). Subtext shows the real target `CONNECT root@10.0.0.9:2222 · ENTER OPENS TERMINAL`; original-case names keep their case in titles. Bare `ssh` shows a help row + the first 5 hosts; no match shows one `No host matches` row. Hosts are never copied into config.json. No tab completion exists in KRunner (runners can't rewrite the query box) — short multi-name aliases in `~/.ssh/config` (`Host aic aicube`) are the compensation.
+**SSH lane (v0.5):** `ssh <host>` connects straight from `~/.ssh/config` — Enter opens `konsole --hold -e ssh <name>` (window stays up after disconnect). Hosts are parsed at load (HUP reloads, like handoffs): `Host` groups share Hostname/Port/User, globs and `!negated` names are skipped, `Include` is followed one level (missing files silently skipped). Matching is typed-prefix filtering — exact > prefix > substring, cap 8 rows; `sshconf`/`sshd` are NOT claimed (first word must be exactly `ssh`). Subtext shows the real target `CONNECT root@10.0.0.9:2222 · ENTER OPENS TERMINAL`; original-case names keep their case in titles. Bare `ssh` shows a help row + the first 5 hosts; no match shows one `No host matches` row. Hosts are never copied into config.json. No tab completion exists in KRunner (runners can't rewrite the query box) — short multi-name aliases in `~/.ssh/config` (`Host aic host-02`) are the compensation.
 
 **Snippets (v0.5):** `;` is an in-band snippet CRUD. `;sig` Enter copies snippet `sig`; row buttons COPY · SHOW · DELETE. `;sig Greg DeYoung` Enter saves it (retyping an existing name shows the copy row plus an `Overwrite` row below it — save-if-new is Highest, overwrite is deliberately lower). `;` alone lists all snippets (name in title, 80-char preview in subtext, cap 8 + a `+N more` pointer). Names: `a-z 0-9 -`, max 16, unique, validated as typed (`;Sig` is invalid, never silently lowered); `help` is reserved (`;help` = the index). Text: single line, ≤2000 chars — multi-line snippets stay config.json-only by design (`"snippets": [{name, text}]`). Delete is recoverable: the `snippet deleted` notification carries the full text for undo-by-copy. Saves/deletes persist via read-modify-write of config.json (unknown keys preserved) — on write failure the change stays in memory and the notification says so.
 
@@ -78,7 +78,7 @@ Reload without restarting: `systemctl --user kill -s HUP hermes-runner`.
 
 ```
 ./install.sh --litellm-url http://192.0.2.10:4000/v1 --model local-fast \
-             --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env
+             --api-key-env LITELLM_API_KEY --api-key-file ~/.config/hermes-runner/litellm.env
 systemctl --user restart plasma-krunner.service
 # Super+Space → "ai ping"
 ```
@@ -97,7 +97,7 @@ assertions for `ssh:` rows (group-shared `CONNECT root@10.0.0.9:2222`
 subtext, exact-first-word claim), `;sig New Sig` copy+overwrite row pair,
 9-row help index at literal rels .55→.30, double HUP reload confirmed in the
 runner log; pixels confirmed for the SSH row and the full index (vision
-lane rerouted to `local-agent` — MediaServer `local-vision` backend was
+lane rerouted to `local-agent` — Host-05 `local-vision` backend was
 down at gate time). Live install: index/ssh/snippet/docs rows on the user
 bus, journal clean.
 

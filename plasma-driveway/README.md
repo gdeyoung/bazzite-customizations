@@ -150,7 +150,7 @@ rm -rf ~/.config/driveway
 
 Nothing else is touched — the widget lives entirely under `~/.local/share/plasma/`.
 
-## Install-day verification plan (run when Greg is back)
+## Install-day verification plan (run when the owner is back)
 
 Not run during the build — no live-shell changes while away. In order:
 

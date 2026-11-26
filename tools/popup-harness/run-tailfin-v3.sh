@@ -41,7 +41,7 @@ def peer(i, online, exitc=False, exit_node=False, active=False, routes=None):
     if exitc:  allowed += ["0.0.0.0/0", "::/0"]
     return {
         "ID": f"p{i}", "HostName": f"host{i:02d}",
-        "DNSName": f"host{i:02d}.horse-frog.ts.net.", "OS": "linux", "UserID": 1,
+        "DNSName": f"host{i:02d}.tail.example.", "OS": "linux", "UserID": 1,
         "Online": online, "Active": active and online,
         "ExitNodeOption": exitc, "ExitNode": exit_node and online,
         "TailscaleIPs": ips, "AllowedIPs": allowed, "RxBytes": 1, "TxBytes": 1,
@@ -66,8 +66,8 @@ doc = {
     "Health": [],
     "TUN": True,
     "Self": {
-        "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-        "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
+        "ID": "self", "HostName": "tower", "DNSName": "tower.tail.example.",
+        "UserID": 1, "TailscaleIPs": ["100.64.18.72", "fd7a:115c:a1e0::1"],
         "Capabilities": [],
     },
     "Peer": peers,

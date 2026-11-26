@@ -41,7 +41,7 @@ Re-verify after any engine refresh: `sha256sum` both sides.
   opt-in upstream — `historyEnabled` defaults false; enable via the settings op).
 - `open` → vendored actions.py (FileManager1, rejects symlinked components);
   `copy` → klipper `setClipboardContents` over busctl (verified present on
-  gdtower; both actions are user-visible — first live firing is install-day).
+  the tower; both actions are user-visible — first live firing is install-day).
 
 ## v0.1 scope decisions (deliberate; revisit per roadmap)
 
@@ -68,7 +68,7 @@ Re-verify after any engine refresh: `sha256sum` both sides.
 
 ## Verification status (2026-11-01)
 
-- Engine + host suites: **145/145 pass** (`/usr/bin/python3` 3.14.8, gdtower).
+- Engine + host suites: **145/145 pass** (`/usr/bin/python3` 3.14.8, the tower).
 - Real-HOME E2E (read-only): 254 apps discovered, 22 known-mapped, 28.57 GB
   total (Brave 15.1 GB via flatpak namespace, Heroic 7.5 GB); aggregation
   invariant verified per-app; `limited` flag correctly marks lower bounds.

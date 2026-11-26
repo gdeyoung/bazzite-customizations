@@ -3,7 +3,7 @@
 Task t_995d223d. All source citations from `libplasma` / `plasma-desktop` **v6.7.5**
 (shallow clones in `reference-repos/`, gitignored) and verified empirically in the
 headless nested-wayland harness (workspace `t_995d223d/harness/`, plus the
-`tools/` harness from 248bccd). gdtower runs plasma-desktop-6.7.5-1.fc44.
+`tools/` harness from 248bccd). the tower runs plasma-desktop-6.7.5-1.fc44.
 
 ## 1. The size-resolution algorithm (AC1)
 

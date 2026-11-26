@@ -79,8 +79,8 @@ DEFAULT_CONF = {
         "base_url": "http://localhost:4000/v1",
         "model": "local-fast",
         "timeout_s": 45,
-        "api_key_env": "ZHW_PROXY_API_KEY",
-        "api_key_file": "~/.hermes/secrets/infra.env",
+        "api_key_env": "LITELLM_API_KEY",
+        "api_key_file": "~/.config/hermes-runner/litellm.env",
     },
     "max_answer_chars": 700,
     "copy_answers": True,
@@ -94,7 +94,7 @@ DEFAULT_CONF = {
         {"prefix": "gh", "label": "GitHub",
          "url": "https://github.com/search?q=%s"},
         {"prefix": "sea", "label": "SearXNG fleet",
-         "url": "http://192.168.1.249:8787/search?q=%s"},
+         "url": "http://192.0.2.249:8787/search?q=%s"},
         {"prefix": "el", "label": "Elastic docs",
          "url": "https://duckduckgo.com/?q=site%3Aelastic.co+%s"},
     ],
@@ -713,7 +713,7 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
             helppage("ssh", 0, "ssh <host>",
                      "CONNECT FROM ~/.ssh/config · ENTER OPENS TERMINAL",
                      copyable=True)
-            helppage("ssh", 1, "Short multi-name aliases: Host aic aicube",
+            helppage("ssh", 1, "Short multi-name aliases: Host aic host-02",
                      "BOTH NAMES SHARE HOSTNAME/USER/PORT · TYPED PREFIX "
                      "IS THE WHOLE NAME")
             helppage("ssh", 2, "Include directives are followed",
@@ -750,7 +750,7 @@ def route(query, cache, fetching, running, conf, stats=None, appstore=None):
             helppage("hr", 0, "hr <task>",
                      "UNATTENDED hermes -z TURN · NOTIFIED WHEN DONE",
                      copyable=True)
-            helppage("hr", 1, "hr check disk space on aicube",
+            helppage("hr", 1, "hr check disk space on host-02",
                      "EXAMPLE TASK · LOG IN ~/.cache/hermes-runner",
                      copyable=True)
         elif lane == "dictation":

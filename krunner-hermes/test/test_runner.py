@@ -231,15 +231,15 @@ class CacheAndHelpers(unittest.TestCase):
 
     def test_key_from_env_file(self):
         p = Path("/tmp/hr-test-key.env")
-        p.write_text('OTHER=1\nZHW_PROXY_API_KEY="sk-test-123"\n')
+        p.write_text('OTHER=1\nLITELLM_API_KEY="sk-test-123"\n')
         conf = json.loads(json.dumps(CONF))
         conf["litellm"]["api_key_file"] = str(p)
-        old = os.environ.pop("ZHW_PROXY_API_KEY", None)
+        old = os.environ.pop("LITELLM_API_KEY", None)
         try:
             self.assertEqual(hr.litellm_key(conf), "sk-test-123")
         finally:
             if old:
-                os.environ["ZHW_PROXY_API_KEY"] = old
+                os.environ["LITELLM_API_KEY"] = old
         p.unlink()
 
 
@@ -285,9 +285,9 @@ class WebSibling(unittest.TestCase):
 
     def test_custom_fleet_url(self):
         conf = json.loads(json.dumps(CONF))
-        conf["web_search_url"] = "http://192.168.1.249:8787/search?q=%s"
+        conf["web_search_url"] = "http://192.0.2.249:8787/search?q=%s"
         self.assertEqual(hr.web_target(conf, "x y"),
-                         "http://192.168.1.249:8787/search?q=x+y")
+                         "http://192.0.2.249:8787/search?q=x+y")
 
 
 class Recents(unittest.TestCase):
@@ -495,7 +495,7 @@ class Handoffs(unittest.TestCase):
             {"prefix": "gh", "label": "GitHub",
              "url": "https://github.com/search?q=%s"},
             {"prefix": "sea", "label": "SearXNG fleet",
-             "url": "http://192.168.1.249:8787/search?q=%s"},
+             "url": "http://192.0.2.249:8787/search?q=%s"},
             {"prefix": "el", "label": "Elastic docs",
              "url": "https://duckduckgo.com/?q=site%3Aelastic.co+%s"},
         ])

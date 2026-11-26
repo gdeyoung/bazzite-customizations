@@ -29,9 +29,9 @@ cp /usr/share/color-schemes/BreezeDark.colors "$XDG_CONFIG_HOME/kdeglobals" 2>/d
 mkdir -p "$HOME/.ssh"
 if [ ! -s "$HOME/.ssh/config" ]; then
   {
-    for h in aitower aicube gx10 gx11 unraid micro jellyfin \
-             aibox vivobook sammypro5 gdtower von k2 litellm; do
-      printf 'Host %s\n HostName 192.168.1.50\n' "$h"
+    for h in host-01 host-02 host-07 host-08 unraid micro jellyfin \
+             host-03 host-11 host-12 tower von k2 litellm; do
+      printf 'Host %s\n HostName 192.0.2.50\n' "$h"
     done
   } > "$HOME/.ssh/config"
 fi

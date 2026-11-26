@@ -4,7 +4,7 @@
  * Host glue only (R1.2 contract): Layer.Top surface, keyboard, centering,
  * scaling, and THEME PINNING. FoyerRoot stays host-agnostic.
  *
- * Live-session lessons baked in (2026-11-07, gdtower):
+ * Live-session lessons baked in (2026-11-07, tower):
  *  - KeyboardInteractivityOnDemand never delivers keys to a plain layer
  *    surface under kwin → Exclusive while visible (Esc/arrows/typing).
  *  - Kirigami standalone resolves fallback tokens differently per env

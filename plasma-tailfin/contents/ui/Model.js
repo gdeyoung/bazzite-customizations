@@ -428,7 +428,7 @@ function parsePrefs(raw) {
 }
 
 // parseSuggest — `tailscale exit-node suggest` prints plain text:
-//   "Suggested exit node: watertower-ts.horse-frog.ts.net.\nTo accept..."
+//   "Suggested exit node: host-04-ts.tail.example.\nTo accept..."
 // The hostname is a valid --exit-node target by itself.
 function parseSuggest(raw) {
   var match = String(raw || "").match(/Suggested exit node:\s*(\S+)/)

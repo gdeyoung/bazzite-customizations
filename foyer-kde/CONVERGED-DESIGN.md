@@ -57,7 +57,7 @@ fill them). Streaming ≠ ready.
 250 apps / 12 categories from the live .desktop scan; 30 of 83 KCMs; 14
 SSH aliases from ~/.ssh/config; fleet liveness from an actual ICMP probe
 (13 UP, nas DOWN, timestamped); AI config from hermes-runner (local-fast
-via aicube:4000, 45s, 700 chars, copy-on-⏎). No lorem anywhere.
+via host-02:4000, 45s, 700 chars, copy-on-⏎). No lorem anywhere.
 
 ## Council verdict (ai-tech, folded)
 
@@ -109,5 +109,5 @@ compilation, verified in the nested-kwin harness the same day:
   fleet 13 green UP + red DOWN dots, system destructive oranges, rail
   38px pitch — same evidence bar as R3.
 - Remaining: live-data wiring (.desktop splice, ICMP, hermes-runner AI
-  lane), real-session install (explicit go from Greg), dependency-map node
+  lane), real-session install (explicit go from the owner), dependency-map node
   at install time.

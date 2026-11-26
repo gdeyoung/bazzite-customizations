@@ -118,7 +118,7 @@ Fix: implement — with the **(id, text, icon)** tuple order and per-row
   notification truncation at an arbitrary char with no marker. Cap the row
   title; mark truncation (§B-2, §B-9).
 - **P2-6.** Default `litellm.base_url` is `localhost:4000` — LiteLLM lives on
-  AICube (192.168.1.243:4000) in this fleet; only correct because install.sh
+  Host-02 (192.0.2.243:4000) in this fleet; only correct because install.sh
   overrides it. Make the example/fleet config the default-facing story, keep
   localhost for dev.
 
@@ -423,9 +423,9 @@ Every cached **answer** row gains a sibling directly below it:
   placeholder — same substitution grammar as handoffs) + `web_search_name`
   (≤12 chars, default `DUCKDUCKGO`, mirrors the `{model} VIA LITELLM` pattern).
   Fleet install gets SearXNG via `install.sh --web-search-url
-  http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG` and a
+  http://192.0.2.249:8787/search?q=%s --web-search-name SEARXNG` and a
   commented fleet block in `config.json.example` (the P2-6 litellm pattern).
-  A fallback row must survive off-LAN and Watertower-down; DDG default, fleet
+  A fallback row must survive off-LAN and Host-04-down; DDG default, fleet
   URL by config.
 - NO web sibling on: error rows (Enter retries), in-flight rows (nothing to
   fall back from yet), or recents rows (passive history, one verb already).
@@ -597,7 +597,7 @@ an Include is this lane's likeliest real-world miss).
   re-validated against the parsed table — never trust the wire id);
   counts `ssh_sessions`. `--hold` keeps the window up after disconnect.
 - No config duplication: hosts are NEVER copied into config.json. README
-  recommends short multi-name aliases (`Host aic aicube`) — keystroke
+  recommends short multi-name aliases (`Host aic host-02`) — keystroke
   filtering is the completion; there is none (and foyer has none either).
 
 ### F-10. Snippets (Phase 4) — `;name [text]`

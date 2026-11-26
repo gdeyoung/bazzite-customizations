@@ -478,10 +478,10 @@ _FOYER_DEFAULTS = {
     "card_anchor": "center",
     "fuzzy": False,
     "ai": {
-        "base_url": "http://192.168.1.243:4000/v1",
+        "base_url": "http://192.0.2.243:4000/v1",
         "model": "local-fast",
-        "api_key_env": "ZHW_PROXY_API_KEY",
-        "api_key_file": "~/.hermes/secrets/infra.env",
+        "api_key_env": "LITELLM_API_KEY",
+        "api_key_file": "~/.config/hermes-runner/litellm.env",
         "timeout_s": 45,
         "temperature": 0.1,
         "max_tokens": 400,
@@ -527,7 +527,7 @@ def _load_recent():
 def _ask_key(conf):
     """API key from the env-style secrets file (never logged)."""
     import re
-    env_name = conf.get("api_key_env", "ZHW_PROXY_API_KEY")
+    env_name = conf.get("api_key_env", "LITELLM_API_KEY")
     try:
         with open(os.path.expanduser(conf.get("api_key_file", "")),
                   errors="ignore") as fh:

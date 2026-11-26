@@ -471,7 +471,7 @@ Ranked by transfer value for porting Omarchy/Quickshell plugins to Plasma 6 on B
    On Bazzite (no rpm-ostree layering) the fleet would *ship rung 2+3 only* — the resident KWin
    script (`services/kwin/scripts/kwin-event-bridge.js`, pure JS via KWin scripting, no compile)
    pushing events over D-Bus is the sweet spot: event-driven, user-space, no ABI risk. Rung 1 can
-   remain an opt-in for writable-root machines like sammypro5.
+   remain an opt-in for writable-root machines like host-12.
 6. **`ext_background_effect_manager_v1` blur from layer-shell.** `BackgroundEffect.blurRegion` on
    `PanelWindow` gets Hyprland-style blur *inside Plasma* ([Bar.qml](https://github.com/SnTR370/quickshell-kde/blob/main/modules/bar/Bar.qml))
    — portable gloss for fleet chrome without touching Plasma themes.

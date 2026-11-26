@@ -55,11 +55,11 @@ cat > "$H/.config/hermes-runner/config.json" <<'EOF'
   "answer_prefix": "ai",
   "task_prefix": "hr",
   "litellm": {
-    "base_url": "http://192.0.2.10:4000/v1",
+    "base_url": "http://192.0.2.243:4000/v1",
     "model": "local-fast",
     "timeout_s": 30,
-    "api_key_env": "ZHW_PROXY_API_KEY",
-    "api_key_file": "/var/home/gdeyoung/.hermes/secrets/infra.env"
+    "api_key_env": "LITELLM_API_KEY",
+    "api_key_file": "/var/home/gdeyoung/.config/hermes-runner/litellm.env"
   },
   "notify": true,
   "harness_mode": true
@@ -84,7 +84,7 @@ c["hermes_exe"] = str(pathlib.Path(sys.argv[1]) / "stub-hermes.sh")
 p.write_text(json.dumps(c, indent=2))
 PY
 # dead-port config for the error-lane daemon (second instance)
-sed 's#http://192.0.2.10:4000/v1#http://127.0.0.1:9/v1#' \
+sed 's#http://192.0.2.243:4000/v1#http://127.0.0.1:9/v1#' \
     "$H/.config/hermes-runner/config.json" \
     > "$H/.config/hermes-runner/config-dead.json"
 
@@ -168,7 +168,7 @@ $B monitor > "$ROOT/kr-bus-$TAG.log" 2>&1 &
 MON_PID=$!
 sleep 1
 
-Q="what port is searxng on watertower"
+Q="what port is searxng on host-04"
 probe() { $B call org.kde.runners.hermes /hermes org.kde.krunner1 Match s "$1" 2>&1 | head -4; }
 
 echo "--- T1 introspect signatures ---"
@@ -251,7 +251,7 @@ c["handoffs"] = [
     {"prefix": "gh", "label": "GitHub",
      "url": "https://github.com/search?q=%s"},
     {"prefix": "sea", "label": "SearXNG fleet",
-     "url": "http://192.0.2.20:8787/search?q=%s"},
+     "url": "http://192.0.2.249:8787/search?q=%s"},
 ]
 json.dump(c, open(p, "w"), indent=1)
 PYEOF

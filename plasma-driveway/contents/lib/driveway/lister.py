@@ -471,7 +471,7 @@ def gvfs_drives():
         kind = GVFS_KINDS.get(scheme)
         if kind is None:
             continue  # mtp phones, cameras, etc. are not drives
-        # "google-drive:host=gmail.com,user=someone" -> "someone@gmail.com"
+        # "google-drive:host=gmail.com,user=name@example.com" -> "someone@gmail.com"
         params = dict(p.split("=", 1) for p in rest.split(",") if "=" in p)
         label = params.get("user", "")
         if params.get("host"):

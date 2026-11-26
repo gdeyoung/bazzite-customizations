@@ -17,8 +17,8 @@ test("op set is exactly the six allowlisted ops", () => {
 test("argv is byte-exact per the §T-2/V8-2 table", () => {
   assert.deepEqual(Control.argv("up"), ["tailscale", "up"])
   assert.deepEqual(Control.argv("down"), ["tailscale", "down"])
-  assert.deepEqual(Control.argv("exit-set", "tower.horse-frog.ts.net"),
-    ["tailscale", "set", "--exit-node=tower.horse-frog.ts.net"])
+  assert.deepEqual(Control.argv("exit-set", "tower.tail.example"),
+    ["tailscale", "set", "--exit-node=tower.tail.example"])
   assert.deepEqual(Control.argv("exit-clear"), ["tailscale", "set", "--exit-node="])
   assert.deepEqual(Control.argv("probe"), ["tailscale", "debug", "prefs"])
   assert.deepEqual(Control.argv("pref-set", "shields-up:false"),
@@ -59,10 +59,10 @@ test("TS_BIN substitutes the binary for tests/harness", () => {
 // ---- V8-2: clipboard argv (closed charset) --------------------------------
 
 test("clipboardArg: IPs/IPv6/DNS names pass, everything else null", () => {
-  assert.deepEqual(Control.clipboardArg("100.71.87.72"), ["wl-copy", "--", "100.71.87.72"])
+  assert.deepEqual(Control.clipboardArg("100.64.18.72"), ["wl-copy", "--", "100.64.18.72"])
   assert.deepEqual(Control.clipboardArg("fd7a:115c:a1e0::1"), ["wl-copy", "--", "fd7a:115c:a1e0::1"])
-  assert.deepEqual(Control.clipboardArg("gdtower.horse-frog.ts.net"),
-    ["wl-copy", "--", "gdtower.horse-frog.ts.net"])
+  assert.deepEqual(Control.clipboardArg("tower.tail.example"),
+    ["wl-copy", "--", "tower.tail.example"])
   assert.equal(Control.clipboardArg(""), null)
   assert.equal(Control.clipboardArg(null), null)
   assert.equal(Control.clipboardArg("a; rm -rf /"), null)
@@ -112,7 +112,7 @@ test("probe parser: non-zero exit / empty / unparseable → unavailable", () => 
 // ---- §T-4: exit-node target resolution + candidacy -------------------------
 
 test("exitTarget strips the trailing dot from DNSName", () => {
-  assert.equal(Control.exitTarget({ DNSName: "tower.horse-frog.ts.net." }), "tower.horse-frog.ts.net")
+  assert.equal(Control.exitTarget({ DNSName: "tower.tail.example." }), "tower.tail.example")
 })
 
 test("exitTarget falls back to first TailscaleIP when DNS is empty", () => {
@@ -125,12 +125,12 @@ test("exitTarget is empty for a peer with neither", () => {
 })
 
 test("candidate: online + 0.0.0.0/0 advertised", () => {
-  assert.equal(Control.isExitCandidate({ Online: true }, { AllowedIPs: ["100.64.0.1/32", "0.0.0.0/0", "::/0"] }), true)
+  assert.equal(Control.isExitCandidate({ Online: true }, { AllowedIPs: ["100.64.9.1/32", "0.0.0.0/0", "::/0"] }), true)
 })
 
 test("non-candidates: offline, subnet-only, ipv6-only, no raw", () => {
   assert.equal(Control.isExitCandidate({ Online: false }, { AllowedIPs: ["0.0.0.0/0"] }), false)
-  assert.equal(Control.isExitCandidate({ Online: true }, { AllowedIPs: ["192.168.1.0/24"] }), false)
+  assert.equal(Control.isExitCandidate({ Online: true }, { AllowedIPs: ["192.0.2.0/24"] }), false)
   assert.equal(Control.isExitCandidate({ Online: true }, { AllowedIPs: ["::/0"] }), false)
   assert.equal(Control.isExitCandidate({ Online: true }, null), false)
 })

@@ -69,7 +69,7 @@ test("plasma port: conf path is a parameter (no LAN specifics anywhere)", () => 
   for (const f of files) {
     const t = read(f)
     assert.ok(!t.includes("192.168."), `${f} free of LAN endpoints`)
-    assert.ok(!t.includes("watertower"), `${f} free of fleet hostnames`)
+    assert.ok(!t.includes("host-04"), `${f} free of fleet hostnames`)
   }
 })
 

@@ -391,7 +391,7 @@ J. RISKS & OPEN QUESTIONS
    labels/order/position, but the simulation-screenshot gate is mandatory,
    not optional. If it fails: shift Data to `#2ee6a8` (greener) or Config
    to `#7fb7ff` and re-verify.
-4. **Treemap deferral** — Greg loves upstream's tiles; v0.1 ships the
+4. **Treemap deferral** — the owner loves upstream's tiles; v0.1 ships the
    ranked list. Flag explicitly in the PR so the omission reads as a
    staged decision, not a loss.
 5. **254-row ListView** — delegate must stay flat (no per-row Loaders);

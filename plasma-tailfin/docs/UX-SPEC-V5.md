@@ -204,9 +204,9 @@ Subline composition (fields joined ` · `, grammar §W-14):
 
 | Peer state | Subline |
 |---|---|
-| Online, active session (`peer.Active`) | `linux · 100.71.87.9 · direct · ↓ 12.3 M ↑ 1.1 G` |
-| Online, idle (`!peer.Active`) | `macOS · 100.64.8.3 · via dfw` |
-| Offline | `windows · 100.64.3.5 · last seen 3h ago` (`last seen never` when never seen) |
+| Online, active session (`peer.Active`) | `linux · 203.0.113.9 · direct · ↓ 12.3 M ↑ 1.1 G` |
+| Online, idle (`!peer.Active`) | `macOS · 203.0.113.8 · via dfw` |
+| Offline | `windows · 203.0.113.7 · last seen 3h ago` (`last seen never` when never seen) |
 
 - `direct` = `ctx.peerIsDirect(peer)` (raw `CurAddr` non-empty); else
   `via <relay>` from `ctx.peerRelay(peer)` when non-empty; else omitted
@@ -227,7 +227,7 @@ priority `ACTIVE EXIT` > `exit` > subnet CIDR):
 |---|---|---|
 | `ACTIVE EXIT` | `peer.ExitNode === true` | T3 bold, `positiveTextColor` |
 | `exit` | exit-capable candidate (`ExitNodeOption`, online, not active) | T3, muted 0.62 |
-| `192.168.30.0/24` (first subnet route, `+N` if more) | `ctx.subnetRoutes(peer)` non-empty on a non-exit peer | T3, muted 0.62; all routes in tooltip |
+| `198.51.100.0/24` (first subnet route, `+N` if more) | `ctx.subnetRoutes(peer)` non-empty on a non-exit peer | T3, muted 0.62; all routes in tooltip |
 
 (v0.4's `ACTIVE` tag on `peer.Active` is deleted — that flag means "has
 recent session traffic" and painted three orange ACTIVEs on rows that were
@@ -304,8 +304,8 @@ None active:
 ## W-7 — Header and self identity (glance #1)
 
 ```
-● gdtower                                    [search] [Disconnect]
-  RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+● the tower                                    [search] [Disconnect]
+  RUNNING · 203.0.113.10 · the tower.tail.example
 ```
 
 - Self block (single render site — dedup rule): line 1 selfName T1 bold
@@ -551,24 +551,24 @@ Default (19 online · 3 exit-capable · 1 active · 21 offline, gate on,
 health empty):
 
 ```
-gdtower                              [🔍] [Disconnect]
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+the tower                              [🔍] [Disconnect]
+● RUNNING · 203.0.113.10 · the tower.tail.example
 ──────────────────────────────────────────────────────────
 [network-vpn] ▸ exit node: tower                       [×]
 ──────────────────────────────────────────────────────────
 ONLINE · 19
 ● tower                    ACTIVE EXIT
-  linux · 100.101.135.11 · direct · ↓ 1.2 G ↑ 340 M
-● aicube
-  linux · 100.101.135.4 · direct
-● greg-tab
-  android · 100.101.135.9 · via dfw
+  linux · 203.0.113.26 · direct · ↓ 1.2 G ↑ 340 M
+● host-02
+  linux · 203.0.113.24 · direct
+● owners-tab
+  android · 203.0.113.25 · via dfw
 ● nasbox                                             [use] exit
-  linux · 100.101.135.14 · direct
-● spark2                                             [use] exit
-  linux · 100.101.135.20 · direct · ↓ 12.3 M ↑ 1.1 G
-● watertower            192.168.30.0/24
-  linux · 100.101.135.2 · direct
+  linux · 203.0.113.27 · direct
+● host-13                                             [use] exit
+  linux · 203.0.113.28 · direct · ↓ 12.3 M ↑ 1.1 G
+● host-04            198.51.100.0/24
+  linux · 203.0.113.23 · direct
    ⋮ (scrolls inside the lane; header/band/footer pinned)
 21 OFFLINE · SHOW
 ──────────────────────────────────────────────────────────
@@ -580,34 +580,34 @@ Offline expanded (same popup, after toggle click):
 ```
    ⋮
 21 OFFLINE · HIDE
-● greg-galaxy            (whole row 0.62)
-  macOS · 100.101.135.31 · last seen 3h ago
+● owners-galaxy            (whole row 0.62)
+  macOS · 203.0.113.29 · last seen 3h ago
 ● host103
-  windows · 100.101.135.44 · last seen 2026-10-01
+  windows · 203.0.113.30 · last seen 2026-10-01
    ⋮
 ```
 
 Search revealed + query (`tow`):
 
 ```
-gdtower                              [🔍✓] [Disconnect]
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+the tower                              [🔍✓] [Disconnect]
+● RUNNING · 203.0.113.10 · the tower.tail.example
 [network-vpn] ▸ exit node: tower                       [×]
 ──────────────────────────────────────────────────────────
 [🔍 Search peers                                    ] [✕]
 MATCHES · 2
 ● tower                    ACTIVE EXIT
-  linux · 100.101.135.11 · direct · ↓ 1.2 G ↑ 340 M
-● watertower            192.168.30.0/24
-  linux · 100.101.135.2 · direct
+  linux · 203.0.113.26 · direct · ↓ 1.2 G ↑ 340 M
+● host-04            198.51.100.0/24
+  linux · 203.0.113.23 · direct
 21 OFFLINE · SHOW  ← hidden while query non-empty
 ```
 
 Health warnings present (strip item 4, orange):
 
 ```
-gdtower                              [🔍] [Disconnect]
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+the tower                              [🔍] [Disconnect]
+● RUNNING · 203.0.113.10 · the tower.tail.example
 ⚠ SELinux is preventing tailscaled from opening the SSH server…
 ⚠ accept-routes is off on this node while peers advertise routes
 ──────────────────────────────────────────────────────────
@@ -617,22 +617,22 @@ gdtower                              [🔍] [Disconnect]
 Disconnect armed (§T-3 verbatim):
 
 ```
-gdtower                              [🔍] [Confirm disconnect]   ← negative
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+the tower                              [🔍] [Confirm disconnect]   ← negative
+● RUNNING · 203.0.113.10 · the tower.tail.example
 tailnet goes down here — remote access via ts.net drops until reconnect
 ```
 
 Gate disabled (§T-1: no buttons, one hint, band persists):
 
 ```
-gdtower                              [🔍]
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+the tower                              [🔍]
+● RUNNING · 203.0.113.10 · the tower.tail.example
 control disabled — run: sudo tailscale set --operator=$USER
 [network-vpn] ▸ exit node: tower     ← × hidden with gate
 ──────────────────────────────────────────────────────────
 ONLINE · 19
 ● tower                    ACTIVE EXIT      ← badge survives, no use
-  linux · 100.101.135.11 · direct · ↓ 1.2 G ↑ 340 M
+  linux · 203.0.113.26 · direct · ↓ 1.2 G ↑ 340 M
 ```
 
 Exit-node switch in flight (§T-4):
@@ -641,14 +641,14 @@ Exit-node switch in flight (§T-4):
 [network-vpn] ▸ exit node: tower                       [×]
 ONLINE · 19
 ● nasbox                             [use] exit        ← disabled
-  linux · 100.101.135.14 · direct
+  linux · 203.0.113.27 · direct
   switching…                                           ← transient line 3
 ```
 
 Needs login / backend down / binary missing / parse / empty:
 
 ```
-gdtower                              [Disconnect]
+the tower                              [Disconnect]
 ● NEEDS LOGIN · …
 NEEDS LOGIN · RUN: tailscale login                    ← strip
 (network-unavailable) NEEDS LOGIN · RUN: tailscale login   ← lane edge row
@@ -679,11 +679,11 @@ NO PEERS · TAILNET EMPTY                                 ← lane, centered
    `peer.Active` anywhere (grep).
 4. **norm19:** zero peer duplication; `ONLINE · 19` + `21 OFFLINE` = 40 =
    chip total; tower renders `ACTIVE EXIT` + band naming tower, no `use` on
-   its row; nasbox/spark2 render `use` + `exit`; scroll valve open (≈111px)
+   its row; nasbox/host-13 render `use` + `exit`; scroll valve open (≈111px)
    with header/band/footer pinned.
 5. **norm19h (2 health warnings):** strip items render orange ⚠ in order;
    lane shrinks; pinned chrome intact.
-6. **Search:** `tow` → tower first (prefix-scored) + watertower; `zzz` →
+6. **Search:** `tow` → tower first (prefix-scored) + host-04; `zzz` →
    `NO MATCHING PEERS`; in-place label flip `ONLINE · 19`→`MATCHES · 2`;
    toggle hidden while querying; Esc clears-then-collapses; `✕` clears only;
    Ctrl+F reveals+focuses; reopen clears+collapses; offline matches dimmed

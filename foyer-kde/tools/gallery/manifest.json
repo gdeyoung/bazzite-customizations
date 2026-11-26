@@ -54,7 +54,7 @@
         {"file": "prototype/shots/native/qml-ready.png", "label": "NATIVE·ANSWERED", "caption": "answered state with Copy alt⏎ affordance"},
         {"file": "prototype/shots/native/qml-system.png", "label": "NATIVE·SYSTEM", "caption": "destructive rows with consequence subtext — orange verified +267 px"},
         {"file": "prototype/shots/native/qml-fleet.png", "label": "NATIVE·FLEET", "caption": "13 green UP dots + red nas DOWN — liveness verified in pixels"},
-        {"file": "prototype/shots/native/qml-ssh.png", "label": "NATIVE·SSH", "caption": "14-host list, mono names, gdtower tagged local"},
+        {"file": "prototype/shots/native/qml-ssh.png", "label": "NATIVE·SSH", "caption": "14-host list, mono names, tower tagged local"},
         {"file": "prototype/shots/native/qml-settings.png", "label": "NATIVE·SETTINGS", "caption": "in-launcher settings rows — fork parity surface"}
       ]
     },

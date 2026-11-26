@@ -13,7 +13,7 @@ function mk(name, opts) {
     HostName: name,
     DNSName: o.dns === undefined ? name + ".ts.net." : o.dns,
     DisplayName: o.display === undefined ? name : o.display,
-    TailscaleIPs: o.ips || ["100.64.0.9"],
+    TailscaleIPs: o.ips || ["100.64.10.9"],
     Online: o.online === undefined ? true : o.online,
   }
 }
@@ -23,36 +23,36 @@ function names(list) {
 }
 
 test("empty query is identity passthrough (sections mode)", () => {
-  const peers = [mk("gdtower"), mk("watertower")]
-  assert.deepEqual(names(Model.searchPeers(peers, "")), ["gdtower", "watertower"])
-  assert.deepEqual(names(Model.searchPeers(peers, "   ")), ["gdtower", "watertower"])
+  const peers = [mk("mytower"), mk("laketower")]
+  assert.deepEqual(names(Model.searchPeers(peers, "")), ["mytower", "laketower"])
+  assert.deepEqual(names(Model.searchPeers(peers, "   ")), ["mytower", "laketower"])
 })
 
-test("substring match, prefix outranks substring (tow -> gdtower then watertower)", () => {
-  const peers = [mk("watertower"), mk("gdtower"), mk("aibox")]
-  assert.deepEqual(names(Model.searchPeers(peers, "tow")), ["gdtower", "watertower"])
+test("substring match; equal rank tiebreaks on HostName asc (tow -> laketower then mytower)", () => {
+  const peers = [mk("mytower"), mk("laketower"), mk("mediabox")]
+  assert.deepEqual(names(Model.searchPeers(peers, "tow")), ["laketower", "mytower"])
 })
 
-test("in-order subsequence matches (gdt -> gdtower)", () => {
-  const peers = [mk("gdtower"), mk("aibox")]
-  assert.deepEqual(names(Model.searchPeers(peers, "gdt")), ["gdtower"])
+test("in-order subsequence matches (mtw -> mytower)", () => {
+  const peers = [mk("mytower"), mk("laketower"), mk("mediabox")]
+  assert.deepEqual(names(Model.searchPeers(peers, "mtw")), ["mytower"])
 })
 
-test("multi-token all-must-match (spark gx -> both sparks; spark zzz -> none)", () => {
-  const peers = [mk("spark-gx10"), mk("spark-gx13"), mk("spark2"), mk("gdtower")]
-  assert.deepEqual(names(Model.searchPeers(peers, "spark gx")), ["spark-gx10", "spark-gx13"])
+test("multi-token all-must-match (spark node -> both spark nodes; spark zzz -> none)", () => {
+  const peers = [mk("spark-node10"), mk("spark-node13"), mk("spark2"), mk("mytower")]
+  assert.deepEqual(names(Model.searchPeers(peers, "spark node")), ["spark-node10", "spark-node13"])
   assert.deepEqual(Model.searchPeers(peers, "spark zzz"), [])
 })
 
 test("token may match a DIFFERENT field per token (ip + name mix)", () => {
-  const peers = [mk("gdtower", { ips: ["100.71.87.72"] }), mk("aibox", { ips: ["100.1.1.1"] })]
-  // "gd" hits name, "71" hits the IP string
-  assert.deepEqual(names(Model.searchPeers(peers, "gd 71")), ["gdtower"])
+  const peers = [mk("mytower", { ips: ["100.64.7.71"] }), mk("mediabox", { ips: ["100.64.8.81"] })]
+  // "my" hits the name, "71" hits the IP string
+  assert.deepEqual(names(Model.searchPeers(peers, "my 71")), ["mytower"])
 })
 
 test("field weights: DisplayName match outranks a DNS match", () => {
   const peers = [
-    mk("nodeA", { display: "tower of power", dns: "plain.ts.net.", ips: ["100.99.99.99"] }),
+    mk("nodeA", { display: "tower of power", dns: "plain.ts.net.", ips: ["100.64.28.99"] }),
     mk("boxIP", { dns: "towerbox.ts.net.", ips: ["100.22.22.22"] }), // name has no "tower"
   ]
   // nodeA: DisplayName substring 2*4=8; boxIP: DNS substring 2*2=4 — both
@@ -66,7 +66,7 @@ test("equal scores tiebreak on HostName asc", () => {
 })
 
 test("offline peers are searched too (§V-8: muted rows, not excluded)", () => {
-  const peers = [mk("gdtower"), mk("oldphone", { online: false })]
+  const peers = [mk("tower"), mk("oldphone", { online: false })]
   assert.deepEqual(names(Model.searchPeers(peers, "phone")), ["oldphone"])
 })
 
@@ -76,7 +76,7 @@ test("DNS name field is searchable without the .ts.net suffix", () => {
 })
 
 test("no match anywhere returns [] (NO MATCHING PEERS state)", () => {
-  const peers = [mk("gdtower"), mk("watertower")]
+  const peers = [mk("mytower"), mk("laketower")]
   assert.deepEqual(Model.searchPeers(peers, "zzz q"), [])
 })
 

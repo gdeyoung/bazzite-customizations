@@ -98,7 +98,7 @@ Full changelog captured from [quickshell.org/changelog](https://quickshell.org/c
 - Rename: `Quickshell.shellRoot` → `Quickshell.shellDir`.
 
 ### v0.2.1 (2025-10-12) — maintenance
-- Real-time tracking of desktop-entry changes; Qt 6.10 support; pipewire/greetd/monitor crash fixes. This is the version in Fedora 45 proper (fleet-verified: `quickshell-0.2.1^git20260209-5.fc45` via dnf on gdtower).
+- Real-time tracking of desktop-entry changes; Qt 6.10 support; pipewire/greetd/monitor crash fixes. This is the version in Fedora 45 proper (fleet-verified: `quickshell-0.2.1^git20260209-5.fc45` via dnf on the tower).
 
 ### v0.3.0 (2026-05-04) — the release that changes the KDE story
 New features (changelog wording, KDE-relevance annotated):
@@ -131,7 +131,7 @@ New features (changelog wording, KDE-relevance annotated):
 
 | Channel | Package | Version | Evidence |
 |---------|---------|---------|----------|
-| Fedora 45 (official) | `quickshell` | `0.2.1^git20260209.dacfa9d-5.fc45` | [packages.fedoraproject.org](https://packages.fedoraproject.org/pkgs/quickshell/quickshell/) releases table; fleet-verified live via dnf on gdtower |
+| Fedora 45 (official) | `quickshell` | `0.2.1^git20260209.dacfa9d-5.fc45` | [packages.fedoraproject.org](https://packages.fedoraproject.org/pkgs/quickshell/quickshell/) releases table; fleet-verified live via dnf on the tower |
 | Fedora 44 (official) | `quickshell` | `0.2.1^git20260209.dacfa9d-5.fc44` | same page |
 | Fedora Rawhide (official) | `quickshell` | `0.2.1^git20260209.dacfa9d-6.fc46` | same page — **Rawhide has NOT moved to 0.3.x** |
 | COPR `errornointernet/quickshell` | `quickshell` | **0.3.2-1** (src.rpm), chroots incl. `fedora-45-x86_64`, `fedora-44-x86_64`, rawhide, epel-10, aarch64 | [COPR api_3 package list](https://copr.fedorainfracloud.org/api_3/package/list?ownername=errornointernet&projectname=quickshell&with_latest_build=True); auto-rebuilds from [ErrorNoInternet/rpm-packages](https://github.com/ErrorNoInternet/rpm-packages) |

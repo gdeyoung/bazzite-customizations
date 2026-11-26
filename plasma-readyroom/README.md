@@ -63,7 +63,7 @@ visual QA are install-day steps (see Install-day plan).
   (`gc-mangohud`) which writes a managed block into `~/.config/MangoHud/
   MangoHud.conf` and never touches anything outside it.
 
-## gdtower prerequisites (verified on-host)
+## the tower prerequisites (verified on-host)
 
 | Component | Status on the target host |
 |---|---|

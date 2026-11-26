@@ -26,7 +26,7 @@ one-command, protocol-viable lane for the things plasmoids fundamentally cannot 
 
 | Prior belief | Reality (source) |
 |---|---|
-| Quickshell not in Fedora repos; would need layering/build on Bazzite | **FALSE** — `quickshell-0.2.1^git20260209-5.fc45` in stock Fedora 45 (verified live: dnf on gdtower); COPR `errornointernet/quickshell` carries 0.3.2 |
+| Quickshell not in Fedora repos; would need layering/build on Bazzite | **FALSE** — `quickshell-0.2.1^git20260209-5.fc45` in stock Fedora 45 (verified live: dnf on the tower); COPR `errornointernet/quickshell` carries 0.3.2 |
 | KWin layer-shell support is new/uncertain | **FALSE** — implementing commit `f8dd1c61` landed 2020-09-03 (Plasma 5.20 era); hardened continuously through 2026 (keyboard interactivity, reserved-space precedence, popup integration tests); symbols confirmed in host libkwin 6.8.2 |
 | `hyprland/hyprland-plugin-template` is the on-ramp | That repo **404s**; real template is hyprland-community, stale since 2023. Actual on-ramp: read PluginAPI.hpp + copy a small official plugin |
 | hig.kde.org is the widget UX reference | It **redirects to a 2025 topic rewrite** at develop.kde.org/hig with **no plasmoid-specific pages**; KDE's px type table was retired. Shipped-applet source is the real pattern authority (documented with file:line in dossier 03) |

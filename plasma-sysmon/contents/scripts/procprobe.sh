@@ -12,7 +12,7 @@
 # before `args` are guaranteed single-token; the display name is derived
 # from basename(args[0]) (bracket-stripped for kernel threads/zombies).
 #
-# v2.1 — completeness fix: hosts can exceed any fixed cap (gdtower runs
+# v2.1 — completeness fix: hosts can exceed any fixed cap (tower runs
 # ~1000 procs), and a 0%-CPU target (the thing you most often want to find
 # and kill) sorts LAST by CPU — a plain head cap makes search miss it.
 # Rows kept = top-1500 by CPU UNION any row matching the filter substring

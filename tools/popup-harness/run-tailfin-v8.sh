@@ -48,14 +48,14 @@ def peer(i, online, exitc=False, exit_node=False, active=False, routes=None):
          else "0001-01-01T00:00:00Z"
     return {
         "ID": f"p{i}", "HostName": f"host{i:02d}",
-        "DNSName": f"host{i:02d}.horse-frog.ts.net.", "OS": osv, "UserID": 1,
+        "DNSName": f"host{i:02d}.tail.example.", "OS": osv, "UserID": 1,
         "Online": online, "Active": active and online,
         "ExitNodeOption": exitc, "ExitNode": exit_node and online,
         "TailscaleIPs": ips, "AllowedIPs": allowed,
         "RxBytes": 1 if not active else 1_000_000 + i * 1234,
         "TxBytes": 1 if not active else 500_000 + i * 432,
         "LastSeen": "2026-11-01T00:00:00Z" if online else "2026-10-01T00:00:00Z",
-        "CurAddr": f"192.0.2.{i}" if (direct and online) else "",
+        "CurAddr": f"192.168.1.{i}" if (direct and online) else "",
         "Relay": "" if (direct and online) else "dfw",
         "LastHandshake": hs,
     }
@@ -119,8 +119,8 @@ doc = {
     "Health": health,
     "TUN": True,
     "Self": {
-        "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-        "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
+        "ID": "self", "HostName": "tower", "DNSName": "tower.tail.example.",
+        "UserID": 1, "TailscaleIPs": ["100.64.18.72", "fd7a:115c:a1e0::1"],
         "Capabilities": [],
         "ActiveMullvadExit": (doc_self_mullvad if fx == "mullvad" else ""),
     },

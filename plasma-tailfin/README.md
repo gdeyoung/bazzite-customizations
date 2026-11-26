@@ -19,15 +19,15 @@ logic, same data source, read-only, zero system mutations.
 ```
 chip:   ▪▪▪  12/40      ← Tailscale mark + online/total; click to open
 popup (v0.4 — single sectioned view, one scroll, no tabs):
-  gdtower                          [Disconnect]
-  ● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net
+  the tower                          [Disconnect]
+  ● RUNNING · 203.0.113.10 · the tower.tail.example
   🔍 [ Search peers                                    ] ✕
   EXIT NODES · 5
     ▸ exit node: tower                              [×]
-    ● spark2          [ACTIVE]                      [use]
-      100.x.y.z · spark2.horse-frog.ts.net
+    ● host-13          [ACTIVE]                      [use]
+      100.x.y.z · host-13.tail.example
   ONLINE · 13
-    ● aibox      ● watertower     ● spark   ● nas    (2-col, ● name)
+    ● host-03      ● host-04     ● spark   ● nas    (2-col, ● name)
   21 OFFLINE · SHOW                                   ← collapsed
   ● AS OF 14:22:31                    CONTROL ENABLED · gdeyoung
 Frame fixed at 34×38·gu (612×684 @100%); only the section stack scrolls

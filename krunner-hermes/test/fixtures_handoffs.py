@@ -4,7 +4,7 @@
 SANITIZE_FIXTURES = [
     # (entry, expected_ok) — foyer-identical rules
     ({"prefix": "gh", "label": "GitHub", "url": "https://github.com/search?q=%s"}, True),
-    ({"prefix": "sea", "label": "SearXNG fleet", "url": "http://192.168.1.249:8787/search?q=%s"}, True),
+    ({"prefix": "sea", "label": "SearXNG fleet", "url": "http://192.0.2.249:8787/search?q=%s"}, True),
     ({"prefix": "maps", "label": "Maps", "url": "https://example.com/%s"}, True),  # 4 lowercase letters: valid (product cut of the `map` DEFAULT was UX scope, not sanitize)
     ({"prefix": "toolongprefix", "label": "X", "url": "https://a.co/?q=%s"}, False),  # >6 chars
     ({"prefix": "Gh", "label": "GitHub", "url": "https://github.com/search?q=%s"}, False),  # uppercase

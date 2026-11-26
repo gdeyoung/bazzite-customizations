@@ -97,8 +97,8 @@ Spacing: `smallSpacing` (S=4), `largeSpacing` (G=9), inner margin
 `0.35·gu` (M=6); hairline = `Kirigami.Separator` 1px.
 
 ```
-● gdtower                                 [🔍][Disconnect]    HEADER 2.2·gu
-  RUNNING · 100.71.87.72 · via tower            [⚠ 2]
+● the tower                                 [🔍][Disconnect]    HEADER 2.2·gu
+  RUNNING · 203.0.113.10 · via tower            [⚠ 2]
 (§T-5 strip items 1–3 only, conditional, 0.9·gu/row)           STRIP
 [ PEERS         EXIT NODES         DEVICE ]▬2px underline▬    TABBAR 2.0·gu
 ┌ tab content region (fills; one scroll region) ┐
@@ -491,7 +491,7 @@ README Differences/Verified + ROADMAP in the same commit.
     text all ≥ 4.5:1.
 19. `tnum` on ADDRESS, rates, counts, footer clock; grep: zero
     whole-object `font:` binds, zero hex, nothing < smallFont.
-20. Search: `tow` ranks tower above watertower; `MATCHES · 2 OF 40`; `~`
+20. Search: `tow` ranks tower above host-04; `MATCHES · 2 OF 40`; `~`
     chip for a subsequence-only token; offline toggle hidden while
     querying; `zzz` → `NO MATCHING PEERS`; Esc clears-then-collapses;
     reopen = cleared + PEERS + collapsed.

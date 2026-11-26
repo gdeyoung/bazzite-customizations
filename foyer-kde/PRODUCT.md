@@ -6,7 +6,7 @@ browsable menu tree with the Hermes fleet lanes in one instantly-open native
 window — the thing KRunner's rows-only protocol could never be.
 
 ## Owner / scene
-Greg, gdtower (Bazzite, Plasma 6.7.5, Qt 6, Wayland/KWin, Breeze Dark,
+the owner, the tower (Bazzite, Plasma 6.7.5, Qt 6, Wayland/KWin, Breeze Dark,
 Super+Space muscle memory). Summoned dozens of times a day, hands never leaving
 the keyboard, on a 2560×1440 display in a dim room. Open→action budget: under
 two seconds; open→paint: under 150 ms.
@@ -45,7 +45,7 @@ real usage scene outrank expression. Brand lives in precise details.
   a foreign one). Kirigami/KDE house style of the fleet's plasmoids.
 
 ## Success looks like
-The daily driver on gdtower, retiring the KRunner `apps` lane as the primary
+The daily driver on the tower, retiring the KRunner `apps` lane as the primary
 surface. Feels like Plasma's own surface — a KRunner that grew up.
 
 ## Wrong-feel (would make polish feel wrong)

@@ -55,44 +55,44 @@ var kcms = [
 ];
 
 var sshHosts = [
-    { alias: "aitower",     ip: "192.168.1.246", note: "" },
-    { alias: "aicube",      ip: "192.168.1.243", note: "" },
-    { alias: "aibox",       ip: "192.168.1.239", note: "" },
-    { alias: "jellyfin",    ip: "192.168.1.238", note: "" },
-    { alias: "mediaserver", ip: "192.168.1.250", note: "" },
-    { alias: "nas",         ip: "192.168.1.252", note: "nasserver" },
-    { alias: "homeserver",  ip: "192.168.1.251", note: "" },
-    { alias: "micro",       ip: "192.168.1.240", note: "" },
-    { alias: "node",        ip: "192.168.1.248", note: "" },
-    { alias: "watertower",  ip: "192.168.1.249", note: "" },
-    { alias: "gx10",        ip: "192.168.1.245", note: "spark" },
-    { alias: "gx11",        ip: "192.168.1.242", note: "spark2" },
-    { alias: "gx12",        ip: "192.168.1.241", note: "spark3" },
-    { alias: "gx13",        ip: "192.168.1.244", note: "" }
+    { alias: "host-01",     ip: "192.0.2.246", note: "" },
+    { alias: "host-02",      ip: "192.0.2.243", note: "" },
+    { alias: "host-03",       ip: "192.0.2.239", note: "" },
+    { alias: "jellyfin",    ip: "192.0.2.238", note: "" },
+    { alias: "host-05", ip: "192.0.2.250", note: "" },
+    { alias: "nas",         ip: "192.0.2.252", note: "nasserver" },
+    { alias: "host-06",  ip: "192.0.2.251", note: "" },
+    { alias: "micro",       ip: "192.0.2.240", note: "" },
+    { alias: "node",        ip: "192.0.2.248", note: "" },
+    { alias: "host-04",  ip: "192.0.2.249", note: "" },
+    { alias: "host-07",        ip: "192.0.2.245", note: "spark" },
+    { alias: "host-08",        ip: "192.0.2.242", note: "host-13" },
+    { alias: "host-09",        ip: "192.0.2.241", note: "host-14" },
+    { alias: "host-10",        ip: "192.0.2.244", note: "" }
 ];
 
 // live ICMP probe 2026-11-07 15:53 CST, 1s timeout — 13 UP, nas DOWN
 var fleet = [
-    { host: "gdtower",     role: "this host · bazzite · plasma 6.8", ip: "local", up: true },
-    { host: "aitower",     role: "GPU node · 3090 + 3090 ti",        ip: ".246",  up: true },
-    { host: "aicube",      role: "services · litellm :4000",         ip: ".243",  up: true },
-    { host: "aibox",       role: "stt · tts gpus",                   ip: ".239",  up: true },
+    { host: "tower",     role: "this host · bazzite · plasma 6.8", ip: "local", up: true },
+    { host: "host-01",     role: "GPU node · 3090 + 3090 ti",        ip: ".246",  up: true },
+    { host: "host-02",      role: "services · litellm :4000",         ip: ".243",  up: true },
+    { host: "host-03",       role: "stt · tts gpus",                   ip: ".239",  up: true },
     { host: "jellyfin",    role: "media server",                     ip: ".238",  up: true },
-    { host: "mediaserver", role: "media lane",                       ip: ".250",  up: true },
+    { host: "host-05", role: "media lane",                       ip: ".250",  up: true },
     { host: "nas",         role: "unraid array · elastic lives here",ip: ".252",  up: false },
-    { host: "homeserver",  role: "ns canonical library",             ip: ".251",  up: true },
+    { host: "host-06",  role: "ns canonical library",             ip: ".251",  up: true },
     { host: "micro",       role: "haos vm host",                     ip: ".240",  up: true },
     { host: "node",        role: "fleet host",                       ip: ".248",  up: true },
-    { host: "watertower",  role: "fleet host",                       ip: ".249",  up: true },
-    { host: "gx10",        role: "spark node",                       ip: ".245",  up: true },
-    { host: "gx11",        role: "spark node",                       ip: ".242",  up: true },
-    { host: "gx12",        role: "spark node",                       ip: ".241",  up: true }
+    { host: "host-04",  role: "fleet host",                       ip: ".249",  up: true },
+    { host: "host-07",        role: "spark node",                       ip: ".245",  up: true },
+    { host: "host-08",        role: "spark node",                       ip: ".242",  up: true },
+    { host: "host-09",        role: "spark node",                       ip: ".241",  up: true }
 ];
 
 // hermes-runner config (values only; no keys)
 var ai = {
     model: "local-fast",
-    via: "aicube :4000",
+    via: "host-02 :4000",
     answerPrefix: "ai",
     taskPrefix: "hr",
     copyOnEnter: true,
@@ -106,9 +106,9 @@ var ai = {
 
 var aiAnswer = {
     q: "which hosts are up right now?",
-    streamingText: "13 of 14 fleet hosts are up. The only one down is nas (192.168.1.252) — the unraid array box. Everything else answered a ping just now",
+    streamingText: "13 of 14 fleet hosts are up. The only one down is nas (192.0.2.252) — the unraid array box. Everything else answered a ping just now",
     body: [
-        "13 of 14 fleet hosts are up. The only one down is nas (192.168.1.252) — the unraid array box. Everything else answered a ping just now: aicube, aitower, aibox, jellyfin, mediaserver, homeserver, micro, node, watertower, gx10, gx11, gx12, gx13.",
+        "13 of 14 fleet hosts are up. The only one down is nas (192.0.2.252) — the unraid array box. Everything else answered a ping just now: host-02, host-01, host-03, jellyfin, host-05, host-06, micro, node, host-04, host-07, host-08, host-09, host-10.",
         "Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check nas properly — wake-on-lan or ssh?"
     ]
 };

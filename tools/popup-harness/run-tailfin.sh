@@ -36,33 +36,33 @@ cat > "$STATUSJSON" <<'JSON'
   "Health": [],
   "TUN": true,
   "Self": {
-    "ID": "self", "HostName": "gdtower", "DNSName": "gdtower.horse-frog.ts.net.",
-    "UserID": 1, "TailscaleIPs": ["100.100.100.10", "fd7a:115c:a1e0::1"],
+    "ID": "self", "HostName": "tower", "DNSName": "tower.tail.example.",
+    "UserID": 1, "TailscaleIPs": ["100.64.18.72", "fd7a:115c:a1e0::1"],
     "Capabilities": []
   },
   "Peer": {
     "p1": {
-      "ID": "p1", "HostName": "watertower", "DNSName": "watertower.horse-frog.ts.net.",
+      "ID": "p1", "HostName": "host-04", "DNSName": "host-04.tail.example.",
       "OS": "linux", "UserID": 1, "Online": true, "Active": true,
       "ExitNodeOption": true, "ExitNode": true,
-      "TailscaleIPs": ["100.100.100.20"],
-      "AllowedIPs": ["100.100.100.20/32", "0.0.0.0/0", "::/0"],
+      "TailscaleIPs": ["100.64.24.1"],
+      "AllowedIPs": ["100.64.24.1/32", "0.0.0.0/0", "::/0"],
       "RxBytes": 1, "TxBytes": 1, "LastSeen": "2026-11-01T00:00:00Z"
     },
     "p2": {
-      "ID": "p2", "HostName": "nasbox", "DNSName": "nasbox.horse-frog.ts.net.",
+      "ID": "p2", "HostName": "nasbox", "DNSName": "nasbox.tail.example.",
       "OS": "linux", "UserID": 1, "Online": true, "Active": true,
       "ExitNodeOption": true, "ExitNode": false,
-      "TailscaleIPs": ["100.100.100.21"],
-      "AllowedIPs": ["100.100.100.21/32", "0.0.0.0/0", "::/0"],
+      "TailscaleIPs": ["100.64.25.2"],
+      "AllowedIPs": ["100.64.25.2/32", "0.0.0.0/0", "::/0"],
       "RxBytes": 1, "TxBytes": 1, "LastSeen": "2026-11-01T00:00:00Z"
     },
     "p3": {
-      "ID": "p3", "HostName": "oldspark", "DNSName": "oldspark.horse-frog.ts.net.",
+      "ID": "p3", "HostName": "oldspark", "DNSName": "oldspark.tail.example.",
       "OS": "linux", "UserID": 1, "Online": false, "Active": false,
       "ExitNodeOption": false, "ExitNode": false,
-      "TailscaleIPs": ["100.100.100.22"],
-      "AllowedIPs": ["100.100.100.22/32", "192.0.2.0/24"],
+      "TailscaleIPs": ["100.64.26.3"],
+      "AllowedIPs": ["100.64.26.3/32", "192.0.2.0/24"],
       "RxBytes": 0, "TxBytes": 0, "LastSeen": "2026-10-01T00:00:00Z"
     }
   }
@@ -128,7 +128,7 @@ driver = """    Timer {
             else if (step === 21) { root.powerClicked(); console.error("HARNESSDeadzone " + root.ctlArmed) }
             else if (step === 26) { root.powerClicked(); console.error("HARNESSFire") }
             else if (step === 31) { console.error("HARNESSPost busy=" + root.ctlBusy + " ctlError=[" + root.ctlError + "]") }
-            else if (step === 36) { root.runControlOp("exit-set", "nasbox.horse-frog.ts.net"); console.error("HARNESSExitSet busy=" + root.ctlBusy + " switching=[" + root.ctlSwitching + "]") }
+            else if (step === 36) { root.runControlOp("exit-set", "nasbox.tail.example"); console.error("HARNESSExitSet busy=" + root.ctlBusy + " switching=[" + root.ctlSwitching + "]") }
             else if (step === 44) { console.error("HARNESSEnd gate=" + root.gateState + " busy=" + root.ctlBusy + " ctlError=[" + root.ctlError + "]") }
         }
     }
@@ -176,6 +176,6 @@ echo "STUB-LOG-BEGIN"
 cat "$STUBLOG"
 echo "STUB-LOG-END"
 DOWNS=$(grep -ac "^tailscale down$" "$STUBLOG" || true)
-SETS=$(grep -ac "^tailscale set --exit-node=nasbox.horse-frog.ts.net$" "$STUBLOG" || true)
+SETS=$(grep -ac "^tailscale set --exit-node=nasbox.tail.example$" "$STUBLOG" || true)
 echo "ASSERT downs=$DOWNS (want 1 — dead-zone must not fire) exitsets=$SETS (want 1)"
 echo "DONE-$TAG-s$SCALE"

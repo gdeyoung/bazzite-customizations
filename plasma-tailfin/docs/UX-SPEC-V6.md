@@ -124,12 +124,12 @@ lines, so a column can be read top-to-bottom (row = 2.0·gu = 36px @gu18;
 ```
 LINE 1  x0    ● dot 6px            STATUS   (online=positive / offline=disabled)
         x16   NAME …               IDENTITY (T2 DemiBold, elide; 272px zone)
-        x270→392  …192.168.30.0/24  ROUTE    (T3 right-aligned chip, 6.8·gu slot)
+        x270→392  …198.51.100.0/24  ROUTE    (T3 right-aligned chip, 6.8·gu slot)
         x397→490  [vpn] EXIT NODE    ROLE     (T3; icon+bold when active, 5.2·gu slot)
         x496→579  [use exit]|[stop]  ACTION    (labeled 1.4·gu button, 4.6·gu slot, always reserved)
 
 LINE 2  x16   Linux · direct       OS+CONN  (T3 muted, 8.6·gu slot, left-aligned)
-        x310→ …100.101.135.11      ADDRESS  (T3 tnum, right-aligned, 7.2·gu slot — RIGHT EDGE FIXED at x310)
+        x310→ …203.0.113.26      ADDRESS  (T3 tnum, right-aligned, 7.2·gu slot — RIGHT EDGE FIXED at x310)
         x363→ …↓ 1.2 G · ↑ 340 M   TRAFFIC  (T3 tnum, right-aligned at x579 — or `idle`, or `last seen 23d`)
 ```
 
@@ -457,7 +457,7 @@ palette while armed, 500ms dead-zone, 4s window, other-control-click
 disarm-perform) / `Connect` / `working…` (disabled). Height 1.4·gu, width
 ≥4.4·gu. Button height 1.4·gu (25px) inside the 1.55·gu (28px) footer row.
 
-Why the footer: the header cluster was `gdtower [search] [Disconnect]` — an
+Why the footer: the header cluster was `the tower [search] [Disconnect]` — an
 unscoped destructive verb wedged against a filtering toggle (audit B2).
 The footer is the popup's action bar (provenance left, power right); the
 header becomes purely identity. Fitts: the footer's right edge is a
@@ -583,8 +583,8 @@ armed/op-error/edges. `highlightColor` only for the 400ms flash.
 
 ### §V6-14 — Header vocabulary: the self is `this device`, not a louder peer **[AMEND §W-7, §W-14; kills M1]**
 
-**Old (V5):** line 1 `gdtower` T1 bold; line 2 identity
-`RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net` (T3 @0.62,
+**Old (V5):** line 1 `the tower` T1 bold; line 2 identity
+`RUNNING · 203.0.113.10 · the tower.tail.example` (T3 @0.62,
 elide-middle) — reads like a peer row with bolder text; `RUNNING` collides
 with the lane's `ONLINE` for the same fact class.
 
@@ -980,18 +980,18 @@ remaining `font: Kirigami.Theme.smallFont` binds to member binds
 Default (19 online · 3 exit-capable · 1 active · 21 offline · gate on):
 
 ```
-● this device · via tower · 100.71.87.72 · gdtower.horse-frog…      [🔍]
+● this device · via tower · 203.0.113.10 · the tower.tail.example…      [🔍]
 ────────────────────────────────────────────────────────────────────
 [vpn] all traffic routing through tower                      ← 28px, tinted
 ONLINE  19 ─────────────────────────────────────────────────────────
-▐● tower                        ⚠192.168.30.0/24  [vpn]EXIT NODE  [stop] ▌
-  Linux · direct            100.101.135.11          ↓ 1.2 G · ↑ 340 M
- ● aicube                                                            (slot reserved)
-  Linux · relay · dfw       100.101.135.4                            idle
- ● greg-tab                                                          (slot reserved)
-  Android · relay · dfw     100.101.135.9                            idle
+▐● tower                        ⚠198.51.100.0/24  [vpn]EXIT NODE  [stop] ▌
+  Linux · direct            203.0.113.26          ↓ 1.2 G · ↑ 340 M
+ ● host-02                                                            (slot reserved)
+  Linux · relay · dfw       203.0.113.24                            idle
+ ● owners-tab                                                          (slot reserved)
+  Android · relay · dfw     203.0.113.25                            idle
  ● nasbox                                     [vpn]exit        [use exit]
-  Linux · direct            100.101.135.14                           idle
+  Linux · direct            203.0.113.27                           idle
    ⋮ (fold cuts mid-row; 10px fade at lane bottom)
 21 OFFLINE · SHOW
 ────────────────────────────────────────────────────────────────────
@@ -1001,10 +1001,10 @@ ONLINE  19 ───────────────────────
 No exit active (band gone, identity carries the fact):
 
 ```
-● this device · direct · 100.71.87.72 · gdtower.horse-frog.ts.net  [🔍]
+● this device · direct · 203.0.113.10 · the tower.tail.example  [🔍]
 ONLINE  19 ──────────────────────────────────────────────────────────
- ● tower                                ⚠192.168.30.0/24  [vpn]exit [use exit]
-  Linux · direct            100.101.135.11          ↓ 1.2 G · ↑ 340 M
+ ● tower                                ⚠198.51.100.0/24  [vpn]exit [use exit]
+  Linux · direct            203.0.113.26          ↓ 1.2 G · ↑ 340 M
 ```
 
 Search, query `tow` (denominator, bold marks, keyboard hints):
@@ -1013,19 +1013,19 @@ Search, query `tow` (denominator, bold marks, keyboard hints):
 [🔍 **tow**er works…                                    ] [✕]
 MATCHES  2 OF 40 ───────────────────────────────────────────────────
  ● **tow**er                                [vpn]EXIT NODE      [stop]
-  Linux · direct            100.101.135.11          ↓ 1.2 G · ↑ 340 M
+  Linux · direct            203.0.113.26          ↓ 1.2 G · ↑ 340 M
  ● hos**t**-**o**ps-**w**in              (subsequence marks)  ⚠cidr
-  Linux · direct            100.101.135.2                            idle
+  Linux · direct            203.0.113.23                            idle
 ```
 
 All-offline (auto-expanded; no void):
 
 ```
-● this device · direct · 100.71.87.72 · gdtower.horse-frog.ts.net  [🔍]
+● this device · direct · 203.0.113.10 · the tower.tail.example  [🔍]
 OFFLINE  21 ────────────────────────────────────────────────────────
         0 of 21 peers online · showing all offline
- ● greg-galaxy                    (whole row 0.62)      last seen 3h
-  macOS · offline           100.101.135.31                   last seen 3h
+ ● owners-galaxy                    (whole row 0.62)      last seen 3h
+  macOS · offline           203.0.113.29                   last seen 3h
    ⋮ (dimmed rows fill the lane)
 ```
 
@@ -1037,7 +1037,7 @@ machines verbatim, positions per §V6-18/§V6-8/§T-1/§T-4):
 │ ⚠ accept-routes is off on this node while peers advertise routes │
 │ ⚠ SELinux is preventing tailscaled from opening the SSH server…  │
 └──────────────────────────────────────────────────────────────────┘
- ● watertower                  ⚠192.168.30.0/24                   ← marked
+ ● host-04                  ⚠198.51.100.0/24                   ← marked
 ● 5s ago                                 CONTROL DISABLED         (no button)
 ```
 
@@ -1102,7 +1102,7 @@ machines verbatim, positions per §V6-18/§V6-8/§T-1/§T-4):
     (projection scan between first and last content).
 17. Health fixture: block border+bg tint present; warning text glyph-peak
     contrast ≥4.5:1 measured on the fixture crop; `HEALTH · 2` header;
-    `⚠` marks present on route-advertising rows (watertower) and absent
+    `⚠` marks present on route-advertising rows (host-04) and absent
     otherwise.
 18. Footer: freshness matches `^\d+s ago$`; stale variant on stale
     fixture; rightmost footer ink ends ≥0.8·gu from popup right edge;

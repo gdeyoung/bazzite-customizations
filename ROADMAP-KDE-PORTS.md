@@ -1,7 +1,7 @@
 # KDE Port Roadmap — the Omarchy plugin suite on Bazzite
 
 Decision 2026-10-26: build ALL ports as code-complete artifacts on branch
-`kde-ports-batch`; install nothing until Greg is back at the tower.
+`kde-ports-batch`; install nothing until the owner is back at the tower.
 
 **2026-11-26: `kde-ports-batch` is merged into `master`.** `master` is now the KDE
 plugin suite (Foyer launcher, Hermes KRunner, nine plasmoids, keyboard shortcuts,
@@ -85,9 +85,9 @@ systemctl --user restart plasma-krunner.service
 Rollback per widget: `kpackagetool6 -t Plasma/Applet -r com.gdeyoung.plasma.<id>`;
 runner: `./uninstall.sh`.
 
-## CENTER-BAR LAYOUT (install day) — Greg's Omarchy arrangement
+## CENTER-BAR LAYOUT (install day) — the owner's Omarchy arrangement
 Target: **StockTick | timepiece clock (center anchor) | weatherx** — the
-Omarchy center group (vivobook used tmn73.calendar centered; timepiece is our
+Omarchy center group (host-11 used tmn73.calendar centered; timepiece is our
 richer clock). Two methods, both verified paths:
 1. Interactive: panel Edit Mode → drag timepiece to the middle until it pins
    to the centered group; drop StockTick just left, weatherx just right.

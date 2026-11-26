@@ -189,8 +189,8 @@ into the ported column.
 ## T-9 — Popup wireframe (delta only)
 
 ```
-gdtower                              [Disconnect]   ← title-row flat ToolButton
-100.x.y.z · gdtower.…dns
+the tower                              [Disconnect]   ← title-row flat ToolButton
+100.x.y.z · the tower.…dns
 tailnet goes down here — …            ← msg 1: armed only (negative)
 op failed: …                          ← msg 2: last op failure (negative)
 control disabled — run: sudo …        ← msg 3: operator gate (disabled color)
@@ -319,8 +319,8 @@ undefined on this Plasma build, fall back to sysmon's `#3fd18b`/
 
 ```
 THIS DEVICE                              ← section label
-gdtower                                  ← hero 0.8·gu bold (selfName)
-100.101.135.9 · gdtower.horse-frog.ts.net  ← selfIp · selfDnsName
+the tower                                  ← hero 0.8·gu bold (selfName)
+203.0.113.25 · the tower.tail.example  ← selfIp · selfDnsName
 ● RUNNING                                ← state pill, computed CAPS
 EXIT NODE                                ← section label
 ▸ exit node: tower                  [×]  ← active (§T-4 copy + clear)
@@ -551,15 +551,15 @@ identity where the gate probes returned).
 ## R-12 — Wireframe (full popup, superseding §T-9)
 
 ```
-gdtower                          [Disconnect]   ← header 32 px (all tabs)
+the tower                          [Disconnect]   ← header 32 px (all tabs)
 tailnet goes down here — …                      ← strip: armed only
 ──────────────────────────────────────────────
 [ Status ]  [ Peers ]  [ Health ]               ← PC3.TabBar
 ──────────────────────────────────────────────
 Status tab:                Peers tab (2-col):   Health tab:
 THIS DEVICE                ONLINE · 19          BACKEND
-gdtower                    ● tower  ACTIVE [use]● RUNNING · POLL EVERY 10 S
-100.101.135.9 · gdtower…   ● nasbox       [use]WARNINGS
+the tower                    ● tower  ACTIVE [use]● RUNNING · POLL EVERY 10 S
+203.0.113.25 · the tower…   ● nasbox       [use]WARNINGS
 ● RUNNING                  ● spark … (24 max)   NO WARNINGS
 EXIT NODE                  21 OFFLINE · SHOW    OPERATOR
 ▸ exit node: tower [×]     ────────────────     CONTROL ENABLED · gdeyoung
@@ -613,7 +613,7 @@ stays byte-identical (§T-6 restated).
 | 3 | **Dialog-like geometry.** A fixed 487 px frame read as a window, not a tray popup | Width unchanged (never the complaint); height rises to 38·gu ONLY because measured content (19/3/21 split) demands it — §V-5's ledger accounts for every row; no filler |
 | 4 | **Density without hierarchy.** 1.5·gu two-line cells, 6–8 px sublines, three competing status treatments (green dot / orange ACTIVE / orange exit), tags eliding into a floating right column with ambiguous row association (rej-v03-peers) | Census cells are name-only one-liners in a 2-col grid — no sublines, no tags, no second status vocabulary. Tags exist in exactly one place (ACTIVE on the active exit candidate). Detail lives in tooltip + search, not in microtext |
 | 5 | **Buried actions.** Exit switching needed a tab hop; `SHOW` looked like footer text; the operator remediation was dead prose rendered twice (header + Health) | Exit nodes are a first-class SECTION at the §T-9 position (top of the list); `use`/`×` inline there; remediation string renders exactly once (message strip); footer carries only the verdict |
-| 6 | **Duplication.** `gdtower` in header AND under THIS DEVICE; control-disabled string in header AND Health | The header IS the machine block (§T-9 shape: title row + identity line). Dedup rule: every string has exactly one render site (§V-7) |
+| 6 | **Duplication.** `the tower` in header AND under THIS DEVICE; control-disabled string in header AND Health | The header IS the machine block (§T-9 shape: title row + identity line). Dedup rule: every string has exactly one render site (§V-7) |
 | 7 | **Wall-of-peers (v0.2).** 40 ungrouped rows, one endless scroll, offline dominant | Trayscale sectioning: exit-capable pulled out and never duplicated, offline collapsed behind a count row by default, census zero-scroll at 19 measured online; live search for find-by-anything |
 
 ## V-2 — Disposition of v0.3 artifacts (what happens to the tabs)
@@ -646,8 +646,8 @@ stays byte-identical (§T-6 restated).
 Measured tailnet shown (19 online · 3 exit-capable · 21 offline):
 
 ```
-gdtower                                    [Disconnect]  ← header (§T-3 states)
-● RUNNING · 100.71.87.72 · gdtower.horse-frog.ts.net    ← identity + state
+the tower                                    [Disconnect]  ← header (§T-3 states)
+● RUNNING · 203.0.113.10 · the tower.tail.example    ← identity + state
 tailnet goes down here — …                 ← strip 1: armed only (negative)
 op failed: …                               ← strip 2: last op failure (neg)
 control disabled — run: sudo tailscale …   ← strip 3: operator gate (disabled)
@@ -657,16 +657,16 @@ control disabled — run: sudo tailscale …   ← strip 3: operator gate (disab
 EXIT NODES · 3                                           ← hidden when 0 & none active
 ▸ exit node: tower                          [×]          ← §T-4 banner + clear
 ● tower                                           ACTIVE ← active row: `use` hidden
-  100.101.135.11 · tower.horse-frog.ts.net
+  203.0.113.26 · tower.tail.example
 ● nasbox                                    [use]         ← §T-4 candidate
-  100.101.135.14 · nasbox.horse-frog.ts.net
+  203.0.113.27 · nasbox.tail.example
 ● host04                                    [use]
-  100.101.135.20 · host04.horse-frog.ts.net
+  203.0.113.28 · host04.tail.example
 ONLINE · 16                                              ← census = online − exit-capable
-● aicube          ● aibox                               ← 2-col census, name-only
-● gx10            ● gx13                                (tooltip: dns · ip · routes)
+● host-02          ● host-03                               ← 2-col census, name-only
+● host-07            ● host-10                                (tooltip: dns · ip · routes)
 ● jellyfin        ● micro
-● node            ● spark2         … (16 cells = 8 rows, zero-scroll)
+● node            ● host-13         … (16 cells = 8 rows, zero-scroll)
 21 OFFLINE · SHOW                                        ← collapsed (showOffline seeds)
 ────────────────────────────────────────────────────────
 ● AS OF 23:44:39            CONTROL ENABLED · gdeyoung  ← footer
@@ -679,9 +679,9 @@ list; header, strip, banner context, and footer stay pinned:
 [edit-find] tow                        [✕]
 MATCHES · 2
 ● tower                                ACTIVE [use]
-  100.101.135.11 · tower.horse-frog.ts.net
-● watertower
-  100.101.135.2 · watertower.horse-frog.ts.net · last seen 3h ago
+  203.0.113.26 · tower.tail.example
+● host-04
+  203.0.113.23 · host-04.tail.example · last seen 3h ago
 ```
 
 ## V-4 — Section & row inventory
@@ -904,7 +904,7 @@ never duplicates a string (edge strings appear in exactly one place).
 
 - `Model.js` fork-additions: `searchPeers(peers, query)` (§V-8) —
   unit tests in `tests/model.test.js`: substring hit; subsequence hit
-  (`gdt` → gdtower); multi-token all-must (`spark gx` → both spark
+  (`gdt` → the tower); multi-token all-must (`spark gx` → both spark
   nodes, `spark zzz` → none); score order (prefix beats subsequence);
   offline inclusion; empty-query passthrough. `parseStatusPlus`,
   `filterOnline`, `subnetRoutes`, `fmtLastSeen` reused as-is.
@@ -952,8 +952,8 @@ never duplicates a string (edge strings appear in exactly one place).
    different count strings; grep finds no count literals in new QML.
 7. **Copy:** every rendered string matches §V-7 (or §T-3/4/5 approved)
    byte-for-byte; ` · ` joiner everywhere; NO string renders twice.
-8. **Search:** `tow` → tower (first, prefix-scored) + watertower;
-   `zzz` → `NO MATCHING PEERS`; `gdt` → gdtower (subsequence);
+8. **Search:** `tow` → tower (first, prefix-scored) + host-04;
+   `zzz` → `NO MATCHING PEERS`; `gdt` → the tower (subsequence);
    `spark gx` → both sparks; Esc restores sections; Ctrl+F focuses;
    reopen → query cleared; search hidden on empty/login/down/missing/
    parse.

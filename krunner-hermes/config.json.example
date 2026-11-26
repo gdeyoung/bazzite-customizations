@@ -16,7 +16,7 @@
   "models": ["local-fast", "local-heavy", "local-fast-reason", "cloud-dev"],
   "handoffs": [
     {"prefix": "gh",  "label": "GitHub",       "url": "https://github.com/search?q=%s"},
-    {"prefix": "sea", "label": "SearXNG fleet", "url": "http://192.0.2.20:8787/search?q=%s"},
+    {"prefix": "sea", "label": "SearXNG fleet", "url": "http://192.0.2.249:8787/search?q=%s"},
     {"prefix": "el",  "label": "Elastic docs", "url": "https://duckduckgo.com/?q=site%3Aelastic.co+%s"}
   ]
 }

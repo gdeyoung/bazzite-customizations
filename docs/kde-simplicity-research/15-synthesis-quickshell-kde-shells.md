@@ -94,8 +94,8 @@ quickshell-kde adapter seam fleet-wide: compositor code lives *only* in QML adap
 singletons (`KWinService` / a `HyprlandService` twin over `hyprctl -j`) behind a
 written interface contract, env-var detection (`KDE_FULL_SESSION` /
 `HYPRLAND_INSTANCE_SIGNATURE`), UI modules barred from compositor commands, total
-no-op degradation off-compositor. One authored plugin then runs on sammypro5/vivobox
-(Omarchy) and gdtower (Plasma companion chrome) unchanged — the "port our Omarchy
+no-op degradation off-compositor. One authored plugin then runs on host-12/vivobox
+(Omarchy) and the tower (Plasma companion chrome) unchanged — the "port our Omarchy
 plugins" problem inverts into an authoring convention. *Worth it:* ~half a day of
 structure; eliminates the per-plugin port for every new plugin; both desks share one
 repo and one test rig (`.rig/e2e.sh` pattern: private D-Bus + `kwin_wayland --virtual`
@@ -113,7 +113,7 @@ chrome without compiled code; reverses "WM-wrapper modules dead on Plasma" *for 
 wallpaper-only-package takeover is the only reversible full-shell escape hatch that
 survives the no-layering rule. *Worth it:* 1–2 h to prove the mechanism (kwriteconfig
 in, reboot-free `kwin_wayland --replace`-equivalent check in nested harness, restore
-out). Ship nothing now — gdtower keeps Plasma panels. It becomes the play if a kiosk /
+out). Ship nothing now — the tower keeps Plasma panels. It becomes the play if a kiosk /
 bot-screen / secondary-machine surface ever wants Foyer chrome as the entire desktop.
 
 **I4 — Version discipline: stock 0.2.1 ships, 0.3.2 is the harness triage bench.** No

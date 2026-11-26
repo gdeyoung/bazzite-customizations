@@ -44,5 +44,5 @@ the popup on the Omarchy `5d0tal1gat0r.stocks` layout.
 systemctl --user restart plasma-plasmashell.service   # only if ghosts
 kpackagetool6 -t Plasma/Applet -r com.gdeyoung.plasma.stocktick  # rollback
 ```
-Panel placement (Greg's Omarchy layout): StockTick immediately LEFT of the
+Panel placement (the owner's Omarchy layout): StockTick immediately LEFT of the
 centered clock, weatherx immediately right — see ROADMAP-KDE-PORTS.md.
