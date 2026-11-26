@@ -1,5 +1,9 @@
 # plasma-timemachine — a KDE Plasma 6 plasmoid
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-timemachine`](https://github.com/gdeyoung/omarchy-timemachine) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 Backup status chip for the Plasma 6 panel: status glyph (OK / stale / running
 pulse / failed) + last-backup age, expanding into a **five-tab Time Machine
 panel** — **Status · Snapshots · Health · Recovery · Settings** — over a

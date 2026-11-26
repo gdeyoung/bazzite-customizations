@@ -1,5 +1,9 @@
 # Plasma Time Piece
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-timepiece`](https://github.com/gdeyoung/omarchy-timepiece) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 A date-time chip for the KDE Plasma 6 panel that expands into a calendar popup
 with **color-coded world clocks**, a **countdown timer**, and a self-running
 **pomodoro** — all of which survive a plasmashell restart.

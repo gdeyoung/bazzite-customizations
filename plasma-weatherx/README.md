@@ -1,5 +1,9 @@
 # Plasma WeatherX
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-weather`](https://github.com/gdeyoung/omarchy-weather) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 Weather glyph + current temperature in the KDE Plasma 6 panel — click for the
 tabbed popup: **Here** (device location from widget settings) plus pinned
 places, current conditions with feels-like and H/L, a details grid with level

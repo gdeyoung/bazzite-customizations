@@ -1,5 +1,8 @@
 # StockTick v2 — panel stock chip + watchlist popup
 
+> **KDE Plasma 6 version** — KDE-native, no Omarchy source; the popup layout is
+> modeled on the Omarchy `5d0tal1gat0r.stocks` plugin. This directory is the KDE one.
+
 Second-generation build (v1 died in-service: frozen state, collapsed chips).
 v2 swaps the python probe for the weatherx-proven curl pipeline and models
 the popup on the Omarchy `5d0tal1gat0r.stocks` layout.

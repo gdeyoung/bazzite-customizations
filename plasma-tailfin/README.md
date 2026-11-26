@@ -1,5 +1,9 @@
 # Plasma Tailfin
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-tailfin`](https://github.com/gdeyoung/omarchy-tailfin) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 Tailscale tailnet status in the KDE Plasma 6 panel — a compact chip with the
 Tailscale dot-mark glyph (state-colored: active / crossed-out when down /
 warning badge for needs-login or health issues) and an **online/total** peer

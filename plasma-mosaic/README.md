@@ -1,5 +1,9 @@
 # Plasma Mosaic
 
+> **KDE Plasma 6 version** — the native Plasma port of the third-party Omarchy plugin
+> [`naolselemon/mosaic`](https://github.com/naolselemon/mosaic) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 A read-only **application-storage explorer** for the KDE Plasma 6 panel: where each
 desktop app keeps its config, data, cache and state — measured sizes, ownership
 confidence (known / possible / shared), per-path evidence, subdirectory breakdowns

@@ -1,5 +1,9 @@
 # Plasma Ready Room
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-ready-room`](https://github.com/gdeyoung/omarchy-ready-room) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 The pre-game ritual in one KDE Plasma 6 panel widget: **boot-to-Game-Mode**,
 the game **session** toggles, **controller** inventory with battery and rumble
 test, an **instant-replay** buffer with one-click clip saving, and desk-**gear**

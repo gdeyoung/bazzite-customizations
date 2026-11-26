@@ -1,5 +1,9 @@
 # Hermes KRunner Runner — `ai <question>` / `hr <task>`
 
+> **KDE Plasma 6 version** — KDE-native DBus runner; the rows-only sibling of
+> [`foyer-kde`](../foyer-kde/), which is the Plasma counterpart of
+> [`gdeyoung/omarchy-foyer`](https://github.com/gdeyoung/omarchy-foyer). This directory is the KDE one.
+
 The Omarchy "front door" feeling, KDE-native: Super+Space, ask a question or
 fire an agent task, no terminal, no browser. Zero-compile Plasma 6 DBus
 runner — no C++, no KDE SDK, nothing layered into the image.
@@ -17,7 +21,7 @@ runner — no C++, no KDE SDK, nothing layered into the image.
 
 **Dictation (v0.2.2):** `ask hermes about X`, `tell hermes to Y` (also "the assistant", `ai:`/`hr:`/`question:`/`task:` prefixes) normalize into the lanes inside `route()` — what you see in the box is what was claimed. Purely local regex, idempotent, 26 fixture-tested. Ported from Omarchy Foyer's VoiceModel.
 
-**Web fallback (v0.2.2):** every inline answer row is paired with a `Web search: <question>` sibling — Enter opens your default browser at `web_search_url` (default DuckDuckGo) with the original-case question. Fleet SearXNG works too: `--web-search-url http://192.168.1.249:8787/search?q=%s --web-search-name SEARXNG`. No sibling while fetching or on errors.
+**Web fallback (v0.2.2):** every inline answer row is paired with a `Web search: <question>` sibling — Enter opens your default browser at `web_search_url` (default DuckDuckGo) with the original-case question. Fleet SearXNG works too: `--web-search-url http://192.0.2.20:8787/search?q=%s --web-search-name SEARXNG`. No sibling while fetching or on errors.
 
 Errors are their own state: a failed ask shows a red row with a one-line humanized reason ("LiteLLM unreachable at …") and Enter retries it. Errors are never cached as answers.
 
@@ -73,7 +77,7 @@ Reload without restarting: `systemctl --user kill -s HUP hermes-runner`.
 ## Install (when at the tower)
 
 ```
-./install.sh --litellm-url http://192.168.1.243:4000/v1 --model local-fast \
+./install.sh --litellm-url http://192.0.2.10:4000/v1 --model local-fast \
              --api-key-env ZHW_PROXY_API_KEY --api-key-file ~/.hermes/secrets/infra.env
 systemctl --user restart plasma-krunner.service
 # Super+Space → "ai ping"

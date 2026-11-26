@@ -1,27 +1,49 @@
-# Bazzite Customizations
+# Bazzite Customizations — KDE Plasma 6 plugins
 
 KDE Plasma customizations, tweaks, and plugins for [Bazzite](https://bazzite.gg/) /
 Fedora Kinoite (immutable, rpm-ostree) — by [gdeyoung](https://github.com/gdeyoung).
 
-Sibling of the [`omarchy-*`](https://github.com/gdeyoung?tab=repositories&q=omarchy)
-family (Arch + Hyprland) and of [praxis](https://github.com/gdeyoung/praxis), the
+This is the **KDE side** of the fleet's desktop plugins: native Plasma 6 ports of the
+[`omarchy-*`](https://github.com/gdeyoung?tab=repositories&q=omarchy) family
+(Arch + Hyprland / Quickshell), plus a few KDE-native additions. Same probes, same
+behavior, different shell — the Omarchy originals stay in their own repos; the KDE
+versions live here, one directory per plugin (`plasma-*`, `foyer-kde`,
+`krunner-hermes`). Sibling of [praxis](https://github.com/gdeyoung/praxis), the
 fleet-lessons hub. Everything here follows the same rules: installable without
 sudo or rpm-ostree layering (lives in `$HOME`), reversible, verified on real
 hardware with measured numbers, and honest about the failures that shaped it.
 
 ## Contents
 
+### KDE Plasma 6 ports of `omarchy-*` plugins
+
+| Omarchy original (Quickshell / Hyprland) | KDE version — here | What it does |
+|---|---|---|
+| [omarchy-sysmon](https://github.com/gdeyoung/omarchy-sysmon) | [plasma-sysmon](plasma-sysmon/) | Live **M/C/N/D** panel strip → tabbed task-manager popup: performance charts, GPU load/VRAM/GTT, disk gauges, killable process table, fastfetch-grade hardware inventory. |
+| [omarchy-tailfin](https://github.com/gdeyoung/omarchy-tailfin) | [plasma-tailfin](plasma-tailfin/) | Tailscale chip (state + online/peer count) → device list with exit nodes, subnet routes, self identity and health warnings. |
+| [omarchy-weather](https://github.com/gdeyoung/omarchy-weather) | [plasma-weatherx](plasma-weatherx/) | Weather glyph + temperature → tabbed popup: here + pinned places, details grid, remaining-hours strip, 7-day forecast, sun times, keyless radar map. |
+| [omarchy-timepiece](https://github.com/gdeyoung/omarchy-timepiece) | [plasma-timepiece](plasma-timepiece/) | Date-time chip → calendar popup with color-coded world clocks, a countdown timer and a pomodoro. |
+| [omarchy-driveway](https://github.com/gdeyoung/omarchy-driveway) | [plasma-driveway](plasma-driveway/) | Every drive one click away: USB/local disks, SMB/NFS/sshfs shares, rclone cloud remotes — mounted state, usage and health. |
+| [omarchy-timemachine](https://github.com/gdeyoung/omarchy-timemachine) | [plasma-timemachine](plasma-timemachine/) | Backup status chip → five-tab Time Machine panel over the bundled rsync engine + local btrfs snapshots. |
+| [omarchy-ready-room](https://github.com/gdeyoung/omarchy-ready-room) | [plasma-readyroom](plasma-readyroom/) | Boot-to-Game-Mode, session toggles, controller inventory/test, instant-replay buffer, gear batteries + MangoHud profile switcher. |
+| [omarchy-foyer](https://github.com/gdeyoung/omarchy-foyer) | [foyer-kde](foyer-kde/) | The front door on Plasma: keyboard-first fan-out launcher overlay (browsable menu tree + live all-source search + Hermes lanes). Design of record: [CONVERGED-DESIGN.md](foyer-kde/CONVERGED-DESIGN.md). |
+| [naolselemon/mosaic](https://github.com/naolselemon/mosaic) (3rd-party, MIT) | [plasma-mosaic](plasma-mosaic/) | Read-only application-storage explorer: where each app keeps config/data/cache/state, measured, with evidence labels. |
+
+### KDE-native (no Omarchy source)
+
 | Entry | What it does |
 |---|---|
-| [plasma-sysmon](plasma-sysmon/) | Live **M/C/N/D** system monitor for the KDE Plasma 6 panel — compact bar strip that expands into a tabbed task-manager popup (performance charts, GPU VRAM/GTT, disk gauges, killable process table, hardware inventory). Pure QML + shell probes, user-level install. |
-| [voxtype-push-to-talk](voxtype-push-to-talk/) | Hold-to-talk dictation into any app on KDE Plasma Wayland, transcribed by a **remote WhisperX server** — no local model on the desktop. Full write-up + parameterized install script. |
+| [krunner-hermes](krunner-hermes/) | **Hermes KRunner runner** — `ai <question>` / `hr <task>` from Super+Space; zero-compile DBus runner. The rows-only sibling of foyer-kde. |
+| [plasma-stocktick](plasma-stocktick/) | Stock chip + Markets/Watchlist/Portfolio popup (Yahoo, keyless); layout modeled on the Omarchy `5d0tal1gat0r.stocks` plugin. |
+| [plasma-panelpad](plasma-panelpad/) | Invisible fixed-width panel spacer — exact, scriptable gaps between widgets. |
+| [keyboard-shortcuts/](keyboard-shortcuts/) | `hermes-keys.sh` — the Meta+Space/Return/H binds as kglobalaccel `[services]` entries; no remapper needed. |
+| [voxtype-push-to-talk](voxtype-push-to-talk/) | Hold-to-talk dictation into any app on KDE Plasma Wayland, transcribed by a **remote WhisperX server** — no local model on the desktop. |
 
-## Related
-
-- **[galaxybook5-pro-platform](https://github.com/gdeyoung/galaxybook5-pro-platform)** —
-  internal-speaker fix for the Samsung Galaxy Book5 Pro on Linux (MAX98390 amps), written
-  for this Bazzite machine; now also carries the Omarchy/Arch field report and the
-  speaker-loudness findings. The hardware half of this repo's story.
+Port status (tree vs installed), declined ports and the install-day punch list live in
+[ROADMAP-KDE-PORTS.md](ROADMAP-KDE-PORTS.md); harness + tooling in [tools/](tools/);
+specs and research in [docs/](docs/). The **Clearvoice** KDE frontend (Plasma plasmoid +
+PipeWire recorder) ships in [clearvoice-core](https://github.com/gdeyoung/clearvoice-core),
+next to its Omarchy sibling.
 
 ## House rules
 

@@ -1,5 +1,9 @@
 # Plasma Driveway
 
+> **KDE Plasma 6 version** — the native Plasma port of
+> [`gdeyoung/omarchy-driveway`](https://github.com/gdeyoung/omarchy-driveway) (Quickshell / Hyprland). The Omarchy original lives in
+> its own repo; this directory is the KDE one (same probes and behavior, Plasma shell).
+
 Every drive you own, one click from the KDE Plasma 6 panel — a **Driveway** chip that
 expands into a three-section popup: **Drives** (USB/local disks with usage bars, plus a
 read-only System row), **Shares** (config-defined SMB/NFS/sshfs entries with live

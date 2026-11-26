@@ -1,32 +1,47 @@
 # KDE Port Roadmap — the Omarchy plugin suite on Bazzite
 
 Decision 2026-10-26: build ALL ports as code-complete artifacts on branch
-`kde-ports-batch`; **install nothing until Greg is back at the tower**. Install
-steps live at the bottom as a punch list.
+`kde-ports-batch`; install nothing until Greg is back at the tower.
 
-## Status — ALL BUILT 2026-10-26, branch `kde-ports-batch`, nothing installed
+**2026-11-26: `kde-ports-batch` is merged into `master`.** `master` is now the KDE
+plugin suite (Foyer launcher, Hermes KRunner, nine plasmoids, keyboard shortcuts,
+harness + tools, docs) and is the default branch on GitHub. New work branches off
+`master`; `kde-ports-batch` is kept for history only.
 
-| Omarchy source | KDE target here | State | Notes |
-|---|---|---|---|
-| omarchy-sysmon | `plasma-sysmon/` | **SHIPPED** (master) | v0.6.0, installed + verified |
-| omarchy-foyer (AI lanes) | `krunner-hermes/` | **SHIPPED v0.2** (`8ea2503`, `8672556`) | DBus runner: `ai <q>` → LiteLLM answer (Enter asks; cached inline; error rows retry), `hr <task>` → hermes -z turn with running-state rows + double-fire guard. UX-agent spec'd (UX-SPEC.md), 26 unit tests, harness-gated (kr8), installed + live-verified both lanes. |
-| omarchy-weather | `plasma-weatherx/` | **BUILT** (2538283) | keyless Open-Meteo + Esri/RainViewer radar, pinned places; checker 0/0; live API e2e passed (placeholder coords only in repo) |
-| omarchy-timepiece | `plasma-timepiece/` | **SHIPPED** (2026-10-30) | Installed live, center slot (applet 68, replaced stock clock 22 — config kept for rollback). v0.1.1: popup width-authority fix (binding loop expanded popup to full panel width), default world clocks NY/London/Tokyo. Harness-verified scale 1 + 2. |
-| omarchy-tailfin | `plasma-tailfin/` | **BUILT v0.4** (single sectioned view §V) | Model verbatim + searchPeers; 68/68 tests; v0.4: tabs removed, 34×38·gu single view (EXIT NODES / ONLINE / OFFLINE-collapsed + live search), count-sum invariant, edge states; v0.3 tabbed popup rejected in desk use; control surface unchanged (stub-only, first real op = user) |
-| omarchy-driveway | `plasma-driveway/` | **BUILT** (d002ff5) | engine byte-identical (sha256), py_compile OK; poll-only v0.1, wizards→config |
-| naolselemon/mosaic (3rd-party, MIT) | `plasma-mosaic/` | **ENGINE LANE DONE** | engine vendored byte-identical @9b3f4d7 (ledger in PORT-NOTES.md); host CLI (snapshot cache, single-flight, klipper/FileManager1); 145/145 tests; real-HOME E2E 28.6 GB / 22 apps, deep-scan OK. QML pending UX spec (docs/mosaic-v01-popup-spec.md in flight) |
-| omarchy-timemachine | `plasma-timemachine/` | **BUILT** (76dbee3) | engine sha256-ledgered, 24/24 tests; 5-tab popup |
-| omarchy-ready-room | `plasma-readyroom/` | **BUILT** (83f441c) | gc-* sha-identical; read-only probes live-run OK; needs gpu-screen-recorder (absent) for replay |
-| **plasma-stocktick** (new — no Omarchy source) | `plasma-stocktick/` | **BUILT** (2fdbac3) | First KDE-native plugin: Yahoo keyless quotes chip + watchlist + portfolio; checker 0/0, 5/5 tests, live-API verified. (No stock plugin existed on any Omarchy — checked.) |
-| — (new, no Omarchy source) | `keyboard-shortcuts/` | **BUILT v2** (e783bb7, reconciled 2026-11-01) | hermes-keys.sh: Meta+Space/Return/H/Shift+H; [services] groups, /App-query preloads; no remapper needed |
-| omarchy-game-center | — | skip | subsumed by plasma-sysmon (GPU VRAM/GTT already there) |
-| omarchy-appdock | — | skip | reverse port; it *is* the KDE task manager on Hyprland |
-| omarchy-ultrawide-bar | — | skip | KDE panel does partial-width/auto-hide/floating natively |
-| omarchy-displayplus | — | skip | KScreen KCM native; hyprmoncfg editor is Hyprland-only |
-| omarchy-powercore | — | parked | laptop-only (UPower/clamshell); revive if Bazzite goes on a laptop |
-| omarchy-armoury | — | parked | asus_armoury kernel module; desktop has no ASUS hardware |
-| omarchy-audiofx | — | parked | FX engine not installed on Omarchy yet; revisit after engine ships |
-| omarchy-clearvoice | — | separate track | KDE frontend scoped in clearvoice-core skill (v3 plan) |
+## Status — tree versions and the live tower install, both verified 2026-11-26
+
+"Tree" = `metadata.json` on `master`. "Installed" = `~/.local/share/plasma/plasmoids/`
+on the tower, byte-compared against the tree. Where they differ, the **tree is the
+newer copy** (the installed copy simply has not been re-installed since); nothing on
+disk is ahead of the repo.
+
+| Omarchy source | KDE target here | Tree | Installed on the tower | Notes |
+|---|---|---|---|---|
+| omarchy-sysmon | `plasma-sysmon/` | v0.7.0 | v0.7.0 — only `install.sh` differs (installed copy predates the no-restart sweep) | v0.7/v0.8 redesign DONE: fixed 960×640 frame, real process manager, Hardware table, unified type scale |
+| omarchy-foyer (AI lanes) | `krunner-hermes/` | v0.8.1 | v0.8.1 — code byte-identical | DBus runner: `ai <q>` → LiteLLM answer, `hr <task>` → hermes -z turn; UX-spec'd (UX-SPEC.md), unit-tested, harness-gated, live-bus verified |
+| omarchy-foyer (launcher) | `foyer-kde/` | — | installed — `foyer.service` active, files byte-identical | LayerShellQt overlay daemon, Meta+Space; design of record CONVERGED-DESIGN.md. Data lanes are a static snapshot — live wiring (.desktop splice, ICMP fleet probe, AI lane) is the open work |
+| omarchy-weather | `plasma-weatherx/` | v0.1.0 | v0.1.0 — byte-identical | keyless Open-Meteo + Esri/RainViewer radar, pinned places; placeholder coords only in repo |
+| omarchy-timepiece | `plasma-timepiece/` | v0.1.0 | v0.1.0 — only `install.sh` differs | center slot (replaced the stock clock; config kept for rollback); popup width-authority fix; harness-verified at scale 1 + 2 |
+| omarchy-tailfin | `plasma-tailfin/` | v0.8.0 | v0.8.0 — only a gallery timestamp differs | v0.8 Omarchy-layout rebuild (CONNECTION · EXIT NODES · MACHINES), real toggles, Mullvad exit regions; control surface stub-only — first real op is the user's |
+| omarchy-driveway | `plasma-driveway/` | v0.1.0 | not installed | engine byte-identical (sha256); poll-only v0.1, wizards → config |
+| naolselemon/mosaic (3rd-party, MIT) | `plasma-mosaic/` | v0.1.0 | not installed | engine vendored byte-identical (ledger in PORT-NOTES.md); 145/145 tests; real-HOME E2E 28.6 GB / 22 apps |
+| omarchy-timemachine | `plasma-timemachine/` | v0.1.0 | not installed | engine sha256-ledgered, 24/24 tests; 5-tab popup |
+| omarchy-ready-room | `plasma-readyroom/` | v0.1.0 | not installed | gc-* sha-identical; read-only probes live-run OK; needs gpu-screen-recorder (absent) for replay |
+| — (KDE-native) | `plasma-stocktick/` | v2.0.0 | v2.0.0 — installed copy LACKS the `seedMarkets()` popup-seed fix | Yahoo keyless quotes chip + watchlist + portfolio; checker 0/0, live-API verified |
+| — (KDE-native) | `plasma-panelpad/` | v1.0.0 | v1.0.0 — byte-identical | invisible fixed-width panel spacer |
+| — (KDE-native) | `keyboard-shortcuts/` | v2 | n/a (script) | hermes-keys.sh: Meta+Space/Return/H/Shift+H; `[services]` groups, /App-query preloads; no remapper needed |
+| omarchy-clearvoice | **clearvoice-core** (separate repo) | separate track | — | KDE frontend = Plasma plasmoid + PipeWire recorder in `clearvoice-core/plasmoid`; the Omarchy frontend stays `omarchy-clearvoice` |
+| omarchy-game-center | — | skip | — | subsumed by plasma-sysmon (GPU VRAM/GTT already there) |
+| omarchy-appdock | — | skip | — | reverse port; it *is* the KDE task manager on Hyprland |
+| omarchy-ultrawide-bar | — | skip | — | KDE panel does partial-width/auto-hide/floating natively |
+| omarchy-displayplus | — | skip | — | KScreen KCM native; hyprmoncfg editor is Hyprland-only |
+| omarchy-powercore | — | parked | — | laptop-only (UPower/clamshell); revive if Bazzite goes on a laptop |
+| omarchy-armoury | — | parked | — | asus_armoury kernel module; desktop has no ASUS hardware |
+| omarchy-audiofx | — | parked | — | FX engine not installed on Omarchy yet; revisit after engine ships |
+
+Install-day follow-up for the four widgets whose installed copy trails the tree
+(sysmon, timepiece, stocktick, tailfin): `kpackagetool6 -t Plasma/Applet -u <repo-dir>`
+then swap the widget instance — no shell restart.
 
 ## Redesign queue (post-ship improvements)
 
@@ -52,8 +67,11 @@ Per widget, after review merge:
 ```
 cd ~/work/bazzite-customizations/<widget>
 kpackagetool6 -t Plasma/Applet -i .            # or -u if upgrading
-systemctl --user restart plasma-plasmashell.service
-# add to panel: right-click panel → Add Widgets → <Name>
+# NO plasmashell restart (banned: it bounces the panel mid-session; the shell
+# reloads updated packages itself). New widget: add it via the scripting API
+# (skill plasma-plasmoid-development, "Panel placement"). Upgrade: swap the
+# instance — widgetById(<id>).remove(); panel.addWidget("<pluginId>") — and
+# clear the compiled-QML cache first: rm -rf ~/.cache/plasmashell
 # verify: /tmp/<id>-hb.json advances; journal clean; screenshot chip+popup
 ```
 KRunner runner additionally:
