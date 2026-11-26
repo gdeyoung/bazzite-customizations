@@ -21,6 +21,13 @@ panel chip:      󰇅 3          ← drive glyph + mounted count (dim when nothi
 popup:           Drives · Shares · Cloud
 ```
 
+## Screenshots
+
+![Driveway — Shares tab — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png). The three shares are seeded widget config, not real mounts.
+
 ## What runs what
 
 The plasmoid shells out to the driveway CLI (`contents/scripts/driveway` →

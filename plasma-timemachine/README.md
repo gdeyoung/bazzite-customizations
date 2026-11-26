@@ -15,6 +15,13 @@ Plasma 6 port of [gdeyoung/omarchy-timemachine](https://github.com/gdeyoung/omar
 "Backups" (off-box rsync trees) into **Snapshots** as a REMOTE BACKUPS
 section — same data, one fewer tab.
 
+## Screenshots
+
+![Timemachine — fresh install, not set up yet — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png). The harness has no engine configured, so this is the honest empty state; the five tabs are all there.
+
 ## Why
 
 Backups you can't inspect aren't backups. The chip makes backup state

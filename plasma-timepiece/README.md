@@ -24,6 +24,13 @@ popup:   MARCH  26 hero date
          TIMER   [ TIMER | POMODORO ]        ← mm:ss hero, phase bar, 4-block cycle rail
 ```
 
+## Screenshots
+
+![Timepiece — calendar popup with world clocks, timer and pomodoro — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png).
+
 ## Why
 
 The stock KDE clock shows no date by default — **date-in-chip is the point of

@@ -9,7 +9,7 @@
 set -u
 
 ROOT=/tmp/stk-harness
-PKG_SRC=/var/home/gdeyoung/work/bazzite-customizations/krunner-hermes
+PKG_SRC="$(cd "$(dirname "$0")/../../krunner-hermes" && pwd)"
 TAG="${TAG:-kr5}"
 OUT=$ROOT/shots
 mkdir -p "$OUT" "$ROOT/home"
@@ -24,6 +24,7 @@ H="$ROOT/home/kr-$TAG"
 rm -rf "$H"
 export HOME="$H"
 export XDG_CONFIG_HOME="$H/.config" XDG_DATA_HOME="$H/.local/share" XDG_CACHE_HOME="$H/.cache"
+mkdir -p "$XDG_CONFIG_HOME"; cp /usr/share/color-schemes/BreezeDark.colors "$XDG_CONFIG_HOME/kdeglobals" 2>/dev/null || true   # match the live desktop (same seed as run-shot.sh / foyer-kde harness)
 if [ -z "${HARNESS_RT_ISOLATED:-}" ]; then
   RT="$ROOT/run"; mkdir -p "$RT"; chmod 700 "$RT" 2>/dev/null || true
   exec dbus-run-session env HARNESS_RT_ISOLATED=1 XDG_RUNTIME_DIR="$RT" \

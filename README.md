@@ -45,6 +45,20 @@ specs and research in [docs/](docs/). The **Clearvoice** KDE frontend (Plasma pl
 PipeWire recorder) ships in [clearvoice-core](https://github.com/gdeyoung/clearvoice-core),
 next to its Omarchy sibling.
 
+## Screenshots
+
+Every plugin, full desktop, from the nested virtual Plasma harness (`tools/popup-harness/`) — Breeze Dark,
+demo data only (no real hosts, accounts or endpoints). Click through for the per-plugin shots.
+
+| Plugin | Popup open | Plugin | Popup open |
+|---|---|---|---|
+| [plasma-sysmon](plasma-sysmon/docs/screenshots/desktop.png) | Performance tab · [processes](plasma-sysmon/docs/screenshots/processes.png) | [plasma-driveway](plasma-driveway/docs/screenshots/desktop.png) | Shares tab |
+| [plasma-tailfin](plasma-tailfin/docs/screenshots/desktop.png) | Machines tab (stub fixture) | [plasma-timemachine](plasma-timemachine/docs/screenshots/desktop.png) | fresh-install state |
+| [plasma-weatherx](plasma-weatherx/docs/screenshots/desktop.png) | Here tab (seeded places) | [plasma-readyroom](plasma-readyroom/docs/screenshots/desktop.png) | Session tab · [gear](plasma-readyroom/docs/screenshots/gear-tab.png) |
+| [plasma-timepiece](plasma-timepiece/docs/screenshots/desktop.png) | calendar + world clocks | [plasma-mosaic](plasma-mosaic/docs/screenshots/desktop.png) | storage explorer |
+| [plasma-stocktick](plasma-stocktick/docs/screenshots/desktop.png) | Markets tab | [krunner-hermes](krunner-hermes/docs/screenshots/answer.png) | `ai` query sent |
+| [foyer-kde](foyer-kde/docs/gallery/GALLERY.html) | design gallery: native QML + daemon overlay, every state | [plasma-panelpad](plasma-panelpad/) | invisible by design — no shot |
+
 ## House rules
 
 - **Immutable-friendly**: no system mutations; systemd user units, `~/.local`, XDG config only.

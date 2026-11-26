@@ -28,13 +28,18 @@ One letter, one meter per stat — the numbers live in the hover tooltip. Zero n
 
 ![bar widget — compact M C N D strip](docs/panel-bar.png)
 
+On the desktop, popup closed: [docs/screenshots/panel-chip.png](docs/screenshots/panel-chip.png). The
+Performance and Processes tabs below are full-desktop captures from the nested virtual Plasma harness
+(`tools/popup-harness/run-shot.sh`), Breeze Dark, 2560×1440 — demo data only (no real hosts, accounts or endpoints).
+Disks and Hardware are not pictured because on a real machine they show mount labels and the hostname.
+
 ### Performance tab
 
 Memory with buffers/cache/swap breakdown, CPU total % with busiest-core overlay and per-core
 grid, GPU load with power draw and VRAM/GTT meters, network rates. 180-sample ring buffers run
 whether or not the popup is open, so it opens with minutes of warm history already drawn:
 
-![Performance tab](docs/panel-performance.png)
+![Performance tab](docs/screenshots/desktop.png)
 
 ### Disks tab
 
@@ -42,15 +47,13 @@ Read/write rate charts and IOPS up top; below, a fuel gauge for every mounted vo
 table: usage bar, used/size, color-coded percentage, and the mount point (long paths elide from
 the left so they always fit):
 
-![Disks tab](docs/panel-disks.png)
-
 ### Processes tab
 
 Top processes with aligned PID · COMMAND · CPU% · MEM% · kill columns — click a column header
 to sort. Two-step kill: TERM first, and if the process survives the next refresh the button
 becomes **Force kill (9)**. Only processes you own get a kill button:
 
-![Processes tab](docs/panel-processes.png)
+![Processes tab](docs/screenshots/processes.png)
 
 ### Hardware tab
 
@@ -58,8 +61,6 @@ Fastfetch-grade machine inventory probed once at popup open — no root, no Pyth
 dependencies. Vendor/product/board, BIOS, CPU, memory, GPU, displays, storage, network
 controllers with kernel drivers, audio, battery, OS + kernel, uptime. Anything your hardware
 doesn't expose just hides.
-
-![Hardware tab](docs/panel-hardware.png)
 
 ## Bar
 

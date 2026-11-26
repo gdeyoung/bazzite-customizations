@@ -37,6 +37,13 @@ Edge states: needs-login / backend down / binary missing / parse error —
 each with standing content, never a dead popup.
 ```
 
+## Screenshots
+
+![Tailfin — RUNNING chip and the Machines tab — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png). Demo peers come from the stub `tailscale` fixture in `tests/fixtures`.
+
 ## Provenance
 
 - Source: [github.com/gdeyoung/omarchy-tailfin](https://github.com/gdeyoung/omarchy-tailfin),

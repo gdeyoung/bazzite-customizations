@@ -26,6 +26,13 @@ popup:            Here · Chicago · ＋
                   Details · Next hours · 7-Day + Radar · Sunrise/Sunset
 ```
 
+## Screenshots
+
+![Weatherx — chip and the Here tab (radar, details, 7-day forecast) — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png). The location and pinned tabs are seeded config (Springfield / Denver / Chicago / Seattle), not a real home location.
+
 ## Provenance
 
 - Source: [github.com/gdeyoung/omarchy-weather](https://github.com/gdeyoung/omarchy-weather)

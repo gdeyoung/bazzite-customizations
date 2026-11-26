@@ -19,6 +19,13 @@ panel chip:      ◈ 28.6 GB      ← Mosaic mark + total mapped bytes (dim whil
 popup:           Overview · Categories · App details (drill-down) · Rescan
 ```
 
+## Screenshots
+
+![Mosaic — application-storage explorer over the harness HOME — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png).
+
 ## What runs what
 
 The plasmoid shells out to the mosaic CLI (`contents/scripts/mosaic` →

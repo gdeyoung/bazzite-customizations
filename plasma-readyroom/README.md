@@ -26,6 +26,13 @@ popup:           Session · Pads · Replay · Gear
 probes executed once on the target host (see Verification). Live install and
 visual QA are install-day steps (see Install-day plan).
 
+## Screenshots
+
+![Ready Room — Session tab — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png). Gear tab: [gear-tab.png](docs/screenshots/gear-tab.png).
+
 ## Provenance
 
 | | |
@@ -63,7 +70,7 @@ visual QA are install-day steps (see Install-day plan).
   (`gc-mangohud`) which writes a managed block into `~/.config/MangoHud/
   MangoHud.conf` and never touches anything outside it.
 
-## the tower prerequisites (verified on-host)
+## Tower prerequisites (verified on-host)
 
 | Component | Status on the target host |
 |---|---|

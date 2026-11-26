@@ -27,6 +27,13 @@ the popup on the Omarchy `5d0tal1gat0r.stocks` layout.
   `contents/scripts/fetch-quotes.sh` (+x required — the executable
   dataengine silently refuses non-executable scripts).
 
+## Screenshots
+
+![Stocktick — chip and the Markets tab — popup open on the panel](docs/screenshots/desktop.png)
+
+Full desktop, 2560×1440, captured in the nested virtual Plasma harness (`tools/popup-harness/run-shot.sh`) on Bazzite / Plasma 6.7 — Breeze Dark, demo data only (no real hosts, accounts or endpoints).
+Panel chip with the popup closed: [panel-chip.png](docs/screenshots/panel-chip.png).
+
 ## Config (KConfig XT)
 `symbols` (comma list, Yahoo format, indices `^GSPC`), `primary` (chip+hero),
 `refreshMin` (1–120). No portfolio fields in v2 — helpers remain in Model.js.

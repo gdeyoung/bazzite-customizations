@@ -10,6 +10,19 @@ runner — no C++, no KDE SDK, nothing layered into the image.
 
 **Status: v0.8.1 — foyer tree (UX-SPEC.md §L-16), single-runner mode, harness-gated, unit-tested.**
 
+## Screenshots
+
+Full desktop, 2560×1440, captured by the nested virtual Plasma harness (`tools/popup-harness/run-krunner.sh`) on
+Bazzite / Plasma 6.7, Breeze Dark. The runner talks to the real lane from the harness, so the queries use the
+fictional `host-04`; SSH rows come from the harness's seeded `~/.ssh/config`.
+
+| `ai` prefix typed | query sent — the runner's *asking* row | `hr help` — task catalog |
+|---|---|---|
+| ![ask](docs/screenshots/ask.png) | ![answer](docs/screenshots/answer.png) | ![help](docs/screenshots/help.png) |
+| **app results** | **SSH lane** | **system commands** |
+| ![apps](docs/screenshots/apps.png) | ![ssh](docs/screenshots/ssh.png) | ![sys](docs/screenshots/sys.png) |
+
+
 ## What the prefixes do
 
 | You type (Super+Space) | What happens |
