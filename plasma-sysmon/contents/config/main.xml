@@ -9,5 +9,9 @@
             <label>Bar layout: compact (letters + level bars) or values (full readouts)</label>
             <default>compact</default>
         </entry>
+        <entry name="lastTab" type="Int">
+            <label>Last active popup tab (0 Performance · 1 Disks · 2 Processes · 3 Hardware)</label>
+            <default>0</default>
+        </entry>
     </group>
 </kcfg>

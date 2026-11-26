@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Backup status chip (\u2713 under 26h \u00b7 stale \u00b7 failed \u00b7 running pulse) that expands into a five-tab Time Machine panel \u2014 Status, Snapshots (local btrfs + remote rsync trees), Health, Recovery, Settings \u2014 over the bundled unencrypted rsync backup engine. Plasma 6 port of gdeyoung.timemachine (Omarchy).",
+        "Icon": "deep-history",
+        "Id": "com.gdeyoung.plasma.timemachine",
+        "License": "MIT",
+        "Name": "TimeMachine",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-timemachine"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

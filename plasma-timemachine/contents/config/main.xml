@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="refreshSeconds" type="Int">
+            <label>Refresh interval (seconds)</label>
+            <default>15</default>
+        </entry>
+        <entry name="staleHours" type="Int">
+            <label>Mark backup stale after this many hours</label>
+            <default>26</default>
+        </entry>
+        <entry name="failHours" type="Int">
+            <label>Mark backup failed after this many hours</label>
+            <default>72</default>
+        </entry>
+        <entry name="historyDays" type="Int">
+            <label>History window shown in the popup (days)</label>
+            <default>14</default>
+        </entry>
+        <entry name="snapshotRows" type="Int">
+            <label>Rows shown per expanded day</label>
+            <default>10</default>
+        </entry>
+        <entry name="confPath" type="String">
+            <label>Path to the tm engine's timemachine.conf</label>
+            <default>~/.config/timemachine.conf</default>
+        </entry>
+    </group>
+</kcfg>

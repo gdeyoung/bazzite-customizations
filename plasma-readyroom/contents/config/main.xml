@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg>
+    <group name="General">
+        <entry name="startTab" type="String">
+            <label>Tab shown when the popup opens (session|pads|replay|gear)</label>
+            <default>session</default>
+        </entry>
+        <entry name="panelWidth" type="Int">
+            <label>Popup width in pixels (300-640)</label>
+            <default>380</default>
+        </entry>
+
+        <!-- Boot-to-Game-Mode (SDDM autologin session), mirrors `ujust toggle-gamemode` -->
+        <entry name="bootModeConfPath" type="String">
+            <label>SDDM drop-in the boot-mode toggle writes (via pkexec)</label>
+            <default>/etc/sddm.conf.d/zz-steamos-autologin.conf</default>
+        </entry>
+        <entry name="gameModeSession" type="String">
+            <label>Wayland session file for Game Mode</label>
+            <default>gamescope-session.desktop</default>
+        </entry>
+        <entry name="desktopSession" type="String">
+            <label>Wayland session file for the desktop</label>
+            <default>plasma.desktop</default>
+        </entry>
+
+        <!-- gc-session flags -->
+        <entry name="sessionKeepAwake" type="Bool">
+            <label>Session claims stay-awake</label>
+            <default>true</default>
+        </entry>
+        <entry name="sessionDnd" type="Bool">
+            <label>Session silences notifications</label>
+            <default>true</default>
+        </entry>
+        <entry name="sessionNightlight" type="Bool">
+            <label>Session turns off night light</label>
+            <default>true</default>
+        </entry>
+        <entry name="sessionPower" type="Bool">
+            <label>Session sets the performance power profile</label>
+            <default>true</default>
+        </entry>
+
+        <!-- gc-replay arm options -->
+        <entry name="replaySeconds" type="Int">
+            <label>Replay buffer length in seconds (60-900)</label>
+            <default>300</default>
+        </entry>
+        <entry name="replayStorage" type="String">
+            <label>Replay buffer storage (disk|ram)</label>
+            <default>disk</default>
+        </entry>
+        <entry name="replayQuality" type="String">
+            <label>Replay quality tier (low|balanced|high|ultra)</label>
+            <default>balanced</default>
+        </entry>
+        <entry name="replayAudio" type="String">
+            <label>Replay audio (desktop|both|none)</label>
+            <default>desktop</default>
+        </entry>
+        <entry name="replayDir" type="String">
+            <label>Clip folder; empty = Videos/Clips</label>
+            <default></default>
+        </entry>
+        <entry name="replayMonitor" type="String">
+            <label>Monitor name passed to gpu-screen-recorder; empty = let gc-replay detect</label>
+            <default></default>
+        </entry>
+
+        <!-- gc-mangohud profile -->
+        <entry name="mangohudPosition" type="String">
+            <label>MangoHud overlay corner (top-left|top-right|bottom-left|bottom-right)</label>
+            <default>top-left</default>
+        </entry>
+        <entry name="mhCpu" type="Bool"><label>MangoHud shows CPU</label><default>true</default></entry>
+        <entry name="mhGpu" type="Bool"><label>MangoHud shows GPU</label><default>true</default></entry>
+        <entry name="mhRam" type="Bool"><label>MangoHud shows RAM</label><default>true</default></entry>
+        <entry name="mhVram" type="Bool"><label>MangoHud shows VRAM</label><default>true</default></entry>
+        <entry name="mhTemps" type="Bool"><label>MangoHud shows temperatures</label><default>true</default></entry>
+        <entry name="mhPower" type="Bool"><label>MangoHud shows GPU power</label><default>false</default></entry>
+    </group>
+</kcfg>

@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "System Utilities",
+        "Description": "Where your apps keep their files — a read-only map of per-app config, data, cache and state with measured sizes, evidence labels and deeper per-app scans. Plasma 6 port of naolselemon.mosaic (Omarchy).",
+        "Icon": "mosaic",
+        "Id": "com.gdeyoung.plasma.mosaic",
+        "License": "MIT",
+        "Name": "Mosaic",
+        "Version": "0.1.0",
+        "Website": "https://github.com/naolselemon/mosaic"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

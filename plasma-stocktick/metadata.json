@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "Online Services",
+        "Description": "Markets on your bar: watchlist chip + Markets/Watchlist/Portfolio popup with charts, search, and portfolio tracking (Yahoo Finance, keyless).",
+        "Icon": "office-chart-line",
+        "Id": "com.gdeyoung.plasma.stocktick",
+        "License": "MIT",
+        "Name": "StockTick",
+        "Version": "2.0.0",
+        "Website": "https://github.com/gdeyoung/bazzite-customizations"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

@@ -1,0 +1,27 @@
+#!/bin/bash
+#
+# gpu-screen-recorder's -sc hook. It runs this after every save with:
+#
+#   $1  the file that was written
+#   $2  the kind of save ("replay", "screenshot", …)
+#
+# Writing the path into one small file lets the panel watch a single FileView
+# instead of polling the video directory, and means a clip saved by a
+# keybinding while the panel is closed still shows up the moment it opens.
+#
+set -uo pipefail
+
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/gdeyoung-readyroom-$(id -u)}/gdeyoung-readyroom"
+mkdir -p "$STATE_DIR"
+
+path="${1:-}"
+kind="${2:-replay}"
+[[ -n $path ]] || exit 0
+
+printf '%s\n' "$path" >"$STATE_DIR/last-clip"
+
+name="$(basename "$path")"
+omarchy-notification-send -g "󰑈" -u low -t 4000 \
+  "Clip saved" "$name" >/dev/null 2>&1 || true
+
+exit 0

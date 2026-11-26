@@ -1,0 +1,20 @@
+{
+  "KPackageStructure": "Plasma/Applet",
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "greg@deyoungnet.com",
+        "Name": "Greg DeYoung"
+      }
+    ],
+    "Category": "Application Launchers",
+    "Description": "Foyer launcher — native QML build (harness preview; the daemon hosts the same FoyerRoot in a layer-shell window). KDE reimagining of gdeyoung/omarchy-foyer.",
+    "Icon": "preferences-system-windows",
+    "Id": "org.kde.foyer",
+    "License": "MIT",
+    "Name": "Foyer",
+    "Version": "0.1.0",
+    "Website": ""
+  },
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

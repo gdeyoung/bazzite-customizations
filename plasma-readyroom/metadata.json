@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "Games",
+        "Description": "The pre-game ritual in one Plasma panel widget: boot-to-Game-Mode toggle and game session, controller inventory with battery and rumble test, an instant-replay buffer with one-click clip saving, and desk-gear batteries plus a GPU summary with a MangoHud profile switcher. Plasma 6 port of gdeyoung.readyroom (Omarchy).",
+        "Icon": "input-gaming",
+        "Id": "com.gdeyoung.plasma.readyroom",
+        "License": "MIT",
+        "Name": "Ready Room",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-ready-room"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <group name="General">
+    <entry name="symbols" type="String">
+      <default>MSFT,ESTC,BTC-USD,ETH-USD,XRP-USD,VOO,SCHD</default>
+      <label>Comma-separated Yahoo symbols (indices use ^GSPC form, crypto BTC-USD form)</label>
+    </entry>
+    <entry name="primary" type="String">
+      <default>MSFT</default>
+      <label>Symbol shown in the panel chip and hero</label>
+    </entry>
+    <entry name="refreshMin" type="Int">
+      <default>5</default>
+      <min>1</min>
+      <label>Refresh interval in minutes</label>
+    </entry>
+    <entry name="rotateSeconds" type="Int">
+      <default>20</default>
+      <min>0</min>
+      <label>Chip rotation interval in seconds (0 = pin to primary)</label>
+    </entry>
+    <entry name="lastTab" type="String">
+      <default>markets</default>
+      <label>Last-open popup tab (markets/watchlist/portfolio)</label>
+    </entry>
+    <entry name="chartSpan" type="String">
+      <default>3M</default>
+      <label>Last-used chart span in detail view</label>
+    </entry>
+    <entry name="portfolioJson" type="String">
+      <default></default>
+      <label>Portfolio positions as JSON ({version,positions:[{symbol,qty,cost}]})</label>
+    </entry>
+  </group>
+</kcfg>

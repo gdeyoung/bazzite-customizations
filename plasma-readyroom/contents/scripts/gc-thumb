@@ -1,0 +1,50 @@
+#!/bin/bash
+#
+# One thumbnail for one clip, cached by path and mtime.
+#
+# Called lazily by the panel for rows that are actually on screen — generating
+# fifty thumbnails to draw four of them would be a pointless ffmpeg storm every
+# time the Clips tab opens.
+#
+# Prints the cached path on stdout, whether it was just made or already there,
+# so the caller does not need to know the naming scheme.
+#
+set -uo pipefail
+
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/ready-room/thumbs"
+MAX_CACHE_FILES=200
+
+clip="${1:-}"
+[[ -n $clip && -f $clip ]] || { echo "gc-thumb: no such clip" >&2; exit 1; }
+
+command -v ffmpeg >/dev/null || { echo "gc-thumb: ffmpeg not installed" >&2; exit 2; }
+
+mkdir -p "$CACHE_DIR"
+
+# Keyed on path *and* mtime, so a clip replaced at the same path gets a fresh
+# thumbnail rather than a stale one.
+mtime="$(stat -c %Y "$clip" 2>/dev/null)"
+key="$(printf '%s\n%s' "$clip" "$mtime" | sha1sum | cut -d' ' -f1)"
+out="$CACHE_DIR/$key.jpg"
+
+if [[ -f $out ]]; then
+  printf '%s\n' "$out"
+  exit 0
+fi
+
+# One second in, so we skip the black frame most captures start on. If the clip
+# is shorter than that, fall back to the very first frame.
+if ! ffmpeg -nostdin -v error -ss 1 -i "$clip" -frames:v 1 -vf 'scale=320:-2' -y "$out" 2>/dev/null; then
+  ffmpeg -nostdin -v error -i "$clip" -frames:v 1 -vf 'scale=320:-2' -y "$out" 2>/dev/null || {
+    echo "gc-thumb: could not read a frame" >&2
+    exit 3
+  }
+fi
+
+# Trim the oldest entries rather than letting the cache grow without bound.
+mapfile -t files < <(ls -1t "$CACHE_DIR"/*.jpg 2>/dev/null)
+if (( ${#files[@]} > MAX_CACHE_FILES )); then
+  for ((i = MAX_CACHE_FILES; i < ${#files[@]}; i++)); do rm -f -- "${files[$i]}"; done
+fi
+
+printf '%s\n' "$out"

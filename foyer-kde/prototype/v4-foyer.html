@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FOYER for KDE — v4 converged</title>
+<style>
+  :root{
+    --bg:#232629; --raised:#31363b; --text:#fcfcfc; --dim:#a1a9b1;
+    --accent:#1e92ff; --accent-hi:#3daee9;
+    --neg:#da4453; --pos:#27ae60; --neutral:#f67400;
+    --hair:rgba(161,169,177,.16); --hair2:rgba(161,169,177,.30);
+    --mono:"Noto Sans Mono","DejaVu Sans Mono",monospace;
+    --sans:"Noto Sans","DejaVu Sans",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 30% 20%, rgba(30,146,255,.05), transparent 60%),
+      radial-gradient(900px 600px at 75% 80%, rgba(218,68,83,.04), transparent 60%),
+      #0d0e12;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--sans);color:var(--text);overflow:hidden;
+  }
+  /* ---------- window ---------- */
+  .win{
+    width:920px;height:640px;border-radius:14px;overflow:hidden;
+    background:rgba(35,38,41,.96);
+    border:1px solid var(--hair2);
+    box-shadow:0 24px 80px rgba(0,0,0,.55);
+    backdrop-filter:blur(22px);
+    display:flex;flex-direction:column;position:relative;
+  }
+  /* ---------- header ---------- */
+  .hdr{
+    height:60px;display:flex;align-items:center;gap:14px;
+    padding:0 20px;border-bottom:1px solid var(--hair);flex:none;
+  }
+  .field{
+    flex:1;display:flex;align-items:center;gap:12px;
+    height:38px;border-radius:8px;padding:0 14px;
+    background:rgba(35,38,41,.6);border:1px solid var(--hair2);
+    font-family:var(--mono);font-size:17px;color:var(--text);
+  }
+  .field.focus{border-color:var(--accent)}
+  .field .glyph{color:var(--dim);font-size:14px;flex:none}
+  .field .q{white-space:nowrap;overflow:hidden}
+  .field .q .caret{display:inline-block;width:9px;height:19px;vertical-align:-4px;
+    background:var(--accent-hi);animation:none}
+  .field .ph{color:var(--dim);font-size:15px;letter-spacing:.01em}
+  .hdrkeys{flex:none;display:flex;gap:8px;align-items:center}
+  kbd{
+    font-family:var(--mono);font-size:10.5px;color:var(--dim);
+    border:1px solid var(--hair2);border-bottom-width:2px;border-radius:5px;
+    padding:2px 6px;background:rgba(49,54,59,.5);
+  }
+  /* ---------- body split ---------- */
+  .bd{flex:1;display:flex;min-height:0}
+  .rail{width:300px;flex:none;border-right:1px solid var(--hair);
+    padding:10px 10px 8px;overflow-y:auto;scrollbar-width:thin;
+    scrollbar-color:rgba(161,169,177,.3) transparent}
+  .grp{font-size:11px;font-weight:600;letter-spacing:.14em;color:var(--dim);
+    text-transform:uppercase;padding:12px 10px 6px}
+  .rrow{
+    display:flex;align-items:center;gap:10px;height:38px;
+    padding:0 10px;border-radius:8px;cursor:pointer;position:relative;
+  }
+  .rrow svg{width:17px;height:17px;flex:none;stroke:var(--dim);fill:none;
+    stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rrow .lb{font-size:15px;color:var(--dim);flex:1;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .rrow .ct{font-family:var(--mono);font-size:12px;color:var(--dim);flex:none}
+  .rrow .n{font-family:var(--mono);font-size:10px;color:var(--dim);
+    opacity:.45;flex:none;width:10px;text-align:right}
+  .rrow.sel{background:var(--raised);box-shadow:inset 2px 0 0 var(--accent)}
+  .rrow.sel svg{stroke:var(--text)}
+  .rrow.sel .lb{color:var(--text);font-weight:600}
+  .rrow.sel .ct{color:var(--text)}
+  .ct.up{color:var(--pos)} .ct.warn{color:var(--neutral)}
+  /* ---------- lens ---------- */
+  .lens{flex:1;min-width:0;display:flex;flex-direction:column}
+  .trail{
+    flex:none;height:36px;display:flex;align-items:center;gap:8px;
+    padding:0 24px;font-family:var(--mono);font-size:12px;color:var(--dim);
+    letter-spacing:.08em;
+  }
+  .trail .sep{opacity:.5}
+  .trail .live{margin-left:auto;color:var(--pos)}
+  .trail .live .dn{color:var(--neg)}
+  .scroll{flex:1;overflow-y:auto;padding:0 24px 28px;
+    scrollbar-width:thin;scrollbar-color:rgba(161,169,177,.3) transparent}
+  .sec{
+    font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);padding:14px 0 8px;display:flex;align-items:baseline;gap:10px;
+  }
+  .sec .note{font-weight:400;letter-spacing:.02em;text-transform:none;
+    font-size:11.5px;opacity:.8}
+  .lrow{
+    display:flex;align-items:center;gap:12px;height:38px;
+    padding:0 12px;border-radius:8px;
+  }
+  .lrow.focus{outline:2px solid var(--accent);outline-offset:-2px}
+  .lrow .tile{
+    width:26px;height:26px;border-radius:6px;flex:none;
+    background:var(--raised);border:1px solid rgba(161,169,177,.3);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:600;color:var(--text);
+  }
+  .lrow .nm{font-size:15px;color:var(--text);flex:none;max-width:46%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lrow .dt{font-size:13px;color:var(--dim);flex:1;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lrow .ct{font-family:var(--mono);font-size:12px;color:var(--dim);flex:none}
+  .lrow .dt .warn{color:var(--neutral)}
+  .lrow.off .nm,.lrow.off .dt,.lrow.off .tile{opacity:.45}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .dot.ok{background:var(--pos)} .dot.dn{background:var(--neg)}
+  /* grids */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:2px}
+  .gcard{
+    display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;
+    border-radius:8px;border:1px solid transparent;
+  }
+  .gcard.focus{outline:2px solid var(--accent);outline-offset:-2px}
+  .gcard .tile{
+    width:30px;height:30px;border-radius:7px;flex:none;
+    background:var(--raised);border:1px solid rgba(161,169,177,.3);
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600;
+  }
+  .gcard .tx{min-width:0}
+  .gcard .nm{font-size:14.5px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .gcard .dt{font-size:12px;color:var(--dim);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  /* AI card */
+  .answercard{
+    border:1px solid var(--hair2);border-radius:10px;padding:18px 20px;
+    margin-top:4px;
+  }
+  .ac-hd{display:flex;align-items:center;gap:10px;font-family:var(--mono);
+    font-size:11.5px;color:var(--dim);letter-spacing:.08em;margin-bottom:12px}
+  .ac-hd .stream{color:var(--accent-hi)}
+  .ac-body{font-size:15px;line-height:1.62;color:var(--text);max-width:64ch}
+  .ac-body p+p{margin-top:10px}
+  .ac-body .m{font-family:var(--mono);font-size:13.5px;color:var(--dim)}
+  .ac-body .streamcaret{display:inline-block;width:8px;height:17px;
+    vertical-align:-3px;background:var(--accent-hi)}
+  .actions{display:flex;gap:8px;margin-top:14px;align-items:center}
+  .btn{
+    font-size:13px;font-weight:600;color:var(--accent-hi);
+    border:1px solid rgba(61,174,233,.45);border-radius:7px;
+    padding:6px 13px;background:transparent;
+  }
+  .btn[disabled]{opacity:.38;border-color:var(--hair2);color:var(--dim)}
+  .btn.ghost{color:var(--dim);border-color:var(--hair2)}
+  .model{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .model b{color:var(--dim);font-weight:400}
+  /* empty + settings */
+  .empty{padding:26px 4px;color:var(--dim)}
+  .empty .t{font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px}
+  .empty .d{font-size:13.5px;line-height:1.6}
+  .empty .d code{font-family:var(--mono);font-size:12.5px;color:var(--accent-hi)}
+  .set-grp{font-size:12px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--dim);padding:16px 0 6px}
+  .setrow{display:flex;align-items:center;gap:12px;height:38px;
+    border-bottom:1px solid var(--hair);padding:0 4px}
+  .setrow .k{font-size:14px;color:var(--text);flex:1}
+  .setrow .v{font-family:var(--mono);font-size:12.5px;color:var(--dim);
+    display:flex;gap:6px;align-items:center}
+  .seg{display:flex;border:1px solid var(--hair2);border-radius:7px;overflow:hidden}
+  .seg span{padding:3px 9px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .seg span.on{background:var(--raised);color:var(--text)}
+  .tog{width:30px;height:17px;border-radius:9px;background:var(--raised);
+    border:1px solid var(--hair2);position:relative;flex:none}
+  .tog.on{background:rgba(30,146,255,.35);border-color:var(--accent)}
+  .tog::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;
+    border-radius:50%;background:var(--dim)}
+  .tog.on::after{left:15px;background:var(--text)}
+  /* keymap (help) */
+  .km{display:grid;grid-template-columns:220px 1fr;gap:0 18px;padding-top:4px}
+  .km .kr{display:flex;align-items:center;gap:10px;height:34px;
+    border-bottom:1px solid var(--hair);font-size:13.5px;color:var(--dim)}
+  .km .kr kbd{font-size:10.5px}
+  .km .kd{display:flex;align-items:center;height:34px;border-bottom:1px solid var(--hair);
+    font-size:13.5px;color:var(--text)}
+  /* ---------- footer ---------- */
+  .ftr{
+    flex:none;height:34px;display:flex;align-items:center;gap:14px;
+    padding:0 20px;border-top:1px solid var(--hair);
+    font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  }
+  .ftr .sp{flex:1}
+  .ftr .brand{color:var(--accent-hi);letter-spacing:.14em}
+  /* state switching */
+  .lens .pane{display:none}
+  body[data-state="boot"]    #p-boot,   body[data-state="games"]  #p-games,
+  body[data-state="typed"]   #p-typed,  body[data-state="nomatch"]#p-nomatch,
+  body[data-state="ai"]      #p-ai,     body[data-state="stream"] #p-stream,
+  body[data-state="ready"]   #p-ready,  body[data-state="system"] #p-system,
+  body[data-state="fleet"]   #p-fleet,  body[data-state="ssh"]    #p-ssh,
+  body[data-state="snippets"]#p-snips,  body[data-state="settings"]#p-set,
+  body[data-state="update"]  #p-update, body[data-state="help"]   #p-help,
+  body[data-state="about"]   #p-about,  body[data-state="recents"]#p-recents,
+  body[data-state="favs"]    #p-favs{display:block}
+  /* trail text per state */
+  .trail .tt{display:none;gap:9px;align-items:center}
+  body[data-state="boot"] #tt-boot, body[data-state="games"] #tt-games,
+  body[data-state="typed"] #tt-typed, body[data-state="nomatch"] #tt-nomatch,
+  body[data-state="ai"] #tt-ai, body[data-state="stream"] #tt-ai,
+  body[data-state="ready"] #tt-ai, body[data-state="system"] #tt-sys,
+  body[data-state="fleet"] #tt-fleet, body[data-state="ssh"] #tt-ssh,
+  body[data-state="snippets"] #tt-snips, body[data-state="settings"] #tt-set,
+  body[data-state="update"] #tt-upd, body[data-state="help"] #tt-help,
+  body[data-state="about"] #tt-about, body[data-state="recents"] #tt-rec,
+  body[data-state="favs"] #tt-favs{display:flex}
+</style>
+</head>
+<body data-state="boot">
+<div class="win">
+
+  <!-- header -->
+  <div class="hdr">
+    <div class="field" id="field">
+      <span class="glyph">▸</span>
+      <span class="q" id="q"><span id="qt"></span><span class="ph" id="ph">search 250 apps · 83 modules · 14 hosts — or just ask</span></span>
+    </div>
+    <div class="hdrkeys"><kbd>ctrl s</kbd><kbd>ctrl ,</kbd><kbd>f1</kbd></div>
+  </div>
+
+  <div class="bd">
+    <!-- rail -->
+    <div class="rail" id="rail">
+      <div class="grp">Launcher</div>
+      <div class="rrow" data-goto="boot"><span class="n">1</span>
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+        <span class="lb">Apps</span><span class="ct">250</span></div>
+      <div class="rrow" data-goto="favs"><span class="n">2</span>
+        <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>
+        <span class="lb">Favorites</span><span class="ct">★ 0</span></div>
+      <div class="rrow" data-goto="recents"><span class="n">3</span>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2.5"/></svg>
+        <span class="lb">Recents</span><span class="ct">0</span></div>
+      <div class="rrow" data-goto="settings"><span class="n">4</span>
+        <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h13M20 17h0"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18.5" cy="17" r="2"/></svg>
+        <span class="lb">Settings</span><span class="ct">83</span></div>
+      <div class="rrow" data-goto="system"><span class="n">5</span>
+        <svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.5a8 8 0 1 0 11.4 0"/></svg>
+        <span class="lb">System</span><span class="ct">5</span></div>
+      <div class="rrow" data-goto="update"><span class="n">6</span>
+        <svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/><path d="M4 21h16"/></svg>
+        <span class="lb">Update</span><span class="ct">check</span></div>
+      <div class="rrow" data-goto="about"><span class="n">7</span>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".5"/></svg>
+        <span class="lb">About</span><span class="ct"></span></div>
+      <div class="grp">Fleet</div>
+      <div class="rrow" data-goto="ai"><span class="n">8</span>
+        <svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>
+        <span class="lb">AI</span><span class="ct">local-fast</span></div>
+      <div class="rrow" data-goto="fleet"><span class="n">9</span>
+        <svg viewBox="0 0 24 24"><circle cx="5.5" cy="6" r="2.2"/><circle cx="18.5" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7 7.5l3.7 8.3M17 7.5l-3.7 8.3M7.7 6h8.6"/></svg>
+        <span class="lb">Fleet</span><span class="ct up">13↑</span></div>
+      <div class="rrow" data-goto="ssh">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 9.5l3.5 2.5L7 14.5M12.5 15H17"/></svg>
+        <span class="lb">SSH</span><span class="ct">14</span></div>
+      <div class="rrow" data-goto="snippets">
+        <svg viewBox="0 0 24 24"><path d="M8.5 5.5C7 5.5 6.5 6.5 6.5 8s.5 2.5-1.5 4c2 1.5 1.5 2.5 1.5 4s.5 2.5 2 2.5M15.5 5.5c1.5 0 2 1 2 2.5s-.5 2.5 1.5 4c-2 1.5-1.5 2.5-1.5 4s-.5 2.5-2 2.5"/></svg>
+        <span class="lb">Snippets</span><span class="ct">0</span></div>
+      <div class="rrow" data-goto="help">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1 1-1.1 1.8"/><circle cx="12" cy="16.8" r=".5"/></svg>
+        <span class="lb">Help</span><span class="ct">f1</span></div>
+    </div>
+
+    <!-- lens -->
+    <div class="lens">
+      <div class="trail">
+        <span class="tt" id="tt-boot">FOYER</span>
+        <span class="tt" id="tt-games">APPS <span class="sep">›</span> GAMES</span>
+        <span class="tt" id="tt-typed">RESULTS</span>
+        <span class="tt" id="tt-nomatch">RESULTS</span>
+        <span class="tt" id="tt-ai">AI</span>
+        <span class="tt" id="tt-sys">SYSTEM</span>
+        <span class="tt" id="tt-fleet">FLEET <span class="live">13 UP · <span class="dn">1 DOWN</span> · PINGED 15:53</span></span>
+        <span class="tt" id="tt-ssh">SSH</span>
+        <span class="tt" id="tt-snips">SNIPPETS</span>
+        <span class="tt" id="tt-set">FOYER SETTINGS</span>
+        <span class="tt" id="tt-upd">UPDATE</span>
+        <span class="tt" id="tt-help">HELP · F1</span>
+        <span class="tt" id="tt-about">ABOUT</span>
+        <span class="tt" id="tt-rec">RECENTS</span>
+        <span class="tt" id="tt-favs">FAVORITES</span>
+      </div>
+
+      <div class="scroll">
+
+        <!-- BOOT: category index -->
+        <div class="pane" id="p-boot">
+          <div class="sec">All categories · 12 <span class="note">250 apps · alphabetical within category</span></div>
+          <div class="lrow"><span class="tile">I</span><span class="nm">Internet</span><span class="dt">Firefox · Brave · Chromium</span><span class="ct">15</span></div>
+          <div class="lrow focus"><span class="tile">G</span><span class="nm">Games</span><span class="dt">Brotato · Avorion · DuckStation</span><span class="ct">14</span></div>
+          <div class="lrow"><span class="tile">U</span><span class="nm">Utilities</span><span class="dt">Ark · Bottles · Claude</span><span class="ct">14</span></div>
+          <div class="lrow"><span class="tile">S</span><span class="nm">System Tools</span><span class="dt">Dolphin · Konsole · Bitwarden</span><span class="ct">14</span></div>
+          <div class="lrow"><span class="tile">AV</span><span class="nm">Audio &amp; Video</span><span class="dt">Kdenlive · Haruna · Strawberry</span><span class="ct">14</span></div>
+          <div class="lrow"><span class="tile">O</span><span class="nm">Office</span><span class="dt">LibreOffice · calibre · Joplin</span><span class="ct">14</span></div>
+          <div class="lrow"><span class="tile">D</span><span class="nm">Development</span><span class="dt">Kate · Antigravity · Goose</span><span class="ct">10</span></div>
+          <div class="lrow"><span class="tile">Gr</span><span class="nm">Graphics</span><span class="dt">Blender · Inkscape · Gwenview</span><span class="ct">6</span></div>
+          <div class="lrow"><span class="tile">A</span><span class="nm">Audio</span><span class="dt">Cider · Reco · Chapterize</span><span class="ct">5</span></div>
+          <div class="lrow"><span class="tile">O2</span><span class="nm">Other</span><span class="dt">OpenGamepadUI · Messages</span><span class="ct">4</span></div>
+          <div class="lrow"><span class="tile">CF</span><span class="nm">Config Tools</span><span class="dt">System Settings · Input Remapper</span><span class="ct">4</span></div>
+          <div class="lrow"><span class="tile">TE</span><span class="nm">Text Editors</span><span class="dt">VS Code · Cursor · Void</span><span class="ct">4</span></div>
+        </div>
+
+        <!-- GAMES: grid (14 > 12 → grid) -->
+        <div class="pane" id="p-games">
+          <div class="sec">Games <span class="note">14 apps · ⏎ launches · alt⏎ pins</span></div>
+          <div class="grid">
+            <div class="gcard focus"><span class="tile">9K</span><span class="tx"><div class="nm">9 Kings</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">AF</span><span class="tx"><div class="nm">Ad Fundum</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">AI</span><span class="tx"><div class="nm">After Inc: Revival</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">Ao</span><span class="tx"><div class="nm">Age of Mythology: Retold</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">Av</span><span class="tx"><div class="nm">Avorion</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">BA</span><span class="tx"><div class="nm">Beyond All Reason</div><div class="dt">RTS</div></span></div>
+            <div class="gcard"><span class="tile">BM</span><span class="tx"><div class="nm">Boneraiser Minions</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">Br</span><span class="tx"><div class="nm">Brotato</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">CE</span><span class="tx"><div class="nm">Cemu AppImage</div><div class="dt">Wii U</div></span></div>
+            <div class="gcard"><span class="tile">DE</span><span class="tx"><div class="nm">Dolphin Emulator</div><div class="dt">Wii/GameCube Emulator</div></span></div>
+            <div class="gcard"><span class="tile">DV</span><span class="tx"><div class="nm">DOSVault</div><div class="dt">eXoDOS via Pegasus</div></span></div>
+            <div class="gcard"><span class="tile">DR</span><span class="tx"><div class="nm">Driftland: The Magic Revival</div><div class="dt">Steam</div></span></div>
+            <div class="gcard"><span class="tile">DS</span><span class="tx"><div class="nm">DuckStation</div><div class="dt">PlayStation 1 Emulator</div></span></div>
+            <div class="gcard"><span class="tile">ED</span><span class="tx"><div class="nm">EmuDeck</div><div class="dt">Emulation manager</div></span></div>
+          </div>
+        </div>
+
+        <!-- TYPED: matches -->
+        <div class="pane" id="p-typed">
+          <div class="sec">Applications · 1</div>
+          <div class="lrow focus"><span class="tile">Br</span><span class="nm">Brotato</span><span class="dt">Games · Steam</span><span class="ct">⏎</span></div>
+          <div class="sec">Hermes</div>
+          <div class="lrow"><span class="tile">ai</span><span class="nm">Ask Hermes</span><span class="dt">which bro? — answer lands here</span><span class="ct">local-fast</span></div>
+          <div class="sec">Web <span class="note">fallback only</span></div>
+          <div class="lrow"><span class="tile">w</span><span class="nm">Search the web</span><span class="dt">opens in default browser</span><span class="ct">↗</span></div>
+        </div>
+
+        <!-- NOMATCH -->
+        <div class="pane" id="p-nomatch">
+          <div class="empty" style="padding-bottom:10px">
+            <div class="t">No matches for “zzz”</div>
+            <div class="d">The query stays yours — <b>esc</b> clears, typing rewrites.</div>
+          </div>
+          <div class="sec">Hermes</div>
+          <div class="lrow focus"><span class="tile">ai</span><span class="nm">Ask Hermes: zzz</span><span class="dt">enter asks anyway · answer copied on ⏎</span><span class="ct">local-fast</span></div>
+        </div>
+
+        <!-- AI idle -->
+        <div class="pane" id="p-ai">
+          <div class="sec">Ask anything <span class="note">the field above is the ask box</span></div>
+          <div class="answercard" style="border:none;padding:0;margin:0;background:none">
+            <div class="ac-body" style="color:var(--dim);font-size:14px">
+              <p><span class="m">ai&nbsp;</span>ask a question — the answer streams here, <span class="m">⏎</span> copies it</p>
+              <p><span class="m">hr&nbsp;</span>hand a task to Hermes — it runs, you get notified</p>
+            </div>
+          </div>
+          <div class="sec">Model</div>
+          <div class="lrow"><span class="tile">☉</span><span class="nm">local-fast</span><span class="dt">via aicube :4000 · 45s timeout · 700 chars max</span><span class="ct">✓</span></div>
+          <div class="sec">Recent questions <span class="note">questions only — answers are never cached</span></div>
+          <div class="lrow"><span class="tile">1</span><span class="dt" style="flex:1">which hosts are up right now?</span></div>
+          <div class="lrow"><span class="tile">2</span><span class="dt" style="flex:1">why does krunner cap results at 15?</span></div>
+          <div class="lrow"><span class="tile">3</span><span class="dt" style="flex:1">how do i port foyer to kde plasma?</span></div>
+        </div>
+
+        <!-- AI streaming -->
+        <div class="pane" id="p-stream">
+          <div class="answercard">
+            <div class="ac-hd"><span class="stream">STREAMING</span><span>·</span><span>local-fast</span><span style="margin-left:auto">4.2s</span></div>
+            <div class="ac-body">
+              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">nas</span> (192.168.1.252) — the unraid array box. Everything else answered a ping just now<span class="streamcaret"></span></p>
+            </div>
+            <div class="actions">
+              <span class="btn" disabled>Copy</span>
+              <span class="btn ghost" disabled>Continue in chat</span>
+              <span class="model">COPY ARMED WHEN STREAM ENDS</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI ready -->
+        <div class="pane" id="p-ready">
+          <div class="answercard">
+            <div class="ac-hd"><span>ANSWERED</span><span>·</span><span>local-fast</span><span style="margin-left:auto">7.8s</span></div>
+            <div class="ac-body">
+              <p>13 of 14 fleet hosts are up. The only one down is <span class="m">nas</span> (192.168.1.252) — the unraid array box. Everything else answered a ping just now: <span class="m">aicube, aitower, aibox, jellyfin, mediaserver, homeserver, micro, node, watertower, gx10, gx11, gx12, gx13</span>.</p>
+              <p>Probe ran 15:53 CST — 1s timeout, ICMP only. Want me to check nas properly — wake-on-lan or ssh?</p>
+            </div>
+            <div class="actions">
+              <span class="btn">Copy&nbsp; <kbd style="border-color:rgba(61,174,233,.45);color:var(--accent-hi)">alt ⏎</kbd></span>
+              <span class="btn ghost">Continue in chat</span>
+              <span class="model"><b>MODEL</b> local-fast</span>
+            </div>
+          </div>
+          <div class="sec">Recent questions</div>
+          <div class="lrow"><span class="tile">1</span><span class="dt" style="flex:1">which hosts are up right now?</span><span class="ct">asked 15:53</span></div>
+          <div class="lrow"><span class="tile">2</span><span class="dt" style="flex:1">why does krunner cap results at 15?</span></div>
+        </div>
+
+        <!-- SYSTEM -->
+        <div class="pane" id="p-system">
+          <div class="sec">Power &amp; session <span class="note">consequences are the confirmation</span></div>
+          <div class="lrow"><span class="tile">LS</span><span class="nm">Lock Screen</span><span class="dt">enter locks now</span><span class="ct">⏎</span></div>
+          <div class="lrow"><span class="tile">SL</span><span class="nm">Sleep</span><span class="dt">enter sleeps now</span><span class="ct">⏎</span></div>
+          <div class="lrow focus"><span class="tile">LO</span><span class="nm">Log Out</span><span class="dt"><span class="warn">closes open apps</span> · session gdeyoung</span><span class="ct">⏎</span></div>
+          <div class="lrow"><span class="tile">RB</span><span class="nm">Reboot</span><span class="dt"><span class="warn">closes open apps</span> · boots staged deployment if any</span><span class="ct">⏎</span></div>
+          <div class="lrow"><span class="tile">SD</span><span class="nm">Shut Down</span><span class="dt"><span class="warn">closes open apps</span> · powers off</span><span class="ct">⏎</span></div>
+        </div>
+
+        <!-- FLEET: real probe -->
+        <div class="pane" id="p-fleet">
+          <div class="sec">Hosts · 14 <span class="note">live probe · icmp 1s · refreshed on open</span></div>
+          <div class="lrow focus"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">gdtower</span><span class="dt">this host · bazzite · plasma 6.8</span><span class="ct">local</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">aitower</span><span class="dt">GPU node · 3090 + 3090 ti</span><span class="ct">.246</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">aicube</span><span class="dt">services · litellm :4000</span><span class="ct">.243</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">aibox</span><span class="dt">stt · tts gpus</span><span class="ct">.239</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">jellyfin</span><span class="dt">media server</span><span class="ct">.238</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">mediaserver</span><span class="dt">media lane</span><span class="ct">.250</span></div>
+          <div class="lrow off"><span class="dot dn"></span><span class="nm" style="font-family:var(--mono);font-size:14px">nas</span><span class="dt"><span class="warn">down</span> · unraid array · elastic lives here</span><span class="ct">.252</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">homeserver</span><span class="dt">ns canonical library</span><span class="ct">.251</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">micro</span><span class="dt">haos vm host</span><span class="ct">.240</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">node</span><span class="dt">fleet host</span><span class="ct">.248</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">watertower</span><span class="dt">fleet host</span><span class="ct">.249</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">gx10</span><span class="dt">spark node</span><span class="ct">.245</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">gx11</span><span class="dt">spark node</span><span class="ct">.242</span></div>
+          <div class="lrow"><span class="dot ok"></span><span class="nm" style="font-family:var(--mono);font-size:14px">gx12</span><span class="dt">spark node</span><span class="ct">.241</span></div>
+        </div>
+
+        <!-- SSH -->
+        <div class="pane" id="p-ssh">
+          <div class="sec">Aliases · 14 <span class="note">⏎ opens a terminal tab · from ~/.ssh/config</span></div>
+          <div class="lrow focus"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">aitower</span><span class="dt">192.168.1.246</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">aicube</span><span class="dt">192.168.1.243</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">aibox</span><span class="dt">192.168.1.239</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">jellyfin</span><span class="dt">192.168.1.238</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">mediaserver</span><span class="dt">192.168.1.250</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">nas</span><span class="dt">192.168.1.252 · nasserver</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">homeserver</span><span class="dt">192.168.1.251</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">micro</span><span class="dt">192.168.1.240</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">node</span><span class="dt">192.168.1.248</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">watertower</span><span class="dt">192.168.1.249</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">gx10</span><span class="dt">192.168.1.245 · spark</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">gx11</span><span class="dt">192.168.1.242 · spark2</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">gx12</span><span class="dt">192.168.1.241 · spark3</span></div>
+          <div class="lrow"><span class="tile">›</span><span class="nm" style="font-family:var(--mono);font-size:14px">gx13</span><span class="dt">192.168.1.244</span></div>
+        </div>
+
+        <!-- SNIPPETS empty -->
+        <div class="pane" id="p-snips">
+          <div class="empty">
+            <div class="t">No snippets yet</div>
+            <div class="d">Type <code>;</code> in the field to search snippets once they exist.<br>
+            Snippets live in <code>~/.config/foyer/snippets.jsonc</code> — same merge rules as the menu tree: your extensions win.</div>
+          </div>
+        </div>
+
+        <!-- UPDATE -->
+        <div class="pane" id="p-update">
+          <div class="sec">System image <span class="note">bazzite · rpm-ostree</span></div>
+          <div class="lrow focus"><span class="tile">↺</span><span class="nm">Check for updates</span><span class="dt">guard runs async · row states itself when done</span><span class="ct">⏎</span></div>
+          <div class="lrow"><span class="tile">⇧</span><span class="nm">Apply staged deployment</span><span class="dt"><span class="warn">closes open apps</span> · reboots into new image</span><span class="ct">⏎</span></div>
+          <div class="lrow"><span class="tile">i</span><span class="nm">Deployment history</span><span class="dt">rpm-ostree status · last 5</span><span class="ct">→</span></div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="pane" id="p-set">
+          <div class="set-grp">Window</div>
+          <div class="setrow"><span class="k">Width</span><span class="v"><span class="seg"><span>420</span><span>680</span><span class="on">920</span></span></span></div>
+          <div class="setrow"><span class="k">Compact mode collapses the rail to a caption column</span><span class="v">at ≤ 560</span></div>
+          <div class="setrow"><span class="k">Row density</span><span class="v"><span class="seg"><span>24</span><span class="on">28</span><span>34</span></span></span></div>
+          <div class="setrow"><span class="k">Opacity · Radius</span><span class="v">96% · 14</span></div>
+          <div class="setrow"><span class="k">Location</span><span class="v"><span class="seg"><span>↧ top</span><span class="on">◈ center</span><span>↥ bottom</span></span></span></div>
+          <div class="set-grp">Search</div>
+          <div class="setrow"><span class="k">Fuzzy matching (≥ 3 chars)</span><span class="v"><span class="tog"></span></span></div>
+          <div class="setrow"><span class="k">Category captions</span><span class="v"><span class="tog on"></span></span></div>
+          <div class="setrow"><span class="k">Menu on start</span><span class="v"><span class="tog on"></span></span></div>
+          <div class="setrow"><span class="k">Ctrl-number hints</span><span class="v"><span class="tog on"></span></span></div>
+          <div class="set-grp">Sources</div>
+          <div class="setrow"><span class="k">Applications · Hermes AI · Fleet · SSH · Snippets</span><span class="v"><span class="tog on"></span></span></div>
+          <div class="setrow"><span class="k">Web search</span><span class="v">fallback only <span class="tog"></span></span></div>
+          <div class="set-grp">AI</div>
+          <div class="setrow"><span class="k">Endpoint · Model</span><span class="v">192.168.1.243:4000/v1 · local-fast</span></div>
+          <div class="setrow"><span class="k">Copy answers on ⏎</span><span class="v"><span class="tog on"></span></span></div>
+        </div>
+
+        <!-- HELP keymap -->
+        <div class="pane" id="p-help">
+          <div class="sec">Keymap <span class="note">f1 anywhere · this page</span></div>
+          <div class="km">
+            <div class="kr"><kbd>type</kbd></div><div class="kd">filter — the field keeps the caret; ⏎ runs the top hit</div>
+            <div class="kr"><kbd>↓</kbd> <kbd>↑</kbd></div><div class="kd">walk results / rail — ↑ from first row returns to the field</div>
+            <div class="kr"><kbd>→</kbd> <kbd>←</kbd></div><div class="kd">drill in · back out — ← from rail enters the lens</div>
+            <div class="kr"><kbd>⌫</kbd></div><div class="kd">pop a level first, then clear the query</div>
+            <div class="kr"><kbd>esc</kbd></div><div class="kd">clear query → back a level → close at root</div>
+            <div class="kr"><kbd>ctrl 1–9</kbd></div><div class="kd">jump to a branch — numbers are pinned to the rail</div>
+            <div class="kr"><kbd>alt ⏎</kbd></div><div class="kd">secondary action — copy an answer, pin a row</div>
+            <div class="kr"><kbd>ctrl p</kbd></div><div class="kd">pin / unpin to Favorites</div>
+            <div class="kr"><kbd>ctrl s</kbd> <kbd>ctrl ,</kbd></div><div class="kd">settings · sources</div>
+            <div class="kr"><kbd>del</kbd></div><div class="kd">uninstall an app — always asks first</div>
+          </div>
+        </div>
+
+        <!-- ABOUT -->
+        <div class="pane" id="p-about">
+          <div class="sec">Foyer for KDE</div>
+          <div class="empty" style="padding-top:8px">
+            <div class="d" style="font-size:14.5px;line-height:1.7;color:var(--text)">
+              A native Plasma 6 reimagining of <b>omarchy-foyer v0.4.2</b>.<br>
+              Layer-shell window · KWin blur · dbus warm start · Super+Space.<br><br>
+              <span style="color:var(--dim)">Tokens resolve from the live color scheme at runtime —<br>
+              Breeze Dark here; every pixel derives from it.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENTS empty -->
+        <div class="pane" id="p-recents">
+          <div class="empty">
+            <div class="t">Nothing recent yet</div>
+            <div class="d">KDE activity feeds this on first use — files, apps, documents.<br>
+            Recents show <b>what</b> and <b>when</b>, never content.</div>
+          </div>
+        </div>
+
+        <!-- FAVORITES empty -->
+        <div class="pane" id="p-favs">
+          <div class="empty">
+            <div class="t">No pins yet</div>
+            <div class="d"><code>ctrl p</code> pins any row — app, host, snippet, question.<br>
+            Favorites mirror Kickoff favorites; prune there, this follows. Max 30.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- footer -->
+  <div class="ftr">
+    <span>⏎ open</span><span>→ drill</span><span>⌫ back</span><span>ctrl 1–9 jump</span>
+    <span>alt⏎ secondary</span><span>ctrl s settings</span>
+    <span class="sp"></span>
+    <span>SUPER+SPACE</span><span class="brand">FOYER · KDE v4</span>
+  </div>
+</div>
+
+<script>
+const STATES = {
+  boot:    {field:'', sel:'boot',  caret:false},
+  games:   {field:'', sel:'boot',  caret:false},
+  typed:   {field:'bro', sel:null, caret:true},
+  nomatch: {field:'zzz', sel:null, caret:true},
+  ai:      {field:'', sel:'ai',    caret:false},
+  stream:  {field:'which hosts are up right now?', sel:'ai', caret:false},
+  ready:   {field:'which hosts are up right now?', sel:'ai', caret:false},
+  system:  {field:'', sel:'system',caret:false},
+  fleet:   {field:'', sel:'fleet', caret:false},
+  ssh:     {field:'', sel:'ssh',   caret:false},
+  snippets:{field:'', sel:'snippets',caret:false},
+  settings:{field:'', sel:'settings',caret:false},
+  update:  {field:'', sel:'update',caret:false},
+  help:    {field:'', sel:'help',  caret:false},
+  about:   {field:'', sel:'about', caret:false},
+  recents: {field:'', sel:'recents',caret:false},
+  favs:    {field:'', sel:'favs',  caret:false},
+};
+const PH = 'search 250 apps · 83 modules · 14 hosts — or just ask';
+function showState(s){
+  const st = STATES[s]; if(!st) return 'no such state: '+s;
+  document.body.dataset.state = s;
+  const q = document.getElementById('q'), ph = document.getElementById('ph'),
+        qt = document.getElementById('qt');
+  qt.innerHTML = st.field ? st.field + (st.caret ? '<span class="caret"></span>' : '') : '';
+  ph.style.display = st.field ? 'none' : '';
+  document.getElementById('field').classList.toggle('focus', !!st.caret || s==='typed' || s==='nomatch' || s==='stream' || s==='ready');
+  document.querySelectorAll('#rail .rrow').forEach(r=>
+    r.classList.toggle('sel', r.dataset.goto===st.sel));
+  const sc = document.querySelector('.scroll'); if(sc) sc.scrollTop=0;
+  return 'ok: '+s;
+}
+document.querySelectorAll('#rail .rrow').forEach(r =>
+  r.addEventListener('click', ()=>showState(r.dataset.goto)));
+</script>
+</body>
+</html>

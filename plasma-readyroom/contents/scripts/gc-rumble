@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""Play a rumble effect on an evdev node. Python standard library only.
+
+    gc-rumble /dev/input/eventN [strong 0-100] [weak 0-100] [ms]
+
+Force feedback over evdev is three ioctls and a write, so it is done directly
+rather than pulling in python-evdev — the controller tab has to work on a bare
+install, and a rumble test that says "install a package first" is a rumble test
+nobody runs.
+
+The same code path works for every pad the kernel gives FF_RUMBLE to, which is
+all of them: xone, xpadneo, xpad and hid_playstation alike. What differs is
+which motors move. xone maps strong to the left motor and weak to the right and
+cannot reach the trigger motors at all; xpadneo drives the triggers too.
+
+Gamepad event nodes are uaccess-tagged for the logged-in seat, so this needs no
+root and no udev rule.
+"""
+
+import ctypes
+import fcntl
+import os
+import struct
+import sys
+import time
+
+EV_FF = 0x15
+FF_RUMBLE = 0x50
+
+# _IOC(dir, type, nr, size) = (dir << 30) | (size << 16) | (type << 8) | nr
+_IOC_WRITE = 1
+
+
+def _iow(type_char, nr, size):
+    return (_IOC_WRITE << 30) | (size << 16) | (ord(type_char) << 8) | nr
+
+
+class FFReplay(ctypes.Structure):
+    _fields_ = [("length", ctypes.c_uint16), ("delay", ctypes.c_uint16)]
+
+
+class FFTrigger(ctypes.Structure):
+    _fields_ = [("button", ctypes.c_uint16), ("interval", ctypes.c_uint16)]
+
+
+class FFRumbleEffect(ctypes.Structure):
+    _fields_ = [("strong_magnitude", ctypes.c_uint16),
+                ("weak_magnitude", ctypes.c_uint16)]
+
+
+class FFEnvelope(ctypes.Structure):
+    _fields_ = [("attack_length", ctypes.c_uint16), ("attack_level", ctypes.c_uint16),
+                ("fade_length", ctypes.c_uint16), ("fade_level", ctypes.c_uint16)]
+
+
+class FFPeriodicEffect(ctypes.Structure):
+    """Only here so the union — and therefore ff_effect — is the right size."""
+    _fields_ = [("waveform", ctypes.c_uint16), ("period", ctypes.c_uint16),
+                ("magnitude", ctypes.c_int16), ("offset", ctypes.c_int16),
+                ("phase", ctypes.c_uint16), ("envelope", FFEnvelope),
+                ("custom_len", ctypes.c_uint32), ("custom_data", ctypes.c_void_p)]
+
+
+class FFEffectUnion(ctypes.Union):
+    _fields_ = [("rumble", FFRumbleEffect), ("periodic", FFPeriodicEffect)]
+
+
+class FFEffect(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint16), ("id", ctypes.c_int16),
+                ("direction", ctypes.c_uint16), ("trigger", FFTrigger),
+                ("replay", FFReplay), ("u", FFEffectUnion)]
+
+
+def clamp_percent(value):
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        v = 60
+    return max(0, min(100, v))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: gc-rumble /dev/input/eventN [strong%] [weak%] [ms]", file=sys.stderr)
+        return 2
+
+    node = sys.argv[1]
+    strong = clamp_percent(sys.argv[2] if len(sys.argv) > 2 else 70)
+    weak = clamp_percent(sys.argv[3] if len(sys.argv) > 3 else 40)
+    try:
+        duration_ms = max(50, min(5000, int(sys.argv[4]))) if len(sys.argv) > 4 else 600
+    except ValueError:
+        duration_ms = 600
+
+    if not os.path.exists(node):
+        print('{"ok":false,"error":"no such device"}')
+        return 1
+
+    try:
+        fd = os.open(node, os.O_RDWR)
+    except PermissionError:
+        print('{"ok":false,"error":"no write access to the device node"}')
+        return 1
+    except OSError as exc:
+        print('{"ok":false,"error":"%s"}' % str(exc).replace('"', "'"))
+        return 1
+
+    effect = FFEffect()
+    effect.type = FF_RUMBLE
+    effect.id = -1                      # -1 asks the kernel to allocate one
+    effect.replay.length = duration_ms
+    effect.replay.delay = 0
+    effect.u.rumble.strong_magnitude = int(strong / 100 * 0xFFFF)
+    effect.u.rumble.weak_magnitude = int(weak / 100 * 0xFFFF)
+
+    eviocsff = _iow("E", 0x80, ctypes.sizeof(FFEffect))
+    eviocrmff = _iow("E", 0x81, ctypes.sizeof(ctypes.c_int))
+
+    try:
+        fcntl.ioctl(fd, eviocsff, effect)
+    except OSError as exc:
+        os.close(fd)
+        print('{"ok":false,"error":"this controller has no rumble (%s)"}'
+              % str(exc).replace('"', "'"))
+        return 1
+
+    # struct input_event on 64-bit: timeval(16) + type(2) + code(2) + value(4)
+    play = struct.pack("qqHHi", 0, 0, EV_FF, effect.id, 1)
+    try:
+        os.write(fd, play)
+        time.sleep(duration_ms / 1000 + 0.05)
+    finally:
+        # Effect slots are a small fixed pool in the driver; leaking them means
+        # the fifth rumble test of the evening fails with ENOSPC.
+        try:
+            fcntl.ioctl(fd, eviocrmff, ctypes.c_int(effect.id))
+        except OSError:
+            pass
+        os.close(fd)
+
+    print('{"ok":true,"strong":%d,"weak":%d,"ms":%d}' % (strong, weak, duration_ms))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

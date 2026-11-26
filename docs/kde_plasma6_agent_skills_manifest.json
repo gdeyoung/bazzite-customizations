@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "framework": "KDE Plasma 6",
+  "version": "6.0+",
+  "target_agent_capabilities": [
+    "plasmoid_generation",
+    "kwin_scripting",
+    "krunner_dbus_plugins",
+    "desktop_automation"
+  ],
+  "equivalencies_with_omarchy_quickshell": {
+    "shell_host": {
+      "omarchy": "omarchy-shell (Quickshell)",
+      "kde": "plasmashell",
+      "runtime": "Qt 6 / QML"
+    },
+    "widget_spec": {
+      "omarchy": "Quickshell QML Component + manifest.json",
+      "kde": "Plasma Applet (Plasmoid) + metadata.json"
+    },
+    "window_manager": {
+      "omarchy": "Hyprland (C++ plugins / hyprpm / hyprctl)",
+      "kde": "KWin (QML / JS Scripting Engine)"
+    },
+    "command_palette": {
+      "omarchy": "Omni / Quickshell overlay",
+      "kde": "KRunner (D-Bus runner protocol: org.kde.krunner1)"
+    }
+  },
+  "contracts": {
+    "plasmoid": {
+      "manifest_file": "metadata.json",
+      "required_keys": [
+        "KPlugin.Id",
+        "KPlugin.Name",
+        "KPackageStructure",
+        "X-Plasma-API-Minimum-Version"
+      ],
+      "plasma6_minimum_api": "6.0",
+      "entry_point": "contents/ui/main.qml",
+      "root_item": "PlasmoidItem",
+      "root_item_import": "org.kde.plasma.plasmoid",
+      "standard_qml_imports": [
+        "QtQuick",
+        "QtQuick.Layouts",
+        "org.kde.plasma.plasmoid",
+        "org.kde.plasma.core as PlasmaCore",
+        "org.kde.plasma.components as PlasmaComponents",
+        "org.kde.kirigami as Kirigami"
+      ],
+      "user_install_dir": "~/.local/share/plasma/plasmoids/",
+      "system_install_dir": "/usr/share/plasma/plasmoids/"
+    },
+    "kwin_script": {
+      "manifest_file": "metadata.json",
+      "package_structure": "KWin/Script",
+      "entry_point": "contents/code/main.js",
+      "global_objects": [
+        "workspace",
+        "options"
+      ],
+      "user_install_dir": "~/.local/share/kwin/scripts/"
+    },
+    "krunner_dbus": {
+      "dbus_interface": "org.kde.krunner1",
+      "service_naming_convention": "org.kde.runners.<name>",
+      "object_path": "/<name>",
+      "methods": {
+        "Actions": {
+          "in_signature": "",
+          "out_signature": "a(sss)",
+          "description": "Returns [(action_id, label, icon_name)]"
+        },
+        "Match": {
+          "in_signature": "s",
+          "out_signature": "a(sssida{sv})",
+          "description": "Returns [(match_id, label, icon_name, match_type, relevance_float, properties_map)]"
+        },
+        "Run": {
+          "in_signature": "ss",
+          "out_signature": "",
+          "description": "Invoked on execution: (match_id, action_id)"
+        }
+      }
+    }
+  },
+  "cli_tooling": {
+    "isolated_testing": {
+      "command": "plasmoidviewer",
+      "flags": {
+        "applet": "-a <path_or_id>",
+        "formfactor_panel": "-f horizontal",
+        "formfactor_desktop": "-f planar",
+        "location": "-l floating",
+        "hidpi_scale": "QT_SCALE_FACTOR=2 plasmoidviewer -a <path>"
+      }
+    },
+    "package_manager": {
+      "command": "kpackagetool6",
+      "install": "kpackagetool6 --type Plasma/Applet --install <path>",
+      "upgrade": "kpackagetool6 --type Plasma/Applet --upgrade <path>",
+      "list": "kpackagetool6 --type Plasma/Applet --list",
+      "remove": "kpackagetool6 --type Plasma/Applet --remove <plugin_id>"
+    },
+    "script_console": {
+      "command": "plasma-interactive-console",
+      "kwin_mode": "plasma-interactive-console --kwin",
+      "plasma_mode": "plasma-interactive-console --plasma"
+    },
+    "shell_restart": {
+      "command": "kquitapp6 plasmashell && kstart plasmashell"
+    }
+  },
+  "authoritative_references": [
+    {
+      "category": "Official Documentation",
+      "title": "Plasma Widget Tutorial",
+      "url": "https://develop.kde.org/docs/plasma/widget/",
+      "purpose": "Comprehensive guide for Plasma 6 applets, layout, and representations."
+    },
+    {
+      "category": "Official Documentation",
+      "title": "Porting Plasmoids to KF6",
+      "url": "https://develop.kde.org/docs/plasma/widget/porting_kf6/",
+      "purpose": "Authoritative breaking changes, PlasmoidItem migration, and KF6 API conventions."
+    },
+    {
+      "category": "Official Documentation",
+      "title": "Plasmoid Testing & Test Harnesses",
+      "url": "https://develop.kde.org/docs/plasma/widget/testing/",
+      "purpose": "Details on plasmoidviewer, plasmawindowed, and HiDPI verification."
+    },
+    {
+      "category": "Official Documentation",
+      "title": "KWin Scripting Tutorial",
+      "url": "https://develop.kde.org/docs/plasma/kwin/",
+      "purpose": "Window manager scripting architecture, events, and layout manipulation."
+    },
+    {
+      "category": "Official Documentation",
+      "title": "KWin Scripting API Reference",
+      "url": "https://develop.kde.org/docs/plasma/kwin/api/",
+      "purpose": "Complete API catalog for workspace, options, client geometry, and signals."
+    },
+    {
+      "category": "Official Documentation",
+      "title": "KRunner Metadata & D-Bus Protocol",
+      "url": "https://develop.kde.org/docs/plasma/krunner/metadata/",
+      "purpose": "Out-of-process runner protocol specification for command palettes."
+    },
+    {
+      "category": "Template Repositories",
+      "title": "Agundur KDE Plasma 6 Plasmoid Template",
+      "url": "https://github.com/Agundur-KDE/KDE-Plasma-Plasmoid-template",
+      "purpose": "Reference starter repository with CMake, QML components, and metadata."
+    },
+    {
+      "category": "Cross-Reference Source",
+      "title": "Omarchy Shell Plugins Manual",
+      "url": "https://omarchy.org/manual/shell-plugins/",
+      "purpose": "Architectural documentation of Quickshell plugins in Omarchy."
+    }
+  ]
+}

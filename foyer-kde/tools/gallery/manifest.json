@@ -1,0 +1,83 @@
+{
+  "subtitle": "Foyer for KDE · carded loop: 2 research lanes → design brief (concept-seed dealt hand) → 3 stance variants → 3-judge critique + CC council → converged build",
+  "iterations": [
+    {
+      "version": "R1",
+      "title": "Exploration — the dealt hand (concept-seed 35d933dc, indices 3·7·6)",
+      "verdict": "flight",
+      "commits": "",
+      "note": "Three materially different compositions, real fleet data (250 apps from the live .desktop scan, 12 peers, real KCMs/aliases/snippets), Breeze Dark token table, 17px base, mono for grammar only. Judged next: scores 8/7/4 (V3/V1/V2).",
+      "shots": [
+        {"file": "prototype/shots/v1-boot.png", "label": "V1 ATRIUM", "caption": "two-pane: foyer tree rail (inline fan-out, counts) + content lens. Games drilled."},
+        {"file": "prototype/shots/v1-typed.png", "label": "V1", "caption": "typed 'br' — cross-tree sectioned results in the lens pane"},
+        {"file": "prototype/shots/v1-ai.png", "label": "V1", "caption": "AI lane: ask card + streaming answer in place + recent questions"},
+        {"file": "prototype/shots/v2-boot.png", "label": "V2 FOUR CORNERS", "caption": "bento quadrants: Apps / System+Settings / AI / Fleet previews"},
+        {"file": "prototype/shots/v2-drilled-ai.png", "label": "V2", "caption": "AI quadrant drilled to full — answer streams in place"},
+        {"file": "prototype/shots/v2-typed.png", "label": "V2", "caption": "typed 'kod' — one results list overlays the whole window"},
+        {"file": "prototype/shots/v3-boot.png", "label": "V3 THRESHOLD", "caption": "query-first single column: foyer root as sectioned list, Apps fanned open"},
+        {"file": "prototype/shots/v3-expanded.png", "label": "V3", "caption": "accordion fan-out — Games expanded inline, indented children"},
+        {"file": "prototype/shots/v3-nomatch.png", "label": "V3", "caption": "no-match state — ESC clears, ENTER asks AI anyway"}
+      ]
+    },
+    {
+      "version": "R2",
+      "title": "Convergence — FOYER v4 (Atrium body · Threshold grammar · fork soul)",
+      "verdict": "ship-candidate",
+      "commits": "",
+      "note": "Judges: requirements 8/7/4 · interaction: Atrium base + Threshold grammar + V2 raises · craft: 5 fixes applied and vision-verified. Research: 'Foyer' = gdeyoung/omarchy-foyer v0.4.2 (fork DNA ported verbatim); KDE surface = LayerShellQt + enableBlurBehind + dbus warm start. Council (ai-tech): deterministic core first, AI lane explicit-Enter only, answers read-only — folded. All data real: live ICMP probe (13 UP · nas DOWN), .desktop scan, ssh config, hermes-runner config.",
+      "shots": [
+        {"file": "prototype/shots/v4-boot.png", "label": "BOOT", "caption": "root: 12-branch rail (Ctrl+1–9 hints, live counts) + category lens — fits without scroll"},
+        {"file": "prototype/shots/v4-games.png", "label": "DRILL", "caption": "APPS › GAMES — 14 apps flip to a 2-col grid, flat tiles + initials"},
+        {"file": "prototype/shots/v4-typed.png", "label": "TYPED", "caption": "'bro' — grouped results: Applications / Hermes / web fallback-only"},
+        {"file": "prototype/shots/v4-nomatch.png", "label": "NO MATCH", "caption": "'zzz' — inert Ask Hermes row: the model is never called without Enter"},
+        {"file": "prototype/shots/v4-ai.png", "label": "AI IDLE", "caption": "ask card: ai/hr grammar, model facts, recent questions only"},
+        {"file": "prototype/shots/v4-stream.png", "label": "STREAMING", "caption": "answer streams: caret, Copy disabled until done — state is distinct"},
+        {"file": "prototype/shots/v4-ready.png", "label": "ANSWERED", "caption": "real answer (live probe data), Copy = alt⏎, Continue in chat, questions-only history"},
+        {"file": "prototype/shots/v4-system.png", "label": "SYSTEM", "caption": "consequences are the confirmation — 'closes open apps' in orange, always visible"},
+        {"file": "prototype/shots/v4-fleet.png", "label": "FLEET", "caption": "live ICMP probe: 13 UP · 1 DOWN — nas dimmed, red dot, honest scroll"},
+        {"file": "prototype/shots/v4-settings.png", "label": "SETTINGS", "caption": "Ctrl+S in-launcher (fork parity): width/density/toggles/sources — compact mode = caption column"}
+      ]
+    },
+    {
+      "version": "R3",
+      "title": "Native build — pure QML, harness-verified (11 states, 0 errors)",
+      "verdict": "built",
+      "commits": "",
+      "note": "FoyerRoot.qml (1172 ln) + FoyerData.js: the entire v4 surface in native Qt6/QML, Kirigami.Theme runtime tokens (verified live: accent #569fcc, pos #7ea64b, neg #da4453 under Breeze Dark). Verified in the fleet nested-kwin harness: full plasmashell + private runtime dir + unique socket + PID-gated teardown; 11 states driven through a package-relative file channel (QML_XHR_ALLOW_FILE_READ), 12/12 transitions, zero applet errors, 11/11 unique frames; semantic pixel audit: system renders orange consequence rows (+267), fleet renders 13 green UP dots + red nas DOWN, rail 38px-pitch rows confirmed. Popup geometry proven unscaled 920×640 via corner beacons. Remaining: LayerShellQt daemon (needs layer-shell-qt-devel), live data wiring, kglobalaccel.",
+      "shots": [
+        {"file": "prototype/shots/native/qml-boot.png", "label": "NATIVE·BOOT", "caption": "the QML build, live in nested plasmashell — rail + lens + ask field, real scheme tokens"},
+        {"file": "prototype/shots/native/qml-games.png", "label": "NATIVE·DRILL", "caption": "Apps › Games grid — Repeater + GridLayout, focus border on row 0"},
+        {"file": "prototype/shots/native/qml-typed.png", "label": "NATIVE·TYPED", "caption": "'bro' grouped results — search grammar ported to QML"},
+        {"file": "prototype/shots/native/qml-nomatch.png", "label": "NATIVE·NO MATCH", "caption": "'zzz' — inert Ask row, AI never called without Enter"},
+        {"file": "prototype/shots/native/qml-ai.png", "label": "NATIVE·AI", "caption": "ask card + model facts + questions-only history"},
+        {"file": "prototype/shots/native/qml-stream.png", "label": "NATIVE·STREAM", "caption": "streaming state — distinct from ready, Copy armed on completion"},
+        {"file": "prototype/shots/native/qml-ready.png", "label": "NATIVE·ANSWERED", "caption": "answered state with Copy alt⏎ affordance"},
+        {"file": "prototype/shots/native/qml-system.png", "label": "NATIVE·SYSTEM", "caption": "destructive rows with consequence subtext — orange verified +267 px"},
+        {"file": "prototype/shots/native/qml-fleet.png", "label": "NATIVE·FLEET", "caption": "13 green UP dots + red nas DOWN — liveness verified in pixels"},
+        {"file": "prototype/shots/native/qml-ssh.png", "label": "NATIVE·SSH", "caption": "14-host list, mono names, gdtower tagged local"},
+        {"file": "prototype/shots/native/qml-settings.png", "label": "NATIVE·SETTINGS", "caption": "in-launcher settings rows — fork parity surface"}
+      ]
+    },
+    {
+      "version": "R4",
+      "title": "User-space daemon — PySide6 + layer-shell, no rpm-ostree",
+      "verdict": "built",
+      "commits": "",
+      "note": "The C++ daemon needed rpm-ostree layering — redesigned to pure user space: /usr/bin/python3 + PySide6 (system rpm, same Qt 6.11 as the desktop) hosts the SAME FoyerRoot in a LayerShellQt Layer.Top window (org.kde.layershell QML module already on host). KWin assigns the full output; the 920×640 card centers inside (measured 916×636 @ (242,182)). DBus gdeyoung.foyer toggle/show/hide verified; systemd user unit Type=dbus gives the krunner warm-start pattern; hotkey via kglobalaccel [services] — Meta+Space takeover from hermes-menu is flag-gated, never silent. Blur dropped (PyKDE absent; 0.96α card carries the design). 13/13 unique frames incl. hidden (0 UI px) + reshow (byte-identical).",
+      "shots": [
+        {"file": "prototype/shots/daemon/d-boot.png", "label": "DAEMON·BOOT", "caption": "the layer-shell overlay live in nested kwin — full-bleed surface, centered card"},
+        {"file": "prototype/shots/daemon/d-games.png", "label": "DAEMON·DRILL", "caption": "Apps › Games — same FoyerRoot, daemon host"},
+        {"file": "prototype/shots/daemon/d-typed.png", "label": "DAEMON·TYPED", "caption": "'bro' — grouped results over the real desktop showing through"},
+        {"file": "prototype/shots/daemon/d-nomatch.png", "label": "DAEMON·NO MATCH", "caption": "'zzz' — inert Ask row, explicit-Enter law"},
+        {"file": "prototype/shots/daemon/d-ai.png", "label": "DAEMON·AI", "caption": "AI lane idle — model facts, questions-only history"},
+        {"file": "prototype/shots/daemon/d-stream.png", "label": "DAEMON·STREAM", "caption": "streaming ≠ ready — distinct rendering"},
+        {"file": "prototype/shots/daemon/d-ready.png", "label": "DAEMON·ANSWERED", "caption": "answered state, Copy alt⏎"},
+        {"file": "prototype/shots/daemon/d-system.png", "label": "DAEMON·SYSTEM", "caption": "destructive rows — consequence subtext visible"},
+        {"file": "prototype/shots/daemon/d-fleet.png", "label": "DAEMON·FLEET", "caption": "13 green UP + red nas DOWN in the overlay"},
+        {"file": "prototype/shots/daemon/d-ssh.png", "label": "DAEMON·SSH", "caption": "14-host lane, mono names"},
+        {"file": "prototype/shots/daemon/d-hidden.png", "label": "DAEMON·HIDDEN", "caption": "after toggle-hide: zero UI pixels — clean unmapping"},
+        {"file": "prototype/shots/daemon/d-reshown.png", "label": "DAEMON·RESHOWN", "caption": "toggle-show: identical boot state back — warm roundtrip"}
+      ]
+    }
+  ]
+}

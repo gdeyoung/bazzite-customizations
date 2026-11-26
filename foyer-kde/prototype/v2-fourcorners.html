@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foyer KDE — V2 Four Corners</title>
+<style>
+:root{
+  --win:rgba(35,38,41,.96); --raised:#31363b; --raised2:#3b4045;
+  --hover:rgba(61,174,233,.13); --sel:rgba(30,146,255,.24);
+  --tx:#fcfcfc; --dim:#a1a9b1; --faint:#78828b;
+  --accent:#1e92ff; --accent-hi:#3daee9;
+  --pos:#27ae60; --neg:#da4453; --neu:#f67400;
+  --bd:rgba(255,255,255,.08); --bd2:rgba(255,255,255,.13);
+  --rw:14px; --rc:10px; --ri:7px;
+  --mono:'Noto Sans Mono',ui-monospace,monospace;
+  --sans:'Noto Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:17px;color:var(--tx);
+  background:radial-gradient(1200px 700px at 30% 20%,#1c2733 0%,transparent 60%),
+  radial-gradient(900px 600px at 75% 80%,#232030 0%,transparent 55%),#0c0f13;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.window{width:920px;height:640px;border-radius:var(--rw);background:var(--win);
+  border:1px solid var(--bd2);box-shadow:0 30px 90px rgba(0,0,0,.6),0 4px 18px rgba(0,0,0,.45);
+  backdrop-filter:blur(22px);display:flex;flex-direction:column;overflow:hidden;
+  animation:open .13s cubic-bezier(.2,.9,.3,1) both}
+@keyframes open{from{opacity:0;transform:scale(.982)}to{opacity:1;transform:scale(1)}}
+.hdr{display:flex;align-items:center;gap:12px;padding:14px 18px 12px}
+.hdr .lens{color:var(--faint)}
+.field{flex:1;display:flex;align-items:center;gap:8px;height:40px;border-bottom:2px solid var(--bd2)}
+.field.focus{border-color:var(--accent)}
+#q{flex:1;background:none;border:none;outline:none;color:var(--tx);font:400 17px/1 var(--mono);caret-color:var(--accent)}
+#q::placeholder{color:var(--faint)}
+.stage{flex:1;position:relative;min-height:0;padding:4px 14px 12px}
+/* ── quadrant grid ── */
+.quads{position:absolute;inset:4px 14px 12px;display:grid;
+  grid-template-columns:1fr 1fr;grid-template-rows:1.15fr 1fr;gap:12px;
+  transition:transform .16s cubic-bezier(.2,.9,.3,1),opacity .12s ease}
+.quads.away{transform:scale(.965);opacity:0;pointer-events:none}
+.quad{position:relative;background:rgba(49,54,59,.5);border:1px solid var(--bd);
+  border-radius:var(--rc);padding:14px 16px;overflow:hidden;display:flex;flex-direction:column;
+  transition:border-color .12s,background .12s}
+.quad:hover{border-color:var(--bd2)}
+.quad.focusq{border-color:rgba(30,146,255,.65);box-shadow:0 0 0 1.5px rgba(30,146,255,.35)}
+.quad-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.quad-h .ic{color:var(--accent-hi);display:flex}
+.quad-h .t{font-size:18px;font-weight:600;letter-spacing:.01em}
+.quad-h .n{margin-left:auto;font:500 11.5px/1 var(--mono);color:var(--faint);letter-spacing:.08em}
+.quad-body{flex:1;min-height:0;overflow:hidden}
+/* app tiles strip */
+.ftiles{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.ftile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px 7px;border-radius:var(--ri)}
+.ftile:hover{background:var(--hover)}
+.tile{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:600 15px/1 var(--sans);color:#fff}
+.ftile .fn{font-size:11.5px;color:var(--dim);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.catz{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.catz span{font:500 11.5px/1 var(--mono);color:var(--dim);border:1px solid var(--bd2);
+  border-radius:99px;padding:5px 10px;letter-spacing:.04em}
+.catz span:hover{color:var(--tx);border-color:var(--accent)}
+/* system quadrant */
+.prow{display:flex;align-items:center;gap:11px;min-height:40px;padding:4px 9px;border-radius:var(--ri)}
+.prow:hover{background:var(--hover)}
+.prow.sel{background:var(--sel)}
+.prow .ic{color:var(--dim);display:flex}
+.prow .meta{flex:1;min-width:0}
+.prow .nm{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .sub{font-size:11.5px;color:var(--faint);margin-top:1px;font-family:var(--mono)}
+.prow .act{font:500 10.5px/1 var(--mono);color:var(--faint);letter-spacing:.05em;white-space:nowrap}
+.kcmline{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 11px;
+  border:1px dashed var(--bd2);border-radius:var(--ri);color:var(--dim);font:400 13.5px/1 var(--mono)}
+/* ai quadrant */
+.airow{display:flex;align-items:center;gap:9px;background:rgba(28,31,34,.7);
+  border:1px solid var(--bd2);border-radius:var(--ri);padding:10px 12px;
+  font:400 14.5px/1.3 var(--mono);color:var(--dim)}
+.airow .pf{color:var(--accent-hi);font-weight:600}
+.recent{margin-top:9px}
+.recent .prow{min-height:34px}
+.recent .nm{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+.mrow{display:flex;align-items:center;gap:8px;margin-top:10px;font:500 11.5px/1 var(--mono);color:var(--faint)}
+.mrow .dot{width:7px;height:7px;border-radius:99px;background:var(--pos)}
+.mrow .chip{border:1px solid var(--bd2);border-radius:99px;padding:4px 10px;color:var(--dim)}
+/* fleet quadrant */
+.peers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.peer{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--ri);background:rgba(28,31,34,.45);border:1px solid transparent}
+.peer:hover{border-color:var(--bd2)}
+.peer .st{width:8px;height:8px;border-radius:99px;flex:0 0 auto}
+.st.on{background:var(--pos)}.st.off{background:var(--faint)}
+.peer .pn{font-size:13.5px;font-weight:500}
+.peer .pr{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.laneline{display:flex;gap:6px;margin-top:10px}
+.laneline span{font:500 11.5px/1 var(--mono);color:var(--dim);border:1px solid var(--bd2);border-radius:99px;padding:5px 10px}
+.laneline span:hover{color:var(--tx);border-color:var(--accent)}
+/* ── drilled pane ── */
+.drilled{position:absolute;inset:4px 14px 12px;background:rgba(35,38,41,.6);
+  border:1px solid var(--bd2);border-radius:var(--rc);display:none;flex-direction:column;overflow:hidden}
+.drilled.on{display:flex;animation:drill .16s cubic-bezier(.2,.9,.3,1) both}
+@keyframes drill{from{opacity:0;transform:scale(.965)}to{opacity:1;transform:scale(1)}}
+.dhdr{display:flex;align-items:center;gap:9px;padding:12px 16px;border-bottom:1px solid var(--bd)}
+.dhdr .ic{color:var(--accent-hi);display:flex}
+.dhdr .t{font-size:17px;font-weight:600}
+.dhdr .n{font:500 11.5px/1 var(--mono);color:var(--faint);letter-spacing:.08em}
+.dhdr .x{margin-left:auto;font:500 11px/1 var(--mono);color:var(--faint);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px;letter-spacing:.06em}
+.dhdr .x:hover{color:var(--tx);border-color:var(--accent)}
+.dscroll{flex:1;overflow-y:auto;padding:10px 12px 14px}
+.dscroll .prow{min-height:42px}
+.dscroll .prow .nm{font-size:16px}
+.d2{display:grid;grid-template-columns:210px 1fr;gap:0;flex:1;min-height:0}
+.d2 .l{border-right:1px solid var(--bd);overflow-y:auto;padding:8px}
+.d2 .r{overflow-y:auto;padding:10px 14px}
+.qcard{background:var(--raised);border:1px solid var(--bd2);border-radius:var(--rc);padding:16px 18px;margin-top:12px}
+.qcard .q{font:600 14px/1.5 var(--mono);color:var(--accent-hi);margin-bottom:10px}
+.qcard .a{font-size:15.5px;line-height:1.55}
+.qcard .a .cur{display:inline-block;width:8px;height:16px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.qcard .aa{display:flex;gap:8px;margin-top:14px}
+.chipbtn{font:500 12px/1 var(--mono);letter-spacing:.08em;color:var(--dim);border:1px solid var(--bd2);border-radius:6px;padding:7px 12px}
+.chipbtn:hover{color:var(--tx);border-color:var(--accent)}
+.chipbtn.pri{color:#fff;background:var(--accent);border-color:transparent}
+/* results overlay */
+.results{position:absolute;inset:4px 14px 12px;display:none;flex-direction:column;overflow:hidden}
+.results.on{display:flex}
+.rlist{flex:1;overflow-y:auto;padding:8px 10px 12px}
+.sect{font:600 11px/1 var(--mono);color:var(--faint);letter-spacing:.14em;padding:12px 8px 6px}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--dim)}
+.empty .kbd-hint{font:500 12px/1 var(--mono);color:var(--faint);letter-spacing:.1em}
+.ftr{display:flex;align-items:center;height:36px;padding:0 18px;gap:14px;border-top:1px solid var(--bd);
+  font:500 11.5px/1 var(--mono);color:var(--faint);letter-spacing:.07em}
+.ftr .grow{flex:1}
+kbd{border:1px solid var(--bd2);border-radius:4px;padding:2.5px 5.5px;color:var(--dim);font:500 10.5px/1 var(--mono);margin-right:2px}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="hdr">
+    <span class="lens"><svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6 14 14"/></svg></span>
+    <div class="field"><input id="q" placeholder="Type to search everything · or jump a corner — TAB cycles" autocomplete="off"></div>
+  </div>
+  <div class="stage">
+    <div class="quads" id="quads">
+      <div class="quad focusq" data-q="apps">
+        <div class="quad-h"><span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.8" y="1.8" width="5" height="5" rx="1.4"/><rect x="9.2" y="1.8" width="5" height="5" rx="1.4"/><rect x="1.8" y="9.2" width="5" height="5" rx="1.4"/><rect x="9.2" y="9.2" width="5" height="5" rx="1.4"/></svg></span><span class="t">Apps</span><span class="n">250 · 12 CATS</span></div>
+        <div class="quad-body">
+          <div class="ftiles" id="favs"></div>
+          <div class="catz" id="catz"></div>
+        </div>
+      </div>
+      <div class="quad" data-q="system">
+        <div class="quad-h"><span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.8v5M8 6.9a4.6 4.6 0 1 1-4.6 4.6"/></svg></span><span class="t">System &amp; Settings</span><span class="n">5 ACTIONS · 83 MODULES</span></div>
+        <div class="quad-body" id="sysq"></div>
+      </div>
+      <div class="quad" data-q="ai">
+        <div class="quad-h"><span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 1.5l1.7 4.8L14.5 8l-4.8 1.7L8 14.5 6.3 9.7 1.5 8l4.8-1.7z"/></svg></span><span class="t">AI</span><span class="n">LOCAL-FAST</span></div>
+        <div class="quad-body">
+          <div class="airow"><span class="pf">ai</span><span>type a question — ENTER asks</span></div>
+          <div class="recent" id="recq"></div>
+          <div class="mrow"><span class="dot"></span> local-fast · 27B · AICUBE:4000 <span class="chip">MODEL ▾</span></div>
+        </div>
+      </div>
+      <div class="quad" data-q="fleet">
+        <div class="quad-h"><span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="2.8" r="1.6"/><circle cx="2.8" cy="12.8" r="1.6"/><circle cx="13.2" cy="12.8" r="1.6"/><path d="M7 4.1 3.6 11.3M9 4.1l3.4 7.2M4.4 12.8h7.2"/></svg></span><span class="t">Fleet</span><span class="n">12 PEERS · 10 UP</span></div>
+        <div class="quad-body">
+          <div class="peers" id="peers"></div>
+          <div class="laneline"><span>SSH · 9</span><span>SNIPPETS · 5</span><span>HANDOFFS</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- drilled views -->
+    <div class="drilled" id="d-apps">
+      <div class="dhdr"><span class="ic">◇</span><span class="t">Apps</span><span class="n">250 APPS · 12 CATEGORIES</span><span class="x" data-close>ESC · BACK</span></div>
+      <div class="d2">
+        <div class="l" id="dapps-l"></div>
+        <div class="r" id="dapps-r"></div>
+      </div>
+    </div>
+    <div class="drilled" id="d-ai">
+      <div class="dhdr"><span class="ic">✦</span><span class="t">AI</span><span class="n">LOCAL-FAST · STREAMS IN PLACE</span><span class="x" data-close>ESC · BACK</span></div>
+      <div class="dscroll" id="d-ai-body"></div>
+    </div>
+    <div class="drilled" id="d-system">
+      <div class="dhdr"><span class="t">System &amp; Settings</span><span class="n">5 ACTIONS · 83 MODULES</span><span class="x" data-close>ESC · BACK</span></div>
+      <div class="dscroll" id="d-system-body"></div>
+    </div>
+    <div class="drilled" id="d-fleet">
+      <div class="dhdr"><span class="t">Fleet</span><span class="n">12 PEERS · 10 UP</span><span class="x" data-close>ESC · BACK</span></div>
+      <div class="dscroll" id="d-fleet-body"></div>
+    </div>
+    <!-- search results -->
+    <div class="results" id="results"><div class="rlist" id="rlist"></div></div>
+  </div>
+  <div class="ftr">
+    <span>FOYER · 250 APPS · 83 MODULES · 12 PEERS</span><span class="grow"></span>
+    <span><kbd>TAB</kbd>CORNERS</span><span><kbd>ENTER</kbd>DRILL</span><span><kbd>ESC</kbd>BACK · CLOSE</span>
+  </div>
+</div>
+<script>
+const I=(d)=>`<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const IC={lock:I('<rect x="3.2" y="7" width="9.6" height="7" rx="1.6"/><path d="M5.3 7V5.2a2.7 2.7 0 0 1 5.4 0V7"/>'),
+sleep:I('<path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z"/>'),
+out:I('<path d="M6 2.5H3A1.5 1.5 0 0 0 1.5 4v8A1.5 1.5 0 0 0 3 13.5h3M10.5 4.5 14 8l-3.5 3.5M14 8H6"/>'),
+reb:I('<path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c2.2 0 4 1.2 4.9 3M13.5 1.5v3.6h-3.6"/>'),
+off:I('<circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.6 1.6"/>'),
+ai:I('<path d="M8 1.5l1.7 4.8L14.5 8l-4.8 1.7L8 14.5 6.3 9.7 1.5 8l4.8-1.7z"/>'),
+ssh:I('<rect x="1.5" y="2.5" width="13" height="11" rx="1.8"/><path d="M4.2 6l2.4 2-2.4 2M8.4 10.3h3.4"/>'),
+snip:I('<path d="M5.5 2.5c-1.8 0-2 1.2-2 2.6v1.6c0 1.2-.6 2-1.5 2.3.9.3 1.5 1.1 1.5 2.3v1.6c0 1.4.2 2.6 2 2.6M10.5 2.5c1.8 0 2 1.2 2 2.6v1.6c0 1.2.6 2 1.5 2.3-.9.3-1.5 1.1-1.5 2.3v1.6c0 1.4-.2 2.6-2 2.6"/>'),
+star:I('<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.2L8 11.5l-3.8 2 .7-4.2-3.1-3 4.3-.6z"/>'),
+set:I('<path d="M1.5 4h13M1.5 8h13M1.5 12h13"/><circle cx="5" cy="4" r="1.5" fill="#31363b"/><circle cx="10.5" cy="8" r="1.5" fill="#31363b"/><circle cx="6" cy="12" r="1.5" fill="#31363b"/>')};
+const CATS={'Games':['9 Kings','Ad Fundum','After Inc: Revival','Age of Mythology: Retold','Avorion','Beyond All Reason','Boneraiser Minions','Brotato','Cemu AppImage','Dolphin Emulator','EmuDeck','Heroic Games Launcher','Lutris','Steam'],
+'Internet':['Angry IP Scanner','Brave','Chromium','Discord','Firefox','Google Chrome','Greenlight','JDownloader','KDE Connect','KopiaUI','Signal','Thunderbird','Transmission','Warp'],
+'Development':['Antigravity','Goose','Kate','KDebugSettings','LM-Studio','Podman Desktop','Sysprof','Whaler','ZCode','Builder'],
+'Audio & Video':['Audacity','Buzz','Easy Effects','FileBot','HandBrake','Haruna','JamesDSP','Kdenlive','Media Downloader','mpv Media Player','OBS Studio','pwvucontrol','Sonixd','VLC'],
+'Office':['Adobe Reader 9','calibre','Clearvoice','Collabora Office','E-book editor','E-book viewer','Joplin','LibreOffice','LibreOffice Calc','LibreOffice Writer','OnlyOffice'],
+'System Tools':['Bazzite Portal','Bazzite Updater','Bitwarden','Btrfs Assistant','Cardwire','Dolphin','Fan Control','Fedora Media Writer','Firewall','Firmware','GParted','Htop','KDiskMark','Konsole'],
+'Graphics':['Blender','Comic Reader Ultimate','Gwenview','Inkscape','Okular','Peek'],
+'Utilities':['4KTUBE','AnythingLLM Desktop','Ark','balenaEtcher','Bazaar','Bold Brew','Bottles','BoxBuddy','Claude','CoolerControl']};
+const GEN={'Brotato':'Arena roguelite horde survival','Avorion':'Sandbox space sim','Beyond All Reason':'Large-scale RTS','Kdenlive':'Video editor','Dolphin':'File manager','Firefox':'Web browser','Brave':'Web browser','Kate':'Text editor','Bitwarden':'Password manager','Blender':'3D creation suite','Inkscape':'Vector graphics editor','Steam':'Game store and launcher','Konsole':'Terminal emulator','calibre':'E-book library','Joplin':'Note taking','OBS Studio':'Streaming and recording','HandBrake':'Video transcoder','Gwenview':'Image viewer','VLC':'Media player'};
+const FAVS=['Dolphin','Firefox','Konsole','Kdenlive','Bitwarden','Steam'];
+const KCMS=['About this System','Accessibility','Activities','Animations','Application Permissions','Application Style','Audio CDs','Autostart','Background Services','Bluetooth','Breeze Window Decoration','Colors and Themes','Cursors','Date and Time','Desktop Effects','Displays','Energy Saving','Fonts','Input Devices','KRunner','Keyboard Shortcuts'];
+const PEERS=[['AICube','LiteLLM · MCP','on'],['AITower','ComfyUI · video','on'],['AI Box','embed · STT','on'],['MediaServer','Qwen 27B','on'],['Watertower','SearXNG · ES','on'],['NAS','TrueNAS','on'],['Spark GX10','VELO pool','on'],['Spark GX13','VELO pool','on'],['Spark2','GLM-5.3','on'],['Node','compute','off'],['HomeServer','Unraid apps','on'],['Jellyfin','media :8096','off']];
+const POWER=[['Lock Screen','lock','ENTER LOCKS NOW'],['Sleep','sleep','ENTER SLEEPS NOW'],['Log Out','out','ENTER LOGS OUT · CLOSES OPEN APPS'],['Reboot','reb','ENTER REBOOTS · CLOSES OPEN APPS'],['Shut Down','off','ENTER SHUTS DOWN · CLOSES OPEN APPS']];
+const RECENTS=['ask hermes about plasma 6.7 blur behind layer shell','ai summarize the omarchy menu format','hr check the fleet heartbeat and report gaps'];
+const SSH=[['aitower','root@192.168.1.246'],['aicube','root@192.168.1.243'],['aibox','root@192.168.1.239'],['watertower','root@192.168.1.249'],['nas','root@192.168.1.252'],['mediaserver','root@192.168.1.250'],['jellyfin','gdeyoung@192.168.1.238'],['micro','gdeyoung@192.168.1.240'],['spark','gdeyoung@192.168.1.245']];
+const HUES=['#1e92ff','#27ae60','#f67400','#9b59b6','#da4453','#1abc9c','#3daee9','#c9ce3b'];
+function tile(n,s=32){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))>>>0;
+ return `<span class="tile" style="width:${s}px;height:${s}px;background:linear-gradient(145deg,${HUES[h%8]},${HUES[(h+3)%8]}cc)">${n[0].toUpperCase()}</span>`}
+const $=id=>document.getElementById(id);
+/* root quadrant content */
+$('favs').innerHTML=FAVS.map(f=>`<div class="ftile">${tile(f)}<span class="fn">${f}</span></div>`).join('');
+$('catz').innerHTML=Object.keys(CATS).map(c=>`<span>${c} · ${CATS[c].length}</span>`).join('')+`<span>More · 4</span>`;
+$('sysq').innerHTML=POWER.slice(0,4).map((p,i)=>`<div class="prow"><span class="ic">${IC[p[1]]}</span><div class="meta"><div class="nm">${p[0]}</div></div><div class="act">${p[0]==='Lock Screen'||p[0]==='Sleep'?p[2]:'CLOSES OPEN APPS'}</div></div>`).join('')
+ +`<div class="kcmline">${IC.set} settings › 83 modules · type to filter</div>`;
+$('recq').innerHTML=RECENTS.map(r=>`<div class="prow"><span class="ic">${IC.ai}</span><div class="meta"><div class="nm">${r}</div></div></div>`).join('');
+$('peers').innerHTML=PEERS.map(p=>`<div class="peer"><span class="st ${p[2]==='on'?'on':'off'}"></span><div><div class="pn">${p[0]}</div><div class="pr">${p[1]}</div></div></div>`).join('');
+/* drilled: apps */
+let dsel='Games';
+function renderDApps(){$('dapps-l').innerHTML=`<div class="prow sel"><span class="ic">${IC.star}</span><div class="meta"><div class="nm">Favorites</div><div class="sub">KICKOFF MIRROR</div></div></div>`+
+ Object.keys(CATS).map(c=>`<div class="prow" data-c="${c}"><div class="meta"><div class="nm">${c}</div><div class="sub">${CATS[c].length} APPS</div></div></div>`).join('')+
+ `<div class="prow"><div class="meta"><div class="nm" style="color:var(--dim)">More categories</div><div class="sub">4</div></div></div>`;
+ $('dapps-r').innerHTML=CATS[dsel].map((a,i)=>`<div class="prow ${i===0?'sel':''}">${tile(a,30)}<div class="meta"><div class="nm">${a}</div><div class="sub" style="font-family:var(--sans);font-size:12px;color:var(--dim)">${GEN[a]||'Application'}</div></div><div class="act">ENTER</div></div>`).join('')}
+renderDApps();
+$('dapps-l').addEventListener('click',e=>{const r=e.target.closest('[data-c]');if(r){dsel=r.dataset.c;
+ document.querySelectorAll('#dapps-l .prow').forEach(x=>x.classList.remove('sel'));r.classList.add('sel');renderDApps();r.classList.add('sel')}});
+/* drilled: ai */
+$('d-ai-body').innerHTML=`<div class="airow" style="margin:2px 6px 0"><span class="pf">ai</span><span style="color:var(--tx)">how do I anchor a QML window as an overlay on KWin?</span></div>
+<div class="qcard"><div class="q">ai how do I anchor a QML window as an overlay on KWin?</div>
+<div class="a">Use LayerShellQt: anchor the window to the top edge centered, set the keyboard-interactivity flag, and request the blur region — the same path KRunner's own view takes<span class="cur"></span></div>
+<div class="aa"><span class="chipbtn pri">COPY</span><span class="chipbtn">CONTINUE IN CHAT</span><span class="chipbtn">MODEL · LOCAL-FAST ▾</span></div></div>
+<div class="sect">RECENT QUESTIONS</div>`+RECENTS.map(r=>`<div class="prow"><span class="ic">${IC.ai}</span><div class="meta"><div class="nm">${r}</div></div></div>`).join('');
+/* drilled: system */
+$('d-system-body').innerHTML=`<div class="sect">POWER · NO CONFIRMATION DIALOG — SUBTEXT IS THE CONFIRMATION</div>`+
+ POWER.map((p,i)=>`<div class="prow ${i===0?'sel':''}"><span class="ic">${IC[p[1]]}</span><div class="meta"><div class="nm">${p[0]}</div></div><div class="act">${p[2]}</div></div>`).join('')+
+ `<div class="sect">SETTINGS · 83 MODULES</div>`+KCMS.slice(0,8).map(k=>`<div class="prow"><span class="ic">${IC.set}</span><div class="meta"><div class="nm">${k}</div></div><div class="act">ENTER OPENS</div></div>`).join('')+
+ `<div class="prow" style="justify-content:center"><div class="nm" style="color:var(--faint);font:500 12px/1 var(--mono);letter-spacing:.08em">SHOWING 8 OF 83 · TYPE TO FILTER</div></div>`;
+/* drilled: fleet */
+$('d-fleet-body').innerHTML=`<div class="sect">PEERS · ENTER HANDS OFF</div>`+
+ PEERS.map((p,i)=>`<div class="prow ${i===0?'sel':''}"><span class="st ${p[2]==='on'?'on':'off'}" style="width:8px;height:8px;border-radius:99px"></span><div class="meta"><div class="nm">${p[0]}</div><div class="sub" style="font-family:var(--sans);font-size:12px;color:var(--dim)">${p[1]}</div></div><div class="act">${p[2]==='on'?'ENTER HANDS OFF':'OFFLINE'}</div></div>`).join('')+
+ `<div class="sect">SSH ALIASES · 9</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">`+
+ SSH.slice(0,6).map(s=>`<div class="prow"><span class="ic">${IC.ssh}</span><div class="meta"><div class="nm">${s[0]}</div><div class="sub">${s[1]}</div></div><div class="act">ENTER</div></div>`).join('')+`</div>`;
+/* drill + search state machine */
+function closeAll(){document.querySelectorAll('.drilled').forEach(d=>d.classList.remove('on'));$('results').classList.remove('on');$('quads').classList.remove('away')}
+document.querySelectorAll('.quad').forEach(q=>q.addEventListener('click',()=>{
+ closeAll();$('d-'+q.dataset.q).classList.add('on');$('quads').classList.add('away')}));
+document.querySelectorAll('[data-close]').forEach(x=>x.addEventListener('click',closeAll));
+/* tab cycles corner focus */
+let qi=0;const quads=[...document.querySelectorAll('.quad')];
+document.addEventListener('keydown',e=>{
+ if(e.key==='Tab'){e.preventDefault();if($('quads').classList.contains('away')||$('results').classList.contains('on')){closeAll();return}
+  quads[qi].classList.remove('focusq');qi=(qi+1)%quads.length;quads[qi].classList.add('focusq')}
+ if(e.key==='Escape'){if($('q').value){$('q').value='';filter('');}else closeAll()}
+ if(e.key==='Enter'&&$('quads').classList.contains('away')===false&&!e.target.closest('#q')&&$('q').value===''){quads[qi].click()}});
+/* search */
+function filter(v){const f=v.toLowerCase().trim();
+ if(!f){closeAll();return}
+ const el=$('results');el.classList.add('on');$('quads').classList.add('away');
+ document.querySelectorAll('.drilled').forEach(d=>d.classList.remove('on'));
+ const hits=[];
+ for(const[c,arr]of Object.entries(CATS))for(const a of arr)if(a.toLowerCase().includes(f))hits.push(['APPS · '+c,a,true]);
+ for(const k of KCMS)if(k.toLowerCase().includes(f))hits.push(['SETTINGS',k,false]);
+ for(const s of SSH)if(s[0].includes(f))hits.push(['SSH',s[0],false]);
+ for(const p of PEERS)if(p[0].toLowerCase().includes(f))hits.push(['FLEET',p[0],false]);
+ hits.push(['AI','Ask Hermes: '+v,false]);
+ if(!hits.length){$('rlist').innerHTML=`<div class="empty"><div>No matches for “${v}”</div><div class="kbd-hint"><kbd>ESC</kbd> CLEARS · <kbd>ENTER</kbd> ASKS AI</div></div>`;return}
+ const bySec={};for(const h of hits)(bySec[h[0]]=bySec[h[0]]||[]).push(h);
+ $('rlist').innerHTML=Object.entries(bySec).map(([sec,arr])=>`<div class="sect">${sec} · ${arr.length}</div>`+
+  arr.slice(0,6).map((x,i)=>`<div class="prow ${sec==='AI'?'sel':''}">${x[2]?tile(x[1],30):`<span class="ic">${IC.ai}</span>`}<div class="meta"><div class="nm" ${x[2]?'':'style="font-family:var(--mono);font-size:14.5px"'}>${x[1]}</div></div></div>`).join('')+
+  (arr.length>6?`<div class="prow" style="justify-content:center"><div class="nm" style="color:var(--faint);font:500 12px/1 var(--mono)">SHOWING 6 OF ${arr.length}</div></div>`:'')).join('')}
+$('q').addEventListener('input',e=>filter(e.target.value));
+setTimeout(()=>$('q').focus(),50);
+</script>
+</body>
+</html>

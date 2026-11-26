@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "greg@deyoungnet.com",
+                "Name": "Greg DeYoung"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Weather glyph + current temperature in the panel \u2014 click for the tabbed popup: Here + pinned places, details grid, remaining hours, 7-day forecast, sun times and a live keyless radar map. Plasma 6 port of gdeyoung.weather (Omarchy).",
+        "Icon": "weather-clear",
+        "Id": "com.gdeyoung.plasma.weatherx",
+        "License": "MIT",
+        "Name": "WeatherX",
+        "Version": "0.1.0",
+        "Website": "https://github.com/gdeyoung/omarchy-weather"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

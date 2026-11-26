@@ -34,6 +34,7 @@ zswapped=$(awk '/^Zswapped:/ { print $2 + 0 }' /proc/meminfo)
 read -r cpu_total cpu_idle < <(awk 'NR==1 { print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6 }' /proc/stat)
 cores_json=$(awk '/^cpu[0-9]/ { printf "%s[%d,%d]", (NR>2?",":""), $2+$3+$4+$5+$6+$7+$8+$9, $5+$6 }' /proc/stat)
 read -r load1 load5 load15 _ < /proc/loadavg
+up_s=$(cut -d. -f1 /proc/uptime)
 
 # --- Net: cumulative rx/tx per interface (except lo) --------------------------
 net_rx=0
@@ -77,7 +78,7 @@ vols_json=$(df -B1 --local \
     -x tmpfs -x devtmpfs -x efivarfs -x overlay -x squashfs \
     --output=source,fstype,used,size,target 2>/dev/null | awk '
     NR > 1 { tgt = $5; for (i = 6; i <= NF; i++) tgt = tgt " " $i }
-    NR > 1 && !seen[$1]++ { printf "%s[\"%s\",%s,%s]", (n++ ? "," : ""), tgt, $3, $4 }')
+    NR > 1 && !seen[$1]++ { printf "%s[\"%s\",%s,%s,\"%s\"]", (n++ ? "," : ""), tgt, $3, $4, $2 }')
 if src=$(findmnt -no SOURCE /home 2>/dev/null); then
   src="${src%%\[*}"                      # strip btrfs subvol: /dev/mapper/root[/@home]
   if read -r u _ < <(df -B1 --output=used,size "$src" 2>/dev/null | tail -n 1); then
@@ -100,6 +101,18 @@ if [ -n "$disk_dev" ] && [ -e /proc/diskstats ]; then
   stats=$(awk -v dev="$disk_dev" '$3==dev { print $4+0, $6+0, $8+0, $10+0; exit }' /proc/diskstats)
   [ -n "$stats" ] && read -r disk_reads disk_rsec disk_writes disk_wsec <<< "$stats"
 fi
+
+# --- Per-disk IO counters (whole disks only) --------------------------------
+# Cumulative sectors/completions per whole disk; the widget computes rates
+# from deltas. Partitions (nvme0n1p2, sda1) and virtual devices (loop, ram,
+# zram, dm-, md) are excluded — whole-disk names only. NOTE: nvme0n1 itself
+# ends in a digit, so "ends in digit = partition" is NOT a valid rule.
+disks_json=$(awk '
+  $3 ~ /^(nvme[0-9]+n[0-9]+(p[0-9]+)?|[sh]d[a-z]+[0-9]*|vd[a-z]+|mmcblk[0-9]+(p[0-9]+)?)$/ {
+    next_part = ($3 ~ /p[0-9]+$/ || ($3 ~ /^[sh]d[a-z]+[0-9]+$/))
+    if (next_part) next
+    printf "%s{\"n\":\"%s\",\"rs\":%d,\"ws\":%d,\"ri\":%d,\"wi\":%d}", (n++ ? "," : ""), $3, $6+0, $10+0, $4+0, $8+0
+  }' /proc/diskstats 2>/dev/null)
 
 # --- Temps (millidegrees, by hwmon name) --------------------------------------
 cpu_temp=-1; gpu_temp=-1; nvme_temp=-1
@@ -129,10 +142,10 @@ for d in /sys/class/hwmon/hwmon*; do
   fi
 done
 
-printf '{"ram_used_mb":%d,"ram_total_mb":%d,"mem_buffers_kb":%s,"mem_cached_kb":%s,"swap_total_kb":%s,"swap_used_kb":%s,"zswapped_kb":%s,"cpu_total":%s,"cpu_idle":%s,"cpu_cores":[%s],"load1":%s,"load5":%s,"load15":%s,"net_rx":%s,"net_tx":%s,"net_if":{%s},"disk_used_b":%s,"disk_total_b":%s,"vols":[%s],"disk_reads":%s,"disk_rsec":%s,"disk_writes":%s,"disk_wsec":%s,"cpu_temp_mc":%s,"gpu_temp_mc":%s,"nvme_temp_mc":%s,"gpu_busy_pct":%s,"vram_used_b":%s,"vram_total_b":%s,"gtt_used_b":%s,"gtt_total_b":%s,"gpu_power_mw":%s}\n' \
+printf '{"ram_used_mb":%d,"ram_total_mb":%d,"mem_buffers_kb":%s,"mem_cached_kb":%s,"swap_total_kb":%s,"swap_used_kb":%s,"zswapped_kb":%s,"cpu_total":%s,"cpu_idle":%s,"cpu_cores":[%s],"load1":%s,"load5":%s,"load15":%s,"up_s":%s,"net_rx":%s,"net_tx":%s,"net_if":{%s},"disk_used_b":%s,"disk_total_b":%s,"vols":[%s],"disks":[%s],"disk_dev":"%s","disk_reads":%s,"disk_rsec":%s,"disk_writes":%s,"disk_wsec":%s,"cpu_temp_mc":%s,"gpu_temp_mc":%s,"nvme_temp_mc":%s,"gpu_busy_pct":%s,"vram_used_b":%s,"vram_total_b":%s,"gtt_used_b":%s,"gtt_total_b":%s,"gpu_power_mw":%s}\n' \
   "$ram_used" "$mem_total" "$mem_buffers" "$mem_cached" "$swap_total" "$swap_used" "$zswapped" \
-  "$cpu_total" "$cpu_idle" "$cores_json" "$load1" "$load5" "$load15" \
+  "$cpu_total" "$cpu_idle" "$cores_json" "$load1" "$load5" "$load15" "$up_s" \
   "$net_rx" "$net_tx" "$if_json" \
-  "$disk_used" "$disk_total" "$vols_json" "$disk_reads" "$disk_rsec" "$disk_writes" "$disk_wsec" \
+  "$disk_used" "$disk_total" "$vols_json" "$disks_json" "$disk_dev" "$disk_reads" "$disk_rsec" "$disk_writes" "$disk_wsec" \
   "$cpu_temp" "$gpu_temp" "$nvme_temp" \
   "$gpu_busy" "$vram_used" "$vram_total" "$gtt_used" "$gtt_total" "$gpu_power"

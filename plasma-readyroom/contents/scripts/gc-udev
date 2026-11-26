@@ -1,0 +1,111 @@
+#!/bin/bash
+#
+# The optional udev rule, shown and installed in a terminal the user can see.
+#
+# Two Xbox controls are root-owned: the guide-button light and the wireless
+# adapter's pairing attribute. Ready Room hides both rather than offering
+# buttons that fail, and this is the one place that explains why and offers to
+# change it.
+#
+# Deliberately a terminal flow rather than a GUI one. Installing it needs root,
+# and a bar widget that silently raises a polkit prompt for a file write is
+# worse than one that shows you the four lines first and asks. The rule is
+# printed in full before anything is installed.
+#
+set -uo pipefail
+
+PLUGIN_DIR="$(dirname "$(dirname "$(realpath "$0")")")"
+RULE_SRC="$PLUGIN_DIR/udev/71-readyroom.rules"
+RULE_DST="/etc/udev/rules.d/71-readyroom.rules"
+
+bold()  { printf '\033[1m%s\033[0m\n' "$1"; }
+dim()   { printf '\033[2m%s\033[0m\n' "$1"; }
+green() { printf '\033[32m%s\033[0m\n' "$1"; }
+yellow(){ printf '\033[33m%s\033[0m\n' "$1"; }
+
+installed() { [[ -f $RULE_DST ]]; }
+
+led_writable() {
+  local led
+  for led in /sys/class/leds/gip*:white:status/brightness; do
+    [[ -w $led ]] && return 0
+  done
+  return 1
+}
+
+pairing_writable() {
+  local p
+  for p in /sys/bus/usb/devices/*:1.0/pairing; do
+    [[ -w $p ]] && return 0
+  done
+  return 1
+}
+
+status_line() {
+  printf '  %-28s %s\n' "$1" "$2"
+}
+
+echo
+bold "Ready Room — optional udev rule"
+echo
+cat <<'TXT'
+Two things on an Xbox controller are owned by root, so Ready Room cannot
+touch them as you:
+
+  • the guide-button light on the controller
+  • putting the wireless adapter into pairing mode from the panel
+
+Neither is required. Without this rule those two controls simply do not
+appear, and pairing still works the normal way: press the button on the
+adapter, then the one on the controller.
+TXT
+echo
+bold "Right now"
+if installed; then
+  status_line "rule" "$(green installed)"
+else
+  status_line "rule" "not installed"
+fi
+led_writable && status_line "guide light" "$(green writable)" || status_line "guide light" "not writable"
+pairing_writable && status_line "adapter pairing" "$(green writable)" || status_line "adapter pairing" "not writable"
+echo
+bold "The rule, in full"
+echo
+dim "$(grep -v '^\s*#' "$RULE_SRC" | grep -v '^\s*$')"
+echo
+dim "(it grants access to the 'input' group — you are in it if your controller works at all)"
+echo
+
+if installed; then
+  read -r -p "Remove this rule? [y/N] " answer
+  case "$answer" in
+    [yY]*)
+      sudo rm -f "$RULE_DST" &&
+        sudo udevadm control --reload-rules &&
+        green "Removed. The two controls will disappear from the panel."
+      ;;
+    *) echo "Left alone." ;;
+  esac
+else
+  read -r -p "Install it? You'll be asked for your password. [y/N] " answer
+  case "$answer" in
+    [yY]*)
+      if sudo install -m 644 "$RULE_SRC" "$RULE_DST" &&
+         sudo udevadm control --reload-rules &&
+         sudo udevadm trigger --subsystem-match=leds --subsystem-match=usb; then
+        echo
+        green "Installed."
+        yellow "Turn the controller off and on again (and re-plug the adapter)"
+        yellow "so the rule applies to it. The panel picks it up by itself."
+      else
+        echo
+        yellow "That didn't work. Nothing was changed."
+      fi
+      ;;
+    *) echo "Nothing installed." ;;
+  esac
+fi
+
+echo
+read -r -p "Press enter to close. " _ || true
+exit 0

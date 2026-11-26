@@ -13,7 +13,7 @@
         "Id": "com.gdeyoung.plasma.sysmon",
         "License": "MIT",
         "Name": "SysMon",
-        "Version": "0.6.0",
+        "Version": "0.7.0",
         "Website": "https://github.com/gdeyoung/omarchy-sysmon"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
