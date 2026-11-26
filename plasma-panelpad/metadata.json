@@ -8,7 +8,7 @@
         "License": "MIT",
         "Name": "PanelPad",
         "Version": "1.0.0",
-        "Website": "https://github.com/gdeyoung"
+        "Website": "https://github.com/gdeyoung/bazzite-customizations/tree/master/plasma-panelpad"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"

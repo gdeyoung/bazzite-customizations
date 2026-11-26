@@ -14,7 +14,7 @@
         "License": "MIT",
         "Name": "SysMon",
         "Version": "0.7.0",
-        "Website": "https://github.com/gdeyoung/omarchy-sysmon"
+        "Website": "https://github.com/gdeyoung/bazzite-customizations/tree/master/plasma-sysmon"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
