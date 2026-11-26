@@ -51,8 +51,7 @@ Item {
             id: label
             text: root.text
             color: root.fg
-            font: Kirigami.Theme.smallFont
-            font.weight: root.active ? Font.Bold : Font.Normal
+            font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, weight: (root.active ? Font.Bold : Font.Normal) })
             opacity: root.linkStyle || root.active ? 1.0 : 0.85
         }
     }

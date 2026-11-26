@@ -569,8 +569,7 @@ PlasmoidItem {
                         Layout.fillWidth: true
                         text: "Ready Room"
                         color: Kirigami.Theme.textColor
-                        font: Kirigami.Theme.defaultFont
-                        font.weight: Font.Bold
+                        font: Qt.font({ family: Kirigami.Theme.defaultFont.family, pixelSize: Kirigami.Theme.defaultFont.pixelSize, weight: (Font.Bold) })
                     }
                     Text {
                         Layout.fillWidth: true
@@ -586,8 +585,7 @@ PlasmoidItem {
                     text: root.replayArmed ? "\uF044B " + root.replaySeconds + "s" : ""
                     visible: root.replayArmed
                     color: Kirigami.Theme.negativeTextColor
-                    font: Kirigami.Theme.smallFont
-                    font.weight: Font.Bold
+                    font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, weight: (Font.Bold) })
                 }
             }
 

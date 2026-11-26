@@ -103,8 +103,7 @@ ColumnLayout {
         text: (ssect.modelData.name === "root" ? "SYSTEM @" : "HOME @HOME")
           + " · " + (ssect.modelData.count || 0)
         color: Kirigami.Theme.disabledTextColor
-        font: Kirigami.Theme.smallFont
-        font.letterSpacing: 1
+        font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, letterSpacing: (1) })
       }
       Repeater {
         model: tm.dayGroups(ssect.modelData.rows || [], false)

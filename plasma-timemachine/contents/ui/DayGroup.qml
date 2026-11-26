@@ -71,8 +71,7 @@ Item {
           Layout.alignment: Qt.AlignVCenter
           text: dgroup.modelData && dgroup.modelData.bucket ? tm.bucketLetter(dgroup.modelData.bucket) : ""
           color: tm.bucketColor(dgroup.modelData.bucket)
-          font: Kirigami.Theme.smallFont
-          font.bold: true
+          font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
         }
       }
 
@@ -144,8 +143,7 @@ Item {
                       anchors.centerIn: parent
                       text: "latest"
                       color: Kirigami.Theme.textColor
-                      font: Kirigami.Theme.smallFont
-                      font.bold: true
+                      font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
                     }
                   }
                 }
@@ -188,8 +186,7 @@ Item {
                     color: drow.modelData.type === "pre" ? Kirigami.Theme.neutralTextColor
                       : drow.modelData.type === "post" ? Kirigami.Theme.positiveTextColor
                       : Kirigami.Theme.activeTextColor
-                    font: Kirigami.Theme.smallFont
-                    font.bold: true
+                    font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
                   }
                 }
                 Text {

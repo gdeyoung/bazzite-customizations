@@ -308,8 +308,7 @@ PlasmoidItem {
       Text {
         text: root.ageText
         color: compactRoot.containsMouse ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
-        font: Kirigami.Theme.smallFont
-        font.bold: true
+        font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
       }
     }
 

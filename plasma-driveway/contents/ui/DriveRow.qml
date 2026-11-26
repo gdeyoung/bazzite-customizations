@@ -81,8 +81,7 @@ RowLayout {
             textFormat: Text.PlainText
             text: row.drive ? (row.drive.label || row.drive.name || Model.kindName(row.drive)) : ""
             color: row.fg
-            font: Kirigami.Theme.smallFont
-            font.bold: row.isSystem
+            font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: (row.isSystem) })
             elide: Text.ElideRight
         }
         Text {

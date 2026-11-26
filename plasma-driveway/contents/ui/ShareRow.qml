@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.components as PC3
 import "Model.js" as Model
 
 // One configured share row (Shares tab): scheme glyph, label, live

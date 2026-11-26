@@ -37,8 +37,7 @@ Rectangle {
       anchors.verticalCenter: parent.verticalCenter
       text: pill.word
       color: pill.hue
-      font: Kirigami.Theme.smallFont
-      font.bold: true
+      font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
     }
   }
 }

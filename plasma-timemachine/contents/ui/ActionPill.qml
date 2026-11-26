@@ -39,8 +39,7 @@ Rectangle {
     anchors.centerIn: parent
     text: apill.label
     color: apill.hue
-    font: Kirigami.Theme.smallFont
-    font.bold: true
+    font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true })
   }
 
   MouseArea {

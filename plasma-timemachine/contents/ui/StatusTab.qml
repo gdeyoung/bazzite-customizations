@@ -92,7 +92,7 @@ ColumnLayout {
         Text { anchors.horizontalCenter: parent.horizontalCenter; text: "drill"; color: Kirigami.Theme.disabledTextColor; font: Kirigami.Theme.smallFont }
         Text { anchors.horizontalCenter: parent.horizontalCenter; text: statusTab.drill ? (statusTab.drill.pass + "/" + (statusTab.drill.pass + statusTab.drill.fail)) : "—"; color: Kirigami.Theme.textColor; font.bold: true; font.pixelSize: Kirigami.Units.gridUnit * 0.8 }
         Text { anchors.horizontalCenter: parent.horizontalCenter; text: statusTab.drill ? tm.fmtTs(statusTab.drill.ts) : "never run"; color: Kirigami.Theme.disabledTextColor; font: Kirigami.Theme.smallFont }
-        Text { anchors.horizontalCenter: parent.horizontalCenter; visible: statusTab.drill; text: statusTab.drill && statusTab.drill.fail === 0 ? "PASS" : "FAIL"; color: statusTab.drill && statusTab.drill.fail === 0 ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor; font: Kirigami.Theme.smallFont; font.bold: true }
+        Text { anchors.horizontalCenter: parent.horizontalCenter; visible: statusTab.drill; text: statusTab.drill && statusTab.drill.fail === 0 ? "PASS" : "FAIL"; color: statusTab.drill && statusTab.drill.fail === 0 ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor; font: Qt.font({ family: Kirigami.Theme.smallFont.family, pixelSize: Kirigami.Theme.smallFont.pixelSize, bold: true }) }
       }
     }
   }
